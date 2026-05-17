@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: smit_csc
       POSTGRES_USER: csc_admin
       POSTGRES_PASSWORD: secure_db_password
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -52,8 +50,6 @@ services:
       dockerfile: artifacts/smit-csc-info/Dockerfile
     container_name: smit_csc_frontend
     restart: always
-    ports:
-      - "80:80"
     volumes:
       # Map assets volume read-only directly to Nginx's static folder.
       # This serves assets directly from host disk, bypassing the build image.
