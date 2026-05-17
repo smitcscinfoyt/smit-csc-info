@@ -105,5 +105,10 @@
     "use-image": "^1.1.4",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.12"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-arm64-gnu": "4.59.0",
+    "@rollup/rollup-linux-arm64-musl": "4.59.0",
+    "@rollup/rollup-linux-x64-gnu": "4.59.0"
   }
 }

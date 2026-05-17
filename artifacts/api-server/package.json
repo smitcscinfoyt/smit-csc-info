@@ -41,5 +41,9 @@
     "esbuild-plugin-pino": "^2.3.3",
     "pino-pretty": "^13",
     "thread-stream": "3.1.0"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-arm64": "0.27.3",
+    "@esbuild/linux-x64": "0.27.3"
   }
 }
