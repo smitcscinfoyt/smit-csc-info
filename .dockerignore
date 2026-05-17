@@ -1,0 +1,23 @@
+# Ignore large asset folder (will be mounted as volume instead)
+attached_assets/
+
+# Ignore dependency and build directories
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.pnpm-store/
+.local/
+.config/
+
+# Ignore development logs and system files
+*.log
+*.txt
+*.md
+.git/
+.replit
+.replitignore
+screenshots/
+
+# Ignore unused sandbox mockup folder
+artifacts/mockup-sandbox/

@@ -1,0 +1,1093 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Smit CSC Info API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User management
+  - name: membership
+    description: Prime membership operations
+  - name: content
+    description: Content and scheme resources
+  - name: payments
+    description: Payment operations
+  - name: admin
+    description: Admin operations
+  - name: documents
+    description: Document management
+  - name: storage
+    description: File storage operations
+  - name: tools
+    description: Digital service tools (background removal, etc.)
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /membership/plans:
+    get:
+      operationId: getMembershipPlans
+      tags: [membership]
+      summary: Get available membership plans
+      responses:
+        "200":
+          description: Plans list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MembershipPlan"
+
+  /membership/status:
+    get:
+      operationId: getMembershipStatus
+      tags: [membership]
+      summary: Get current user membership status
+      responses:
+        "200":
+          description: Membership status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MembershipStatus"
+
+  /membership/subscribe:
+    post:
+      operationId: subscribeMembership
+      tags: [membership]
+      summary: Initiate a membership subscription (payment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeBody"
+      responses:
+        "200":
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentInitResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /credits/me:
+    get:
+      operationId: getMyCredits
+      tags: [tools]
+      summary: Get current user's FHD credit balance and Prime status
+      responses:
+        "200":
+          description: Credit balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreditBalance"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /tools/remove-bg-fhd:
+    post:
+      operationId: removeBackgroundFhd
+      tags: [tools]
+      summary: Premium FHD background removal via Remove.bg (Prime only, 1 credit)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+                bgColor:
+                  type: ["string", "null"]
+                  description: Optional hex color (e.g. ffffff). Omit for transparent.
+      responses:
+        "200":
+          description: PNG image with background removed
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+          headers:
+            X-Credits-Remaining:
+              schema:
+                type: integer
+              description: Credits left after this call
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: No credits or not Prime
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Premium engine unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /payments:
+    get:
+      operationId: getPayments
+      tags: [payments]
+      summary: Get payment history for current user
+      responses:
+        "200":
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+
+  /payments/{transactionId}/verify:
+    post:
+      operationId: verifyPayment
+      tags: [payments]
+      summary: Verify payment status
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+
+  /content:
+    get:
+      operationId: getContent
+      tags: [content]
+      summary: Get content items (videos, forms, schemes)
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: type
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: isPrime
+          in: query
+          schema:
+            type: ["boolean", "null"]
+      responses:
+        "200":
+          description: Content list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentItem"
+
+  /content/{id}:
+    get:
+      operationId: getContentItem
+      tags: [content]
+      summary: Get a single content item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Content item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /content/categories:
+    get:
+      operationId: getContentCategories
+      tags: [content]
+      summary: Get distinct content categories with counts
+      responses:
+        "200":
+          description: Categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ContentCategory"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [users]
+      summary: Get dashboard summary for current user
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /admin/users:
+    get:
+      operationId: adminGetUsers
+      tags: [admin]
+      summary: Admin - Get all users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: limit
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUsersResponse"
+
+  /admin/payments:
+    get:
+      operationId: adminGetPayments
+      tags: [admin]
+      summary: Admin - Get all payments
+      responses:
+        "200":
+          description: Payments list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+
+  /admin/content:
+    post:
+      operationId: adminCreateContent
+      tags: [admin]
+      summary: Admin - Create a content item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContentBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentItem"
+
+  /admin/content/{id}:
+    patch:
+      operationId: adminUpdateContent
+      tags: [admin]
+      summary: Admin - Update a content item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContentBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentItem"
+    delete:
+      operationId: adminDeleteContent
+      tags: [admin]
+      summary: Admin - Delete a content item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/content/sync-youtube:
+    post:
+      operationId: adminSyncYoutube
+      tags: [admin]
+      summary: Admin - Sync YouTube channel playlists & videos into the content library
+      responses:
+        "200":
+          description: Sync summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/YoutubeSyncResult"
+        "500":
+          description: Sync failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Admin - Get platform statistics
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
+  /documents:
+    get:
+      operationId: getDocuments
+      tags: [documents]
+      summary: List all documents
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: isPrime
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetDocumentsResponse"
+
+  /admin/documents:
+    post:
+      operationId: adminCreateDocument
+      tags: [admin, documents]
+      summary: Admin - Create a document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDocumentBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentItem"
+
+  /admin/documents/{id}:
+    delete:
+      operationId: adminDeleteDocument
+      tags: [admin, documents]
+      summary: Admin - Delete a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned upload URL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    YoutubeSyncResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        playlists:
+          type: integer
+        videos:
+          type: integer
+        inserted:
+          type: integer
+        updated:
+          type: integer
+        message:
+          type: string
+      required:
+        - success
+        - playlists
+        - videos
+        - inserted
+        - updated
+
+    RegisterBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        mobile:
+          type: string
+        password:
+          type: string
+      required:
+        - name
+        - email
+        - mobile
+        - password
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        mobile:
+          type: ["string", "null"]
+        role:
+          type: string
+        createdAt:
+          type: string
+        isPrime:
+          type: ["boolean", "null"]
+      required:
+        - id
+        - name
+        - email
+        - role
+        - createdAt
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    UpdateUserBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        mobile:
+          type: ["string", "null"]
+
+    MembershipPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        nameGu:
+          type: string
+        duration:
+          type: integer
+        durationUnit:
+          type: string
+        price:
+          type: integer
+        features:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - nameGu
+        - duration
+        - durationUnit
+        - price
+        - features
+
+    MembershipStatus:
+      type: object
+      properties:
+        isActive:
+          type: boolean
+        plan:
+          type: ["string", "null"]
+        expiresAt:
+          type: ["string", "null"]
+        daysRemaining:
+          type: ["integer", "null"]
+      required:
+        - isActive
+
+    SubscribeBody:
+      type: object
+      properties:
+        planId:
+          type: string
+      required:
+        - planId
+
+    CreditBalance:
+      type: object
+      properties:
+        isPrime:
+          type: boolean
+        credits:
+          type: integer
+        monthlyAllowance:
+          type: integer
+        cycleStart:
+          type: ["string", "null"]
+        nextRenewal:
+          type: ["string", "null"]
+      required:
+        - isPrime
+        - credits
+        - monthlyAllowance
+
+    PaymentInitResponse:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        redirectUrl:
+          type: string
+        amount:
+          type: integer
+        plan:
+          type: string
+      required:
+        - transactionId
+        - redirectUrl
+        - amount
+        - plan
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        amount:
+          type: integer
+        plan:
+          type: string
+        transactionId:
+          type: string
+        status:
+          type: string
+        expiryDate:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - userId
+        - amount
+        - plan
+        - transactionId
+        - status
+        - createdAt
+
+    ContentItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        titleGu:
+          type: ["string", "null"]
+        category:
+          type: string
+        type:
+          type: string
+        link:
+          type: string
+        description:
+          type: ["string", "null"]
+        isPrime:
+          type: boolean
+        thumbnailUrl:
+          type: ["string", "null"]
+        youtubeVideoId:
+          type: ["string", "null"]
+        playlistId:
+          type: ["string", "null"]
+        playlistTitle:
+          type: ["string", "null"]
+        publishedAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - title
+        - category
+        - type
+        - link
+        - isPrime
+        - createdAt
+
+    ContentCategory:
+      type: object
+      properties:
+        category:
+          type: string
+        count:
+          type: integer
+      required:
+        - category
+        - count
+
+    CreateContentBody:
+      type: object
+      properties:
+        title:
+          type: string
+        titleGu:
+          type: ["string", "null"]
+        category:
+          type: string
+        type:
+          type: string
+        link:
+          type: string
+        description:
+          type: ["string", "null"]
+        isPrime:
+          type: boolean
+        thumbnailUrl:
+          type: ["string", "null"]
+      required:
+        - title
+        - category
+        - type
+        - link
+        - isPrime
+
+    DashboardSummary:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        membership:
+          $ref: "#/components/schemas/MembershipStatus"
+        recentPayments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        contentStats:
+          type: object
+          properties:
+            totalContent:
+              type: integer
+            primeContent:
+              type: integer
+            freeContent:
+              type: integer
+          required:
+            - totalContent
+            - primeContent
+            - freeContent
+      required:
+        - user
+        - membership
+        - recentPayments
+        - contentStats
+
+    AdminUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - users
+        - total
+        - page
+        - limit
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        activeMembers:
+          type: integer
+        totalRevenue:
+          type: integer
+        totalContent:
+          type: integer
+        recentSignups:
+          type: integer
+      required:
+        - totalUsers
+        - activeMembers
+        - totalRevenue
+        - totalContent
+        - recentSignups
+
+    DocumentItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        fileUrl:
+          type: string
+        fileName:
+          type: string
+        fileType:
+          type: string
+        category:
+          type: string
+        isPrime:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - title
+        - fileUrl
+        - fileName
+        - fileType
+        - category
+        - isPrime
+        - createdAt
+
+    GetDocumentsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/DocumentItem"
+
+    CreateDocumentBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        fileUrl:
+          type: string
+        fileName:
+          type: string
+        fileType:
+          type: string
+        category:
+          type: string
+        isPrime:
+          type: boolean
+      required:
+        - title
+        - fileUrl
+        - fileName
+        - fileType
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required:
+        - name
+        - size
+        - contentType
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required:
+        - uploadURL
+        - objectPath
