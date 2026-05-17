@@ -44,6 +44,7 @@ services:
         condition: service_healthy
     networks:
       - csc_network
+      - proxy-net
 
   frontend:
     build:
@@ -63,6 +64,7 @@ services:
       - api
     networks:
       - csc_network
+      - proxy-net
 
 volumes:
   postgres_data:
@@ -70,3 +72,5 @@ volumes:
 networks:
   csc_network:
     driver: bridge
+  proxy-net:
+    external: true
