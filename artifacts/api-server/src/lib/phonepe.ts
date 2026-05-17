@@ -21,20 +21,9 @@ function getSaltIndex(): string    { return process.env.PHONEPE_CLIENT_VERSION ?
 function getBaseUrl(): string      { return process.env.PHONEPE_BASE_URL ?? ""; }
 
 // ─── API version detection ────────────────────────────────────────────────────
-// v2 OAuth credentials have:
-//   - PHONEPE_CLIENT_ID  (OAuth client id, e.g. "SU..." for sandbox)
-//   - PHONEPE_CLIENT_SECRET (OAuth client secret, UUID format)
-//
-// v1 checksum credentials have:
-//   - No PHONEPE_CLIENT_ID — only PHONEPE_MERCHANT_ID + a salt key in CLIENT_SECRET
-//   - PHONEPE_BASE_URL explicitly contains "hermes" or "pg-sandbox"
-//
-// Rule: if PHONEPE_CLIENT_ID is set → always use v2 OAuth (even if PHONEPE_BASE_URL looks like v1).
+// Rule: if PHONEPE_CLIENT_ID is set → always use v2 OAuth.
 function isV1Api(): boolean {
-  // If a CLIENT_ID is configured these are v2 OAuth credentials — never use v1 for them.
   if (getClientId()) return false;
-
-  // No CLIENT_ID: fall back to detecting v1 from base URL
   const url = getBaseUrl();
   return url.includes("hermes") || url.includes("pg-sandbox") || url.includes("api-preprod");
 }
@@ -45,39 +34,24 @@ const V1_STATUS_PATH  = "/pg/v1/status";
 const V2_OAUTH_URL    = "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
 const V2_PG_BASE      = "https://api.phonepe.com/apis/pg";
 
-// PhonePe-published endpoints:
-//   Sandbox v1  → https://api-preprod.phonepe.com/apis/pg-sandbox
-//   Production v1 → https://api.phonepe.com/apis/hermes
 const V1_SANDBOX_BASE    = "https://api-preprod.phonepe.com/apis/pg-sandbox";
 const V1_PRODUCTION_BASE = "https://api.phonepe.com/apis/hermes";
 
-/**
- * Returns true when credentials are for the PhonePe sandbox/UAT environment.
- * PhonePe sandbox OAuth client IDs start with "SU" (Sandbox UAT).
- */
 function isSandboxCredentials(): boolean {
   return getClientId().startsWith("SU");
 }
 
 function getV1BaseUrl(): string {
   const configured = getBaseUrl();
-
-  // If explicitly configured to sandbox or preprod URL — trust it as-is
   if (configured.includes("api-preprod") || configured.includes("pg-sandbox")) {
     return configured;
   }
-
-  // Auto-correct: sandbox credentials must NOT hit the production endpoint (→ 404).
-  // Route them to the PhonePe sandbox environment automatically.
   if (isSandboxCredentials()) {
     console.log(
-      `[PhonePe v1] Sandbox credentials detected (client_id starts with "SU"). ` +
-      `Auto-routing to sandbox endpoint: ${V1_SANDBOX_BASE}`
+      `[PhonePe v1] Sandbox credentials detected. Auto-routing to: ${V1_SANDBOX_BASE}`
     );
     return V1_SANDBOX_BASE;
   }
-
-  // Production credentials — use configured URL or the standard production base
   return configured || V1_PRODUCTION_BASE;
 }
 
@@ -96,39 +70,43 @@ export function isPhonePeConfigured(): boolean {
 }
 
 // ─── Callback base URL ────────────────────────────────────────────────────────
+// FIX: Reads SITE_URL first so PhonePe always calls back to your live domain.
+// ACTION REQUIRED: Add  SITE_URL=https://smitcscinfo.com  to your production env vars.
 export function getCallbackBaseUrl(): string {
-  const domain =
-    process.env.REPLIT_DEV_DOMAIN ||
-    (process.env.REPLIT_DOMAINS || "").split(",")[0];
-  return domain ? `https://${domain}` : "http://localhost:8080";
+  // Top priority: explicit production domain override.
+  if (process.env.SITE_URL) {
+    return process.env.SITE_URL.replace(/\/$/, "");
+  }
+  // Fallback: REPLIT_DOMAINS (set automatically on Replit deployments).
+  // The last entry is the custom domain; earlier entries are the .replit.app domain.
+  const replitDomains = (process.env.REPLIT_DOMAINS || "")
+    .split(",")
+    .map((d) => d.trim())
+    .filter(Boolean);
+  if (replitDomains.length > 0) {
+    return `https://${replitDomains[replitDomains.length - 1]}`;
+  }
+  return "http://localhost:8080";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  V1 Implementation (Checksum-based)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Compute X-VERIFY checksum for v1 pay endpoint:
- *   SHA256(base64Payload + "/pg/v1/pay" + saltKey) + "###" + saltIndex
- */
 function computeV1PayChecksum(base64Payload: string): string {
-  const saltKey   = getClientSecret();  // PHONEPE_CLIENT_SECRET is the salt key in v1
-  const saltIndex = getSaltIndex();     // PHONEPE_CLIENT_VERSION is the salt index (usually "1")
+  const saltKey   = getClientSecret();
+  const saltIndex = getSaltIndex();
   const hashInput = base64Payload + V1_PAY_PATH + saltKey;
   const sha256    = crypto.createHash("sha256").update(hashInput).digest("hex");
   return `${sha256}###${saltIndex}`;
 }
 
-/**
- * Compute X-VERIFY checksum for v1 status endpoint:
- *   SHA256("/pg/v1/status/{merchantId}/{txnId}" + saltKey) + "###" + saltIndex
- */
 function computeV1StatusChecksum(merchantTransactionId: string): string {
-  const saltKey   = getClientSecret();
-  const saltIndex = getSaltIndex();
+  const saltKey    = getClientSecret();
+  const saltIndex  = getSaltIndex();
   const merchantId = getMerchantId();
-  const hashInput = `${V1_STATUS_PATH}/${merchantId}/${merchantTransactionId}${saltKey}`;
-  const sha256    = crypto.createHash("sha256").update(hashInput).digest("hex");
+  const hashInput  = `${V1_STATUS_PATH}/${merchantId}/${merchantTransactionId}${saltKey}`;
+  const sha256     = crypto.createHash("sha256").update(hashInput).digest("hex");
   return `${sha256}###${saltIndex}`;
 }
 
@@ -166,10 +144,10 @@ async function initiateV1Payment({
     if (cleaned.length === 10) payload.mobileNumber = cleaned;
   }
 
-  const payloadJson    = JSON.stringify(payload);
-  const base64Payload  = Buffer.from(payloadJson).toString("base64");
-  const xVerify        = computeV1PayChecksum(base64Payload);
-  const endpoint       = `${getV1BaseUrl()}${V1_PAY_PATH}`;
+  const payloadJson   = JSON.stringify(payload);
+  const base64Payload = Buffer.from(payloadJson).toString("base64");
+  const xVerify       = computeV1PayChecksum(base64Payload);
+  const endpoint      = `${getV1BaseUrl()}${V1_PAY_PATH}`;
 
   console.log(
     `[PhonePe v1] POST ${endpoint}\n` +
@@ -186,8 +164,8 @@ async function initiateV1Payment({
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
-      "Content-Type":  "application/json",
-      "X-VERIFY":      xVerify,
+      "Content-Type": "application/json",
+      "X-VERIFY":     xVerify,
     },
     body: JSON.stringify({ request: base64Payload }),
   });
@@ -213,10 +191,7 @@ async function initiateV1Payment({
     throw new Error(`PhonePe v1 non-JSON response (HTTP ${response.status}): ${rawResp}`);
   }
 
-  console.log(
-    `[PhonePe v1] Response HTTP ${response.status}:\n` +
-    JSON.stringify(data, null, 2)
-  );
+  console.log(`[PhonePe v1] Response HTTP ${response.status}:\n` + JSON.stringify(data, null, 2));
 
   const redirectInfoUrl = data?.data?.instrumentResponse?.redirectInfo?.url;
 
@@ -227,13 +202,8 @@ async function initiateV1Payment({
     );
   }
 
-  // Sandbox detection (UAT URL contains "preprod" or "t2")
   if (redirectInfoUrl.includes("mercury-t2") || redirectInfoUrl.includes("preprod")) {
-    console.warn(
-      `[PhonePe v1] ⚠️  Payment page is SANDBOX (${redirectInfoUrl}). ` +
-      `UPI/QR will NOT work in test mode. Ensure PHONEPE_BASE_URL, PHONEPE_MERCHANT_ID ` +
-      `and PHONEPE_CLIENT_SECRET are production values.`
-    );
+    console.warn(`[PhonePe v1] ⚠️  SANDBOX payment page detected. UPI/QR will NOT work in test mode.`);
   } else {
     console.log(`[PhonePe v1] ✅ Production payment URL: ${redirectInfoUrl}`);
   }
@@ -246,20 +216,17 @@ async function checkV1Status(merchantTransactionId: string): Promise<{
   state: string;
   details?: unknown;
 }> {
-  const merchantId  = getMerchantId();
-  const xVerify     = computeV1StatusChecksum(merchantTransactionId);
-  const endpoint    = `${getV1BaseUrl()}${V1_STATUS_PATH}/${merchantId}/${merchantTransactionId}`;
+  const merchantId = getMerchantId();
+  const xVerify    = computeV1StatusChecksum(merchantTransactionId);
+  const endpoint   = `${getV1BaseUrl()}${V1_STATUS_PATH}/${merchantId}/${merchantTransactionId}`;
 
-  console.log(
-    `[PhonePe v1] GET ${endpoint}\n` +
-    `  X-VERIFY: ${xVerify}`
-  );
+  console.log(`[PhonePe v1] GET ${endpoint}\n  X-VERIFY: ${xVerify}`);
 
   const response = await fetch(endpoint, {
     method: "GET",
     headers: {
-      "Content-Type": "application/json",
-      "X-VERIFY":     xVerify,
+      "Content-Type":  "application/json",
+      "X-VERIFY":      xVerify,
       "X-MERCHANT-ID": merchantId,
     },
   });
@@ -284,16 +251,10 @@ async function checkV1Status(merchantTransactionId: string): Promise<{
     throw new Error(`PhonePe v1 status non-JSON (HTTP ${response.status}): ${rawResp}`);
   }
 
-  console.log(
-    `[PhonePe v1] Status response HTTP ${response.status}:\n` +
-    JSON.stringify(data, null, 2)
-  );
+  console.log(`[PhonePe v1] Status response HTTP ${response.status}:\n` + JSON.stringify(data, null, 2));
 
-  // v1 success codes: PAYMENT_SUCCESS
   const state   = data?.data?.state ?? data?.data?.responseCode ?? (data.success ? "COMPLETED" : "FAILED");
-  const success = data.success === true && (
-    state === "COMPLETED" || state === "PAYMENT_SUCCESS"
-  );
+  const success = data.success === true && (state === "COMPLETED" || state === "PAYMENT_SUCCESS");
 
   return { success, state, details: data };
 }
@@ -346,21 +307,34 @@ async function getV2AccessToken(): Promise<string> {
   return tokenCache.token;
 }
 
+// FIX: Added callbackUrl to parameters AND included it in merchantUrls sent to PhonePe.
+// Previously callbackUrl was accepted by initiatePhonePePayment() but silently dropped here —
+// PhonePe v2 never received it, so it never sent a server-to-server (S2S) POST notification.
+// Result: if a user closed their browser after paying, payment was never processed on your end.
 async function initiateV2Payment({
   merchantTransactionId,
   amount,
   redirectUrl,
+  callbackUrl,
   mobileNumber,
 }: {
   merchantTransactionId: string;
   merchantUserId: string;
   amount: number;
   redirectUrl: string;
+  callbackUrl?: string;
   mobileNumber?: string;
 }): Promise<{ phonePeRedirectUrl: string }> {
   const token       = await getV2AccessToken();
   const merchantId  = getMerchantId();
   const amountPaisa = Math.round(amount * 100);
+
+  const merchantUrls: Record<string, string> = { redirectUrl };
+  // FIX: Register the S2S callback so PhonePe POSTs to your backend when payment completes,
+  // independent of whether the user's browser successfully completes the redirect.
+  if (callbackUrl) {
+    merchantUrls.callbackUrl = callbackUrl;
+  }
 
   const body: Record<string, unknown> = {
     merchantOrderId: merchantTransactionId,
@@ -369,7 +343,7 @@ async function initiateV2Payment({
     paymentFlow: {
       type: "PG_CHECKOUT",
       message: "Smit CSC Info Membership",
-      merchantUrls: { redirectUrl },
+      merchantUrls,
     },
   };
 
@@ -383,13 +357,15 @@ async function initiateV2Payment({
   console.log(
     `[PhonePe v2] POST ${getV2PgBase()}/checkout/v2/pay\n` +
     `  merchantOrderId: ${merchantTransactionId}\n` +
-    `  amount: ₹${amount} = ${amountPaisa} paisa`
+    `  amount: ₹${amount} = ${amountPaisa} paisa\n` +
+    `  redirectUrl: ${redirectUrl}\n` +
+    `  callbackUrl: ${callbackUrl ?? "(not set)"}`
   );
 
   const response = await fetch(`${getV2PgBase()}/checkout/v2/pay`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type":  "application/json",
       "Authorization": `O-Bearer ${token}`,
     },
     body: JSON.stringify(body),
@@ -475,6 +451,7 @@ export async function initiatePhonePePayment(params: {
 }): Promise<{ phonePeRedirectUrl: string }> {
   console.log(`[PhonePe] Using API version: ${isV1Api() ? "v1 (checksum)" : "v2 (OAuth)"}`);
   console.log(`[PhonePe] Base URL: ${getBaseUrl() || "(not set, using default v2)"}`);
+  console.log(`[PhonePe] Callback base URL: ${getCallbackBaseUrl()}`);
 
   if (isV1Api()) {
     return initiateV1Payment({
