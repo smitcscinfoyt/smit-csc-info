@@ -32,6 +32,12 @@ function fromLocalInputValue(v: string): string {
   return new Date(v).toISOString();
 }
 
+function addDays(localDatetimeValue: string, days: number): string {
+  const d = new Date(localDatetimeValue);
+  d.setDate(d.getDate() + days);
+  return toLocalInputValue(d.toISOString());
+}
+
 const PLAN_OPTIONS = [
   { id: "*", label: "All plans" },
   { id: "gold", label: "Operator: Gold" },
@@ -81,6 +87,7 @@ export default function AdminCoupons() {
   const [editing, setEditing] = useState<AdminCoupon | null>(null);
   const [form, setForm] = useState<CouponFormState>(emptyForm());
   const [saving, setSaving] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<AdminCoupon | null>(null);
 
   async function load() {
     setLoading(true);
@@ -103,6 +110,8 @@ export default function AdminCoupons() {
 
   function openEdit(c: AdminCoupon) {
     setEditing(c);
+    const validFrom = toLocalInputValue(c.validFrom);
+    const validUntil = toLocalInputValue(c.validUntil);
     setForm({
       code: c.code,
       description: c.description ?? "",
@@ -112,11 +121,20 @@ export default function AdminCoupons() {
       maxUses: c.maxUses == null ? "" : String(c.maxUses),
       perUserLimit: String(c.perUserLimit),
       minOrderRupees: String(Math.floor(c.minOrderPaise / 100)),
-      validFrom: toLocalInputValue(c.validFrom),
-      validUntil: toLocalInputValue(c.validUntil),
+      validFrom,
+      // FIX: If stored validUntil is already past validFrom, auto-extend to validFrom+30d
+      validUntil: new Date(validUntil) > new Date(validFrom) ? validUntil : addDays(validFrom, 30),
       isActive: c.isActive,
     });
     setDialogOpen(true);
+  }
+
+  // FIX: When validFrom changes, if validUntil is now before validFrom, auto-update validUntil
+  function handleValidFromChange(newFrom: string) {
+    const updatedUntil = new Date(form.validUntil) <= new Date(newFrom)
+      ? addDays(newFrom, 30)
+      : form.validUntil;
+    setForm({ ...form, validFrom: newFrom, validUntil: updatedUntil });
   }
 
   function buildPayload(): CouponInput | null {
@@ -127,14 +145,13 @@ export default function AdminCoupons() {
     if (form.discountType === "percent" && dv > 100) { toast({ title: "Percent cannot exceed 100", variant: "destructive" }); return null; }
     if (!form.validFrom || !form.validUntil) { toast({ title: "Validity dates required", variant: "destructive" }); return null; }
     if (new Date(form.validUntil) <= new Date(form.validFrom)) {
-      toast({ title: "End must be after start", variant: "destructive" }); return null;
+      toast({ title: "End must be after start", description: "Valid Until date/time must be after Valid From.", variant: "destructive" }); return null;
     }
     const plans = form.applicablePlans.length === 0 ? ["*"] : form.applicablePlans;
     return {
       code,
       description: form.description.trim() || null,
       discountType: form.discountType,
-      // For "fixed" type the input is rupees, convert to paise.
       discountValue: form.discountType === "fixed" ? dv * 100 : dv,
       applicablePlans: plans.join(","),
       maxUses: form.maxUses.trim() ? parseInt(form.maxUses, 10) : null,
@@ -178,11 +195,29 @@ export default function AdminCoupons() {
       toast({ title: "Coupon deleted" });
       await load();
     } catch (err: any) {
-      toast({
-        title: "Delete failed",
-        description: err?.data?.error || err?.message || "Try again",
-        variant: "destructive",
-      });
+      const errMsg: string = err?.data?.error || err?.message || "";
+      // FIX: If delete blocked due to existing payments, offer to deactivate instead
+      if (errMsg.toLowerCase().includes("referenced") || errMsg.toLowerCase().includes("redemption") || errMsg.toLowerCase().includes("deactivate")) {
+        setDeactivateTarget(c);
+      } else {
+        toast({
+          title: "Delete failed",
+          description: errMsg || "Try again",
+          variant: "destructive",
+        });
+      }
+    }
+  }
+
+  async function handleForceDeactivate() {
+    if (!deactivateTarget) return;
+    try {
+      await updateAdminCoupon(deactivateTarget.id, { isActive: false });
+      toast({ title: `"${deactivateTarget.code}" deactivated`, description: "Coupon is now disabled and cannot be used." });
+      setDeactivateTarget(null);
+      await load();
+    } catch (err: any) {
+      toast({ title: "Deactivate failed", description: err?.message, variant: "destructive" });
     }
   }
 
@@ -313,6 +348,7 @@ export default function AdminCoupons() {
           </CardContent>
         </Card>
 
+        {/* Coupon create/edit dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -431,21 +467,27 @@ export default function AdminCoupons() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Valid From</Label>
+                  {/* FIX: use handleValidFromChange so validUntil auto-updates when From changes */}
                   <Input
                     type="datetime-local"
                     value={form.validFrom}
-                    onChange={(e) => setForm({ ...form, validFrom: e.target.value })}
+                    onChange={(e) => handleValidFromChange(e.target.value)}
                     data-testid="form-valid-from"
                   />
                 </div>
                 <div>
                   <Label>Valid Until</Label>
+                  {/* FIX: min attribute prevents selecting date before validFrom in browser picker */}
                   <Input
                     type="datetime-local"
                     value={form.validUntil}
+                    min={form.validFrom}
                     onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
                     data-testid="form-valid-until"
                   />
+                  {form.validUntil && form.validFrom && new Date(form.validUntil) <= new Date(form.validFrom) && (
+                    <p className="text-xs text-red-600 mt-1">Valid Until must be after Valid From</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3 pt-2">
@@ -462,6 +504,29 @@ export default function AdminCoupons() {
               <Button onClick={handleSave} disabled={saving} data-testid="btn-save-coupon">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 {editing ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* FIX: Deactivate-instead dialog when delete is blocked by existing payments */}
+        <Dialog open={!!deactivateTarget} onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cannot Delete Coupon</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                <span className="font-mono font-bold text-gray-900">{deactivateTarget?.code}</span> coupon is referenced by existing payments and cannot be deleted (to preserve payment history).
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Would you like to <strong>deactivate</strong> it instead? Deactivated coupons cannot be used by anyone.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeactivateTarget(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={handleForceDeactivate}>
+                Deactivate Coupon
               </Button>
             </DialogFooter>
           </DialogContent>
