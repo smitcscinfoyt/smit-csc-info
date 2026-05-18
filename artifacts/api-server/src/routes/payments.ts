@@ -47,6 +47,7 @@ router.get("/payments", requireAuth, async (req: AuthRequest, res): Promise<void
 // ─── PhonePe Payment Callback (GET + POST) ────────────────────────────────────
 // Handles both browser redirects (GET) and server-to-server POST callbacks from PhonePe.
 async function handlePhonePeCallback(req: any, res: any): Promise<void> {
+    const isS2S = req.method === "POST";
   const base = getCallbackBaseUrl();
 
   try {
@@ -121,9 +122,11 @@ async function handlePhonePeCallback(req: any, res: any): Promise<void> {
     if (success) {
       await activateMembership(merchantTransactionId);
       console.log(`[PhonePe Callback] ✅ Membership activated for txn: ${merchantTransactionId}`);
+            if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
       res.redirect(`${base}/payment/success?txn=${merchantTransactionId}`);
     } else if (state === "PENDING") {
       console.log(`[PhonePe Callback] Payment PENDING for txn: ${merchantTransactionId}`);
+            if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
       res.redirect(`${base}/payment/pending?txn=${merchantTransactionId}`);
     } else {
       console.log(`[PhonePe Callback] Payment FAILED (state=${state}) for txn: ${merchantTransactionId}`);
@@ -131,10 +134,12 @@ async function handlePhonePeCallback(req: any, res: any): Promise<void> {
         .update(paymentsTable)
         .set({ status: "failed" })
         .where(eq(paymentsTable.transactionId, merchantTransactionId));
+       if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
       res.redirect(`${base}/payment/pending?txn=${merchantTransactionId}&failed=1`);
     }
   } catch (err: any) {
     console.error(`[PhonePe Callback] Unexpected error:`, err);
+      if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
     res.redirect(`${base}/payment/pending`);
   }
 }
