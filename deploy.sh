@@ -28,81 +28,89 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# =====================================
-# ERROR HANDLER
-# =====================================
-trap 'error "Deployment failed on line $LINENO"' ERR
+rollback() {
+    error "Deployment failed."
+    warn "Keeping existing containers running."
+    exit 1
+}
+
+trap rollback ERR
 
 # =====================================
 # CHECK APP DIRECTORY
 # =====================================
 if [ ! -d "$APP_DIR/.git" ]; then
-    error "Git repository not found in $APP_DIR"
+    error "Git repository not found: $APP_DIR"
     exit 1
 fi
 
 cd "$APP_DIR"
 
 # =====================================
-# CHECK DOCKER COMPOSE
+# DOCKER COMPOSE DETECTION
 # =====================================
 if docker compose version >/dev/null 2>&1; then
     COMPOSE="docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
     COMPOSE="docker-compose"
 else
-    error "Docker Compose not installed"
+    error "Docker Compose not found"
     exit 1
 fi
 
 # =====================================
-# SHOW CURRENT COMMIT
-# =====================================
-log "Current commit:"
-git log --oneline -1 || true
-
-# =====================================
-# FETCH LATEST
+# FETCH LATEST CODE
 # =====================================
 log "Fetching latest code..."
+
 git fetch origin
 
-# =====================================
-# DISCARD LOCAL CHANGES
-# =====================================
 warn "Discarding local changes..."
 
 git reset --hard
-git clean -fd
+git clean -fdx
 
-# =====================================
-# CHECKOUT BRANCH
-# =====================================
-log "Switching to branch: $BRANCH"
+log "Checking out $BRANCH"
+
 git checkout "$BRANCH"
 
-# =====================================
-# REBASE/PULL
-# =====================================
-log "Pulling latest changes..."
+log "Pulling latest code..."
+
 git pull --rebase origin "$BRANCH"
 
 # =====================================
-# BUILD + START CONTAINERS
+# BUILD FIRST (IMPORTANT)
 # =====================================
-log "Building and starting containers..."
+log "Building Docker images first..."
 
-$COMPOSE up -d --build --remove-orphans
+$COMPOSE build
+
+log "Build successful."
+
+# =====================================
+# START NEW CONTAINERS ONLY AFTER SUCCESS
+# =====================================
+log "Starting updated containers..."
+
+$COMPOSE up -d --remove-orphans
+
+# =====================================
+# OPTIONAL HEALTH CHECK
+# =====================================
+# Example:
+# sleep 10
+# curl -f http://localhost:3000 || exit 1
 
 # =====================================
 # CLEANUP
 # =====================================
-log "Cleaning old Docker images..."
+log "Cleaning build cache..."
 
-docker image prune -af
+docker builder prune -af || true
+docker image prune -f || true
 
 # =====================================
-# FINAL STATUS
+# STATUS
 # =====================================
 log "Running containers:"
 docker ps
