@@ -29,7 +29,8 @@ jobs:
             git pull --rebase origin main
 
             # Auto-create .env from GitHub Secrets
-            cat > .env << EOF
+                        mkdir -p /mnt/data/docker/apps/smit-csc-info
+            cat > /mnt/data/docker/apps/smit-csc-info/.env << EOF
             NODE_ENV=production
             SITE_URL=$ENV_SITE_URL
             DATABASE_URL=$ENV_DATABASE_URL
