@@ -18,7 +18,27 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          envs: ENV_DATABASE_URL,ENV_SESSION_SECRET,ENV_PHONEPE_MERCHANT_ID,ENV_PHONEPE_CLIENT_SECRET,ENV_SITE_URL
           script: |
             cd /mnt/data/docker/apps/smit-csc-info
+
+            git fetch origin
+            git reset --hard
+            git clean -fd
+            git checkout main
+            git pull --rebase origin main
+
+            # Auto-create .env from GitHub Secrets
+            cat > .env << EOF
+            NODE_ENV=production
+            SITE_URL=$ENV_SITE_URL
+            DATABASE_URL=$ENV_DATABASE_URL
+            SESSION_SECRET=$ENV_SESSION_SECRET
+            PHONEPE_MERCHANT_ID=$ENV_PHONEPE_MERCHANT_ID
+            PHONEPE_CLIENT_SECRET=$ENV_PHONEPE_CLIENT_SECRET
+            PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes
+            PHONEPE_CLIENT_VERSION=1
+            EOF
+
             chmod +x deploy.sh
             ./deploy.sh
