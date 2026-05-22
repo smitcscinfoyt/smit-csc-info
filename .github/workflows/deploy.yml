@@ -20,7 +20,6 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           envs: ENV_DATABASE_URL,ENV_SESSION_SECRET,ENV_PHONEPE_MERCHANT_ID,ENV_PHONEPE_CLIENT_SECRET,ENV_SITE_URL
           script: |
-                    script: |
           # Create directory with sudo
           sudo mkdir -p /mnt/data/docker/apps/smit-csc-info
           sudo chown -R $USER:$USER /mnt/data/docker/apps/smit-csc-info
