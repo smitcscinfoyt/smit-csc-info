@@ -18,34 +18,29 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             set -e
-
             APP_DIR="$HOME/smit-csc-info"
 
-            # Clone repo if not exists, else pull latest
+            # Clone repo if not exists
             if [ ! -d "$APP_DIR/.git" ]; then
               git clone https://github.com/smitcscinfoyt/smit-csc-info.git "$APP_DIR"
-            else
-              cd "$APP_DIR"
-              git fetch origin
-              git reset --hard origin/main
-              git clean -fd
             fi
 
             cd "$APP_DIR"
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fd
 
-            # Write .env file
-            cat > .env << 'ENVEOF'
+            # Write .env
+            cat > "$APP_DIR/.env" << 'ENVEOF'
             NODE_ENV=production
+            PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes
+            PHONEPE_CLIENT_VERSION=1
             ENVEOF
+            echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> "$APP_DIR/.env"
+            echo "DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}" >> "$APP_DIR/.env"
+            echo "SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}" >> "$APP_DIR/.env"
+            echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> "$APP_DIR/.env"
+            echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> "$APP_DIR/.env"
 
-            # Append secrets
-            echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> .env
-            echo "DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}" >> .env
-            echo "SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}" >> .env
-            echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> .env
-            echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> .env
-            echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes" >> .env
-            echo "PHONEPE_CLIENT_VERSION=1" >> .env
-
-            chmod +x deploy.sh
-            ./deploy.sh
+            chmod +x "$APP_DIR/deploy.sh"
+            "$APP_DIR/deploy.sh"
