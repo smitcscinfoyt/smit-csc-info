@@ -29,6 +29,7 @@ jobs:
             fi
 
             sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+            docker network create proxy-net 2>/dev/null || true
 
             APP_DIR="$HOME/smit-csc-info"
 
