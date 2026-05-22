@@ -65,3 +65,7 @@ jobs:
             
             chmod +x "$APP_DIR/deploy.sh"
             "$APP_DIR/deploy.sh"
+
+                        # Set admin role for site owner
+            sleep 5
+            docker compose -f "$APP_DIR/docker-compose.yml" exec -T db psql -U csc_admin -d smit_csc -c "UPDATE users SET role='admin' WHERE email='smitcscinfoyt@gmail.com';"
