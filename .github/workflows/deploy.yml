@@ -21,7 +21,6 @@ jobs:
 
             if ! command -v docker &> /dev/null; then
               curl -fsSL https://get.docker.com | sudo sh
-              sudo usermod -aG docker $USER
             fi
 
             if ! docker compose version &> /dev/null 2>&1; then
@@ -40,18 +39,12 @@ jobs:
             cd "$APP_DIR"
             git fetch origin
             git reset --hard origin/main
-            git clean -fd
+            git clean -fd --exclude=.env
 
-                        # Write .env file (one line at a time - heredoc fails in YAML)
             printf '' > "$APP_DIR/.env"
             echo "NODE_ENV=production" >> "$APP_DIR/.env"
             echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_VERSION=1" >> "$APP_DIR/.env"
-            echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> "$APP_DIR/.env"
-            echo "DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}" >> "$APP_DIR/.env"
-            echo "SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}" >> "$APP_DIR/.env"
-            echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> "$APP_DIR/.env"
-            echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> "$APP_DIR/.env"
             echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> "$APP_DIR/.env"
             echo "DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}" >> "$APP_DIR/.env"
             echo "SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}" >> "$APP_DIR/.env"
