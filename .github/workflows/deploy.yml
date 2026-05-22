@@ -8,43 +8,43 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
-
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          envs: ENV_DATABASE_URL,ENV_SESSION_SECRET,ENV_PHONEPE_MERCHANT_ID,ENV_PHONEPE_CLIENT_SECRET,ENV_SITE_URL
           script: |
-          # Create directory with sudo
-          sudo mkdir -p /mnt/data/docker/apps/smit-csc-info
-          sudo chown -R $USER:$USER /mnt/data/docker/apps/smit-csc-info
+            set -e
 
-          # Clone repo if not exists, else pull
-          if [ ! -d "/mnt/data/docker/apps/smit-csc-info/.git" ]; then
-            git clone https://github.com/smitcscinfoyt/smit-csc-info.git /mnt/data/docker/apps/smit-csc-info
-          fi
+            APP_DIR="$HOME/smit-csc-info"
 
-          cd /mnt/data/docker/apps/smit-csc-info
-          git fetch origin
-          git reset --hard origin/main
-          git clean -fd
+            # Clone repo if not exists, else pull latest
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone https://github.com/smitcscinfoyt/smit-csc-info.git "$APP_DIR"
+            else
+              cd "$APP_DIR"
+              git fetch origin
+              git reset --hard origin/main
+              git clean -fd
+            fi
 
-          # Create .env file
-          cat > /mnt/data/docker/apps/smit-csc-info/.env << EOF
-          NODE_ENV=production
-          SITE_URL=${{ secrets.ENV_SITE_URL }}
-          DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}
-          SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}
-          PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}
-          PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}
-          PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes
-          PHONEPE_CLIENT_VERSION=1
-          EOF
+            cd "$APP_DIR"
 
-          chmod +x deploy.sh
-          ./deploy.sh
+            # Write .env file
+            cat > .env << 'ENVEOF'
+            NODE_ENV=production
+            ENVEOF
+
+            # Append secrets
+            echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> .env
+            echo "DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}" >> .env
+            echo "SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}" >> .env
+            echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> .env
+            echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> .env
+            echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes" >> .env
+            echo "PHONEPE_CLIENT_VERSION=1" >> .env
+
+            chmod +x deploy.sh
+            ./deploy.sh
