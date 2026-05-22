@@ -46,8 +46,6 @@ services:
       PORT: "5000"
       DATABASE_URL: postgresql://csc_admin:secure_db_password@db:5432/smit_csc
       NODE_ENV: production
-      DATA_GOV_IN_API_KEY: ""
-      OPENWEATHER_API_KEY: ""
       PUBLIC_OBJECT_SEARCH_PATHS: "/tmp"
       PRIVATE_OBJECT_DIR: "/tmp"
     volumes:
