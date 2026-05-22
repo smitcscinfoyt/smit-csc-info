@@ -17,6 +17,21 @@ services:
     networks:
       - csc_network
 
+  migrate:
+    build:
+      context: .
+      dockerfile: artifacts/api-server/Dockerfile
+      target: builder
+    command: sh -c "pnpm --filter @workspace/db run push --force"
+    environment:
+      DATABASE_URL: postgresql://csc_admin:secure_db_password@db:5432/smit_csc
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - csc_network
+    restart: "no"
+
   api:
     build:
       context: .
@@ -40,6 +55,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - csc_network
       - proxy-net
