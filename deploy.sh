@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # =====================================
 # CONFIG
 # =====================================
-APP_DIR="/mnt/data/docker/apps/smit-csc-info"
+APP_DIR="$HOME/smit-csc-info"
 BRANCH="main"
 
 # =====================================
