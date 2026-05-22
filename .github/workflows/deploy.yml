@@ -2,7 +2,8 @@ name: Deploy to Oracle VM
 
 on:
   push:
-    branches:
+    branches: [main]
+  workflow_dispatch:
       - main
 
 jobs:
