@@ -42,15 +42,27 @@ jobs:
             git reset --hard origin/main
             git clean -fd --exclude=.env
 
-            printf '' > "$APP_DIR/.env"
+                        printf '' > "$APP_DIR/.env"
             echo "NODE_ENV=production" >> "$APP_DIR/.env"
-            echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes" >> "$APP_DIR/.env"
-            echo "PHONEPE_CLIENT_VERSION=1" >> "$APP_DIR/.env"
+            echo "APP_URL=https://smitcscinfo.com" >> "$APP_DIR/.env"
             echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> "$APP_DIR/.env"
-            echo "DATABASE_URL=${{ secrets.ENV_DATABASE_URL }}" >> "$APP_DIR/.env"
+            echo "DATABASE_URL=postgresql://csc_admin:secure_db_password@db:5432/smit_csc" >> "$APP_DIR/.env"
             echo "SESSION_SECRET=${{ secrets.ENV_SESSION_SECRET }}" >> "$APP_DIR/.env"
             echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> "$APP_DIR/.env"
+            echo "PHONEPE_CLIENT_VERSION=1" >> "$APP_DIR/.env"
+            echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/hermes" >> "$APP_DIR/.env"
+            echo "SMTP_HOST=smtp.gmail.com" >> "$APP_DIR/.env"
+            echo "SMTP_PORT=587" >> "$APP_DIR/.env"
+            echo "SMTP_USER=${{ secrets.ENV_SMTP_USER }}" >> "$APP_DIR/.env"
+            echo "SMTP_PASS=${{ secrets.ENV_SMTP_PASS }}" >> "$APP_DIR/.env"
+            echo "SMTP_FROM=Smit CSC Info <smitcscinfoyt@gmail.com>" >> "$APP_DIR/.env"
+            echo "ADMIN_EMAIL=smitcscinfoyt@gmail.com" >> "$APP_DIR/.env"
+            echo "A1TOPUP_USERNAME=${{ secrets.ENV_A1TOPUP_USERNAME }}" >> "$APP_DIR/.env"
+            echo "A1TOPUP_PASSWORD=${{ secrets.ENV_A1TOPUP_PASSWORD }}" >> "$APP_DIR/.env"
+            echo "A1TOPUP_BASE_URL=${{ secrets.ENV_A1TOPUP_BASE_URL }}" >> "$APP_DIR/.env"
+            echo "A1TOPUP_WEBHOOK_SECRET=${{ secrets.ENV_A1TOPUP_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
+            echo "LOG_LEVEL=info" >> "$APP_DIR/.env"
 
                         # Configure system nginx
             sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
