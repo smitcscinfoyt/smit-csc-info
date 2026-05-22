@@ -23,7 +23,7 @@ services:
       dockerfile: artifacts/api-server/Dockerfile
     container_name: smit_csc_api
     restart: always
-    PORT: 
+    ports:
       - "5000:5000"
     env_file:
       - .env
@@ -31,13 +31,11 @@ services:
       PORT: "5000"
       DATABASE_URL: postgresql://csc_admin:secure_db_password@db:5432/smit_csc
       NODE_ENV: production
-      # Add placeholders for key backend API keys if needed
       DATA_GOV_IN_API_KEY: ""
       OPENWEATHER_API_KEY: ""
       PUBLIC_OBJECT_SEARCH_PATHS: "/tmp"
       PRIVATE_OBJECT_DIR: "/tmp"
     volumes:
-      # Map assets volume dynamically to keep the Docker image lightweight
       - ./attached_assets:/app/attached_assets
     depends_on:
       db:
@@ -53,12 +51,9 @@ services:
     container_name: smit_csc_frontend
     restart: always
     ports:
-      - "3000:80" 
+      - "3000:80"
     volumes:
-      # Map assets volume read-only directly to Nginx's static folder.
-      # This serves assets directly from host disk, bypassing the build image.
       - ./attached_assets:/usr/share/nginx/html/attached_assets:ro
-      # Map nginx configuration dynamically so developers can tweak routes without rebuilding the image
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api
