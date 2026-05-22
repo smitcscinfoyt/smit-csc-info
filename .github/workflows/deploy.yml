@@ -52,5 +52,22 @@ jobs:
             echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> "$APP_DIR/.env"
 
+          # Configure system nginx to forward to Docker containers
+          sudo tee /etc/nginx/sites-available/smit-csc-info > /dev/null << 'NGINXEOF'
+  server {
+    listen 80;
+    server_name smitcscinfo.com www.smitcscinfo.com;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINXEOF
+            sudo ln -sf /etc/nginx/sites-available/smit-csc-info /etc/nginx/sites-enabled/smit-csc-info
+            sudo nginx -t && sudo systemctl reload nginx || true            
             chmod +x "$APP_DIR/deploy.sh"
             "$APP_DIR/deploy.sh"
