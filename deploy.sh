@@ -68,7 +68,7 @@ git fetch origin
 warn "Discarding local changes..."
 
 git reset --hard
-git clean -fdx
+git clean -fd --exclude=.env
 
 log "Checking out $BRANCH"
 
