@@ -27,7 +27,7 @@ services:
       - .env
     environment:
       PORT:
-      - "5000:5000" 
+      - "5000:5000"
       DATABASE_URL: postgresql://csc_admin:secure_db_password@db:5432/smit_csc
       NODE_ENV: production
       # Add placeholders for key backend API keys if needed
@@ -51,6 +51,8 @@ services:
       dockerfile: artifacts/smit-csc-info/Dockerfile
     container_name: smit_csc_frontend
     restart: always
+    ports:
+      - "3000:80" 
     volumes:
       # Map assets volume read-only directly to Nginx's static folder.
       # This serves assets directly from host disk, bypassing the build image.
