@@ -151,47 +151,16 @@ export default function Login() {
     });
   };
 
-  // Handle Facebook redirect result when page loads after redirect
-  useEffect(() => {
-    setSocialLoading("facebook");
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (!result) return;
-        console.log("[Firebase] Redirect result received:", result.providerId);
-        const idToken = await result.user.getIdToken();
-        const res = await exchangeFirebaseToken(idToken);
-        login(res.token, res.user as any);
-        toast({ title: t.login.signedInFacebook });
-        await routeAfterLogin(res.user as any);
-      })
-      .catch((err: any) => {
-        if (!err) return;
-        console.error("[Firebase] Redirect error code:", err.code);
-        console.error("[Firebase] Redirect error message:", err.message);
-        console.error("[Firebase] Full error:", JSON.stringify(err, null, 2));
-        const msg = err?.code === "auth/account-exists-with-different-credential"
-          ? "An account already exists with this email. Try email/password login."
-          : err?.message ?? "Facebook sign-in failed. Please try again.";
-        toast({ variant: "destructive", title: "Facebook sign-in failed", description: msg });
-      })
-      .finally(() => setSocialLoading(null));
-  }, []);
 
   const handleSocialLogin = async (provider: "google" | "facebook") => {
     setSocialLoading(provider);
     try {
-      if (provider === "facebook") {
-        // Use redirect for Facebook — bypasses popup domain restrictions
-        await signInWithRedirect(auth, facebookProvider);
-        // Page will navigate away; result is handled in the useEffect above
-        return;
-      }
-      // Google: popup works fine
-      const result = await signInWithPopup(auth, googleProvider);
+      const selectedProvider = provider === "facebook" ? facebookProvider : googleProvider;
+      const result = await signInWithPopup(auth, selectedProvider);
       const idToken = await result.user.getIdToken();
       const res = await exchangeFirebaseToken(idToken);
       login(res.token, res.user as any);
-      toast({ title: t.login.signedInGoogle });
+      toast({ title: provider === "facebook" ? t.login.signedInFacebook : t.login.signedInGoogle });
       await routeAfterLogin(res.user as any);
     } catch (err: any) {
       console.error("[Firebase] Social login error code:", err?.code);
