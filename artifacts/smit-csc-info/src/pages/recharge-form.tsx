@@ -390,8 +390,6 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   );
 }
 
-}
-
 // ─── Plan Browser (Ezytm) ────────────────────────────────────────────
 function PlanBrowser({ operatorCode, circleCode, onPick }: {
   operatorCode: string;
