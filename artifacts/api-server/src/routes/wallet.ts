@@ -225,11 +225,15 @@ async function handleWalletPhonePeCallback(req: any, res: any): Promise<void> {
       req.log?.info({ valid }, "[wallet/cb] v1 X-VERIFY");
     }
 
-    let txn: string | undefined =
+       // Extract the transaction ID from all locations PhonePe may send it
+    let merchantTransactionId: string | undefined =
+      (req.query?.txn             as string | undefined) ||
       (req.query?.merchantOrderId as string | undefined) ||
-      (req.query?.orderId as string | undefined) ||
-      (req.body?.merchantOrderId as string | undefined) ||
-      (req.body?.orderId as string | undefined);
+      (req.query?.orderId         as string | undefined) ||
+      (req.body?.merchantOrderId  as string | undefined) ||
+      (req.body?.orderId          as string | undefined) ||
+      (req.body?.payload?.merchantOrderId as string | undefined) ||
+      (req.body?.payload?.orderId         as string | undefined);
 
     if (!txn && req.body?.response) {
       try {
