@@ -77,8 +77,8 @@ jobs:
             echo "PIXABAY_API_KEY=${{ secrets.ENV_PIXABAY_API_KEY }}" >> "$APP_DIR/.env"
             echo "UNSPLASH_ACCESS_KEY=${{ secrets.ENV_UNSPLASH_ACCESS_KEY }}" >> "$APP_DIR/.env"
             echo "NEWSAPI_AI_KEY=${{ secrets.ENV_NEWSAPI_AI_KEY }}" >> "$APP_DIR/.env"
-            echo "EZYTM_API_USERID=${{ secrets.ENV_EZYTM_API_USERID }}" >> "$APP_DIR/.env"
-            echo "EZYTM_API_PASSWORD=${{ secrets.ENV_EZYTM_API_PASSWORD }}" >> "$APP_DIR/.env"
+            echo "EZYTM_API_USERID=${{ secrets.EZYTM_API_USERID }}" >> "$APP_DIR/.env"
+            echo "EZYTM_API_PASSWORD=${{ secrets.EZYTM_API_PASSWORD }}" >> "$APP_DIR/.env"
 
                         # Configure system nginx
             sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
