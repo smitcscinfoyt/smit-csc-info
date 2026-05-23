@@ -325,7 +325,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             {quote && (
               <div className="bg-purple-50 border border-purple-200 rounded p-3 text-sm space-y-1">
                 <div className="flex justify-between"><span>Recharge Amount</span><span className="font-semibold">{formatINR(quote.amount)}</span></div>
-                <div className="flex justify-between text-green-700"><span>Your Commission ({quote.sharePercent}% of {quote.basePct}%)</span><span className="font-semibold">+{formatINR(quote.commission)}</span></div>
+                <div className="flex justify-between text-green-700"><span>Your Commission {(quote.basePct * quote.sharePercent / 100).toFixed(2)}%</span><span className="font-semibold">+{formatINR(quote.commission)}</span></div>
                 {quote.sharePercent === 0 && <div className="text-xs text-amber-700">Upgrade to Gold or Premium to earn commission on every recharge</div>}
                 {quote.sharePercent > 0 && quote.sharePercent < 90 && <div className="text-xs text-amber-700">Upgrade to Premium to earn up to 3.78% commission</div>}
               </div>
