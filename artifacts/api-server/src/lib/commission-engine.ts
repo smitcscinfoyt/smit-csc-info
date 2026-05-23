@@ -165,3 +165,4 @@ export const DEFAULT_SLABS: Array<{
 
   // ── Bill — Google Play Gift Card 2.50% ──
   { type: "bill", operatorCode: "GLF", tier: "base", percentBp: 250 },
+];
