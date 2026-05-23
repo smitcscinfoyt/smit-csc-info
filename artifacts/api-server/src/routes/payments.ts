@@ -296,6 +296,19 @@ async function activateMembership(transactionId: string) {
   console.log(
     `[activateMembership] ✅ Plan "${payment.plan}" activated — expires ${expiryDate.toISOString()}`
   );
+
+    // Send welcome email (non-blocking)
+  try {
+    const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
+      .from(usersTable).where(eq(usersTable.id, payment.userId));
+    if (u?.email) {
+      await sendWelcomeEmail({
+        to: u.email, name: u.name, plan: payment.plan,
+        amountRupees: Number(payment.amount),
+        transactionId: payment.transactionId, expiryDate: expiryDate,
+      });
+    }
+  } catch (e) { console.error("[email] welcome failed:", e); }
   return updated;
 }
 
