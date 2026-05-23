@@ -226,7 +226,24 @@ export async function detectOperator(number: string): Promise<OperatorDetection 
   const r = await apiFetch<{ detection: OperatorDetection | null }>(
     `/api/recharge/detect?number=${encodeURIComponent(number)}`,
   );
-  return r.detection;
+    return r.detection;
+}
+
+// ─── Plan Browser (Ezytm) ─────────────────────────────────────────
+export interface EzytmPlan {
+  rs: string;
+  desc: string;
+  validity: string;
+  last_update?: string;
+}
+export interface PlanCategory {
+  category: string;
+  plans: EzytmPlan[];
+}
+export async function getPlans(operatorCode: string, circleCode: string) {
+  return apiFetch<{ categories: PlanCategory[] }>(
+    `/api/recharge/plans?operatorCode=${encodeURIComponent(operatorCode)}&circleCode=${encodeURIComponent(circleCode)}`
+  );
 }
 
 export async function getQuote(type: RechargeType, operatorCode: string, amountPaise: number) {
