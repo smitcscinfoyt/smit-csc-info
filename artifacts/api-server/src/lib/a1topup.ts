@@ -418,8 +418,7 @@ export const OPERATORS = {
   mobile: [
     { code: "A",  name: "Airtel" },
     { code: "RC", name: "Reliance Jio" },
-    { code: "V",  name: "Vodafone" },
-    { code: "I",  name: "Idea" },
+    { code: "V",  name: "Vi (Vodafone Idea)" },
     { code: "BT", name: "BSNL TopUp" },
     { code: "BR", name: "BSNL STV" },
   ],
@@ -432,8 +431,7 @@ export const OPERATORS = {
   ],
   postpaid: [
     { code: "PAT", name: "Airtel Postpaid" },
-    { code: "VP",  name: "Vodafone Postpaid" },
-    { code: "IP",  name: "Idea Postpaid" },
+    { code: "VP",  name: "Vi Postpaid" },
     { code: "JPP", name: "Jio Postpaid" },
     { code: "BP",  name: "BSNL Postpaid" },
     { code: "DP",  name: "Tata Docomo Postpaid" },
