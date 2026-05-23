@@ -1,3 +1,4 @@
+import { sendWalletCreditEmail } from "../lib/emailService";
 import { Router } from "express";
 import { db, walletsTable, walletLedgerTable, walletTopupsTable, kycRecordsTable, paymentsTable } from "@workspace/db";
 import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
