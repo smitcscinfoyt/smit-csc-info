@@ -315,6 +315,18 @@ async function reconcileTopup(txn: string): Promise<{ status: string; error?: st
         .set({ ledgerEntryId: credit.ledgerEntryId, updatedAt: new Date() })
         .where(eq(walletTopupsTable.id, t.id));
     }
+          try {
+        const { usersTable } = await import("@workspace/db");
+        const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
+          .from(usersTable).where(eq(usersTable.id, t.userId));
+        if (u?.email) {
+          await sendWalletCreditEmail({
+            to: u.email, name: u.name,
+            amountRupees: Number(t.amountPaise) / 100,
+            transactionId: txn,
+          });
+        }
+      } catch (e) { console.error("[email] wallet credit failed:", e); }
     return { status: "success" };
   }
   if (state === "PENDING") return { status: "pending" };
