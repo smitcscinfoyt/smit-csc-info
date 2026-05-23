@@ -367,7 +367,7 @@ const manualTopupBody = z.object({
   amountPaise: z.number().int().positive(),
   channel: z.enum(["bank", "upi"]),
   utr: z.string().trim().min(4).max(64),
-  proofUrl: z.string().trim().min(1).max(2000),
+    proofUrl: z.string().trim().min(1).max(2000).optional().or(z.literal("")),
   userNote: z.string().trim().max(500).optional(),
 });
 
@@ -422,7 +422,7 @@ router.post("/wallet/topup/manual", requireAuth, async (req: AuthRequest, res): 
       method: channel === "bank" ? "manual_bank" : "manual_upi",
       channel,
       utr: trimmedUtr,
-      proofUrl,
+      proofUrl: proofUrl || null,
       userNote: userNote ?? null,
     })
     .returning();
