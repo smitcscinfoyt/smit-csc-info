@@ -64,6 +64,8 @@ jobs:
             echo "A1TOPUP_PASSWORD=${{ secrets.ENV_A1TOPUP_PASSWORD }}" >> "$APP_DIR/.env"
             echo "A1TOPUP_BASE_URL=${{ secrets.ENV_A1TOPUP_BASE_URL }}" >> "$APP_DIR/.env"
             echo "A1TOPUP_WEBHOOK_SECRET=${{ secrets.ENV_A1TOPUP_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
+                        echo "PHONEPE_WEBHOOK_USERNAME=${{ secrets.ENV_PHONEPE_WEBHOOK_USERNAME }}" >> "$APP_DIR/.env"
+            echo "PHONEPE_WEBHOOK_PASSWORD=${{ secrets.ENV_PHONEPE_WEBHOOK_PASSWORD }}" >> "$APP_DIR/.env"
             echo "LOG_LEVEL=info" >> "$APP_DIR/.env"
                         echo "GOOGLE_VISION_API_KEY=${{ secrets.ENV_GOOGLE_VISION_API_KEY }}" >> "$APP_DIR/.env"
             echo "AI_INTEGRATIONS_GEMINI_BASE_URL=${{ secrets.ENV_GEMINI_BASE_URL }}" >> "$APP_DIR/.env"
