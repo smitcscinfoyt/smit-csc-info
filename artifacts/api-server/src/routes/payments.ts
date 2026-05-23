@@ -1,3 +1,4 @@
+import { sendWelcomeEmail } from "../lib/emailService";
 import { Router } from "express";
 import { db, paymentsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
