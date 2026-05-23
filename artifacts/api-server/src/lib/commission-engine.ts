@@ -104,8 +104,7 @@ export async function computeCommission(
 
   return { slab, tier, percentBp, sharePercent, baseCommissionPaise, commissionPaise };
 }
-
-export const SLAB_VERSION = 3;
+export const SLAB_VERSION = 4;
 
 export const DEFAULT_SLABS: Array<{
   type: RechargeType; operatorCode: string; tier: string; percentBp: number;
@@ -114,8 +113,8 @@ export const DEFAULT_SLABS: Array<{
   { type: "mobile", operatorCode: "V",  tier: "base", percentBp: 350 },  // Vodafone  3.50%
   { type: "mobile", operatorCode: "A",  tier: "base", percentBp: 100 },  // Airtel    1.00%
   { type: "mobile", operatorCode: "RC", tier: "base", percentBp:  65 },  // Jio       0.65%
-  { type: "mobile", operatorCode: "BT", tier: "base", percentBp: 280 },  // BSNL TopUp 2.80%
-  { type: "mobile", operatorCode: "BR", tier: "base", percentBp: 280 },  // BSNL STV  2.80%
+  { type: "mobile", operatorCode: "BT", tier: "base", percentBp: 320 },  // BSNL TopUp 3.20%
+  { type: "mobile", operatorCode: "BR", tier: "base", percentBp: 320 },  // BSNL STV  3.20%
   { type: "mobile", operatorCode: "I",  tier: "base", percentBp: 350 },  // Idea      3.50%
 
   // ── DTH ──
@@ -164,6 +163,5 @@ export const DEFAULT_SLABS: Array<{
   { type: "bill", operatorCode: "BP",  tier: "base", percentBp: 0 },  // BSNL Postpaid
   { type: "bill", operatorCode: "DP",  tier: "base", percentBp: 0 },  // Tata Docomo Postpaid
 
-  // ── Bill — Google Play Gift Card 2.00% ──
-  { type: "bill", operatorCode: "GLF", tier: "base", percentBp: 200 },
-];
+  // ── Bill — Google Play Gift Card 2.50% ──
+  { type: "bill", operatorCode: "GLF", tier: "base", percentBp: 250 },
