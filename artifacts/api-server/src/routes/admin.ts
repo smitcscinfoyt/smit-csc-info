@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { db, usersTable, paymentsTable, contentTable, operatorMembershipPaymentsTable } from "@workspace/db";
-import { eq, count, sum, gte, desc, and, ne } from "drizzle-orm";
+import { eq, count, countDistinct, sum, gte, desc, and } from "drizzle-orm";
 import {
   requireAdmin,
   requireAdminOrManager,
@@ -321,11 +321,11 @@ router.get("/admin/stats", requireAdminOrManager, async (_req, res): Promise<voi
     .from(paymentsTable)
     .where(eq(paymentsTable.status, "success"));
 
-  // Active = users with paid operator tier (gold/premium)
+   // Active = users with successful operator (Gold/Premium) payment
   const [{ operatorActive }] = await db
-    .select({ operatorActive: count() })
-    .from(usersTable)
-    .where(ne(usersTable.operatorTier, "free"));
+    .select({ operatorActive: countDistinct(operatorMembershipPaymentsTable.userId) })
+    .from(operatorMembershipPaymentsTable)
+    .where(eq(operatorMembershipPaymentsTable.status, "success"));
 
   // Prime revenue (rupees)
   const [{ primeRevenue }] = await db
