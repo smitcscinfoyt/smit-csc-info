@@ -202,7 +202,7 @@ router.post("/membership/subscribe", requireAuth, async (req: AuthRequest, res):
   try {
     const base        = getCallbackBaseUrl();
     const callbackUrl = `${base}/api/payments/phonepe/callback`;
-
+    const redirectUrl = `${callbackUrl}?txn=${transactionId}`;
     console.log(
       `[Membership] Initiating payment\n` +
       `  transactionId: ${transactionId}\n` +
@@ -220,11 +220,10 @@ router.post("/membership/subscribe", requireAuth, async (req: AuthRequest, res):
       merchantTransactionId: transactionId,
       merchantUserId:        `USER_${userId}`,
       amount:                finalPaise / 100,
-      redirectUrl:           callbackUrl,
+      redirectUrl,
       callbackUrl,
       mobileNumber:          billing?.mobile ?? user?.mobile ?? undefined,
     });
-
     console.log(`[Membership] PhonePe redirect URL: ${phonePeRedirectUrl}`);
 
     res.json(
