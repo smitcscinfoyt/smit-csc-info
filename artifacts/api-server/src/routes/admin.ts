@@ -1,8 +1,8 @@
 import { Router } from "express";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { db, usersTable, paymentsTable, contentTable } from "@workspace/db";
-import { eq, count, sum, gte, desc, and } from "drizzle-orm";
+import { db, usersTable, paymentsTable, contentTable, operatorMembershipPaymentsTable } from "@workspace/db";
+import { eq, count, sum, gte, desc, and, ne } from "drizzle-orm";
 import {
   requireAdmin,
   requireAdminOrManager,
@@ -311,37 +311,49 @@ router.delete("/admin/content/:id", requireAdminOrManager, async (req, res): Pro
 
 
 router.get("/admin/stats", requireAdminOrManager, async (_req, res): Promise<void> => {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const [{ totalUsers }] = await db
+    .select({ totalUsers: count() })
+    .from(usersTable);
 
-  const [{ totalUsers }] = await db.select({ totalUsers: count() }).from(usersTable);
-
-  const [{ activeMembers }] = await db
-    .select({ activeMembers: count() })
+  // Active = Prime success payment users
+  const [{ primeActive }] = await db
+    .select({ primeActive: count() })
     .from(paymentsTable)
     .where(eq(paymentsTable.status, "success"));
 
-  const [{ totalRevenue }] = await db
-    .select({ totalRevenue: sum(paymentsTable.amount) })
-    .from(paymentsTable)
-    .where(eq(paymentsTable.status, "success"));
-
-  const [{ totalContent }] = await db.select({ totalContent: count() }).from(contentTable);
-
-  const [{ recentSignups }] = await db
-    .select({ recentSignups: count() })
+  // Active = users with paid operator tier (gold/premium)
+  const [{ operatorActive }] = await db
+    .select({ operatorActive: count() })
     .from(usersTable)
-    .where(gte(usersTable.createdAt, thirtyDaysAgo));
+    .where(ne(usersTable.operatorTier, "free"));
 
-  res.json(
-    AdminGetStatsResponse.parse({
+  // Prime revenue (rupees)
+  const [{ primeRevenue }] = await db
+    .select({ primeRevenue: sum(paymentsTable.amount) })
+    .from(paymentsTable)
+    .where(eq(paymentsTable.status, "success"));
+
+  // Operator membership revenue (paise → rupees)
+  const [{ opRevenuePaise }] = await db
+    .select({ opRevenuePaise: sum(operatorMembershipPaymentsTable.amountPaise) })
+    .from(operatorMembershipPaymentsTable)
+    .where(eq(operatorMembershipPaymentsTable.status, "success"));
+
+  const [{ totalContent }] = await db
+    .select({ totalContent: count() })
+    .from(contentTable);
+
+  const activeMembers  = Number(primeActive) + Number(operatorActive);
+  const totalRevenue   = Number(primeRevenue ?? 0) + Number(opRevenuePaise ?? 0) / 100;
+
+  res.json({
+    data: {
       totalUsers,
       activeMembers,
-      totalRevenue: Number(totalRevenue ?? 0),
+      totalRevenue,
       totalContent,
-      recentSignups,
-    })
-  );
+    },
+  });
 });
 
 // ── Grant Prime Membership by Email (Admin only) ────────────────────────────
