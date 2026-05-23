@@ -15,6 +15,7 @@ import { TpinDialog } from "@/components/recharge/tpin-dialog";
 import {
   getOperators, getQuote, initRecharge, getWallet, getTpinStatus, formatINR,
   detectOperator, type OperatorDetection,
+  getPlans, type PlanCategory,
   type RechargeType,
 } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
@@ -310,8 +311,16 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
               <Input id="amt" type="number" inputMode="numeric" min={meta.minAmount} max={meta.maxAmount} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="299" className="text-lg font-semibold" data-testid="input-amount" />
               <div className="mt-2 flex flex-wrap gap-2">
                 {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>₹{a}</Button>)}
-              </div>
+                           </div>
             </div>
+
+            {(isMobile || effCategory === "postpaid") && operatorCode && (
+              <PlanBrowser
+                operatorCode={operatorCode}
+                circleCode={isMobile ? (circleCode || "12") : "12"}
+                onPick={(rs) => setAmount(rs)}
+              />
+            )}
 
             {quote && (
               <div className="bg-purple-50 border border-purple-200 rounded p-3 text-sm space-y-1">
@@ -377,6 +386,94 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
         {inner}
       </div>
       <TpinDialog open={showTpin} onOpenChange={setShowTpin} amount={amountPaise} loading={initMutation.isPending} onSubmit={(pin) => initMutation.mutate({ tpin: pin })} />
+    </div>
+  );
+}
+
+}
+
+// ─── Plan Browser (Ezytm) ────────────────────────────────────────────
+function PlanBrowser({ operatorCode, circleCode, onPick }: {
+  operatorCode: string;
+  circleCode: string;
+  onPick: (rs: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeCat, setActiveCat] = useState<string>("");
+  const { data, isLoading } = useQuery({
+    queryKey: ["plans", operatorCode, circleCode],
+    queryFn: () => getPlans(operatorCode, circleCode),
+    enabled: open && !!operatorCode,
+    staleTime: 6 * 60 * 60 * 1000,
+  });
+  const cats: PlanCategory[] = data?.categories ?? [];
+  useEffect(() => {
+    if (cats.length && !activeCat) setActiveCat(cats[0].category);
+  }, [cats, activeCat]);
+  const current = cats.find((c) => c.category === activeCat) ?? cats[0];
+
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-3 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-left text-sm font-semibold text-indigo-900 flex items-center justify-between hover:from-indigo-100 hover:to-purple-100"
+        data-testid="btn-browse-plans"
+      >
+        <span className="flex items-center gap-1.5">
+          <Sparkles className="h-4 w-4" /> Browse Plans
+        </span>
+        <span className="text-xs">{open ? "Hide ▲" : "Show ▼"}</span>
+      </button>
+      {open && (
+        <div className="bg-white">
+          {isLoading ? (
+            <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading plans…
+            </div>
+          ) : cats.length === 0 ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">No plans available</div>
+          ) : (
+            <>
+              <div className="flex overflow-x-auto border-b bg-gray-50 text-xs">
+                {cats.map((c) => (
+                  <button
+                    key={c.category}
+                    type="button"
+                    onClick={() => setActiveCat(c.category)}
+                    className={`px-3 py-2 whitespace-nowrap font-medium ${
+                      activeCat === c.category
+                        ? "border-b-2 border-indigo-600 text-indigo-700 bg-white"
+                        : "text-gray-600 hover:text-indigo-700"
+                    }`}
+                  >
+                    {c.category} ({c.plans.length})
+                  </button>
+                ))}
+              </div>
+              <div className="max-h-72 overflow-y-auto divide-y">
+                {(current?.plans ?? []).map((p, i) => (
+                  <button
+                    key={`${p.rs}-${i}`}
+                    type="button"
+                    onClick={() => onPick(p.rs)}
+                    className="w-full text-left px-3 py-2 hover:bg-indigo-50 flex items-start justify-between gap-3"
+                    data-testid={`plan-${p.rs}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-gray-600 line-clamp-2">{p.desc || "—"}</div>
+                      {p.validity && (
+                        <div className="text-[11px] text-indigo-700 mt-0.5">Validity: {p.validity}</div>
+                      )}
+                    </div>
+                    <div className="font-bold text-base text-indigo-700 shrink-0">₹{p.rs}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
