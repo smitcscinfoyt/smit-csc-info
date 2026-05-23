@@ -51,6 +51,7 @@ jobs:
             echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_ID=${{ secrets.ENV_PHONEPE_CLIENT_ID }}" >> "$APP_DIR/.env"
+                        echo "PHONEPE_CLIENT_ID=${{ secrets.ENV_PHONEPE_CLIENT_ID }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_VERSION=1" >> "$APP_DIR/.env"
             echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/pg" >> "$APP_DIR/.env"
             echo "SMTP_HOST=smtp.gmail.com" >> "$APP_DIR/.env"
