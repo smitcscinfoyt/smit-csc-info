@@ -315,25 +315,21 @@ router.get("/admin/stats", requireAdminOrManager, async (_req, res): Promise<voi
     .select({ totalUsers: count() })
     .from(usersTable);
 
-  // Active = Prime success payment users
   const [{ primeActive }] = await db
     .select({ primeActive: count() })
     .from(paymentsTable)
     .where(eq(paymentsTable.status, "success"));
 
-   // Active = users with successful operator (Gold/Premium) payment
   const [{ operatorActive }] = await db
     .select({ operatorActive: countDistinct(operatorMembershipPaymentsTable.userId) })
     .from(operatorMembershipPaymentsTable)
     .where(eq(operatorMembershipPaymentsTable.status, "success"));
 
-  // Prime revenue (rupees)
   const [{ primeRevenue }] = await db
     .select({ primeRevenue: sum(paymentsTable.amount) })
     .from(paymentsTable)
     .where(eq(paymentsTable.status, "success"));
 
-  // Operator membership revenue (paise → rupees)
   const [{ opRevenuePaise }] = await db
     .select({ opRevenuePaise: sum(operatorMembershipPaymentsTable.amountPaise) })
     .from(operatorMembershipPaymentsTable)
@@ -343,16 +339,21 @@ router.get("/admin/stats", requireAdminOrManager, async (_req, res): Promise<voi
     .select({ totalContent: count() })
     .from(contentTable);
 
-  const activeMembers  = Number(primeActive) + Number(operatorActive);
-  const totalRevenue   = Number(primeRevenue ?? 0) + Number(opRevenuePaise ?? 0) / 100;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [{ recentSignups }] = await db
+    .select({ recentSignups: count() })
+    .from(usersTable)
+    .where(gte(usersTable.createdAt, sevenDaysAgo));
+
+  const activeMembers = Number(primeActive) + Number(operatorActive);
+  const totalRevenue  = Math.round(Number(primeRevenue ?? 0) + Number(opRevenuePaise ?? 0) / 100);
 
   res.json({
-    data: {
-      totalUsers,
-      activeMembers,
-      totalRevenue,
-      totalContent,
-    },
+    totalUsers: Number(totalUsers),
+    activeMembers,
+    totalRevenue,
+    totalContent: Number(totalContent),
+    recentSignups: Number(recentSignups),
   });
 });
 
