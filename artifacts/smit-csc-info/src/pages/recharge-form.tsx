@@ -20,7 +20,26 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import { loadDraft, clearDraft } from "@/lib/draft-store";
-
+const OPERATOR_STYLE: Record<string, { bg: string; text: string; short: string }> = {
+  A:   { bg: "bg-red-600",     text: "text-white", short: "A"   }, // Airtel
+  RC:  { bg: "bg-blue-600",    text: "text-white", short: "Jio" }, // Reliance Jio
+  V:   { bg: "bg-rose-600",    text: "text-white", short: "Vi"  }, // Vi
+  I:   { bg: "bg-rose-600",    text: "text-white", short: "Vi"  }, // Idea (legacy)
+  BT:  { bg: "bg-amber-500",   text: "text-white", short: "BSNL" },
+  BR:  { bg: "bg-amber-500",   text: "text-white", short: "BSNL" },
+  PAT: { bg: "bg-red-600",     text: "text-white", short: "A"   },
+  VP:  { bg: "bg-rose-600",    text: "text-white", short: "Vi"  },
+  IP:  { bg: "bg-rose-600",    text: "text-white", short: "Vi"  },
+  JPP: { bg: "bg-blue-600",    text: "text-white", short: "Jio" },
+  BP:  { bg: "bg-amber-500",   text: "text-white", short: "BSNL" },
+  DP:  { bg: "bg-pink-600",    text: "text-white", short: "Doc" },
+  ATV: { bg: "bg-red-600",     text: "text-white", short: "ATV" },
+  TTV: { bg: "bg-blue-700",    text: "text-white", short: "Tata" },
+  DTV: { bg: "bg-orange-500",  text: "text-white", short: "Dish" },
+  VTV: { bg: "bg-purple-600",  text: "text-white", short: "D2H" },
+  STV: { bg: "bg-yellow-500",  text: "text-white", short: "Sun" },
+};
+const opBadge = (code: string) => OPERATOR_STYLE[code] ?? { bg: "bg-gray-500", text: "text-white", short: code.slice(0, 2) };
 const QUICK = [49, 99, 199, 299, 499, 999];
 
 /** UI-level service category. "bill" sub-categories all map to backend type="bill". */
@@ -272,7 +291,17 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
               <Label>Select Operator</Label>
               <Select value={operatorCode} onValueChange={setOperatorCode}>
                 <SelectTrigger data-testid="select-operator"><SelectValue placeholder="Select Operator" /></SelectTrigger>
-                <SelectContent>{operators.map((o) => <SelectItem key={o.code} value={o.code}>{o.name}</SelectItem>)}</SelectContent>
+                               <SelectContent>{operators.map((o) => {
+                  const b = opBadge(o.code);
+                  return (
+                    <SelectItem key={o.code} value={o.code}>
+                      <div className="flex items-center gap-2">
+                        <span className={`${b.bg} ${b.text} text-[10px] font-bold px-1.5 py-0.5 rounded min-w-[28px] text-center`}>{b.short}</span>
+                        <span>{o.name}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}</SelectContent>
               </Select>
             </div>
 
