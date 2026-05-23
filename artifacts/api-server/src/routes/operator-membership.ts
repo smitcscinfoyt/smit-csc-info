@@ -184,8 +184,9 @@ router.post("/operator-membership/init", requireAuth, async (req: AuthRequest, r
     originalAmountPaise: plan.pricePaise,
   });
 
-  const base = getCallbackBaseUrl();
+    const base = getCallbackBaseUrl();
   const callbackUrl = `${base}/api/operator-membership/phonepe/callback`;
+  const redirectUrl = `${callbackUrl}?txn=${transactionId}`;
   const [user] = await db.select({ mobile: usersTable.mobile }).from(usersTable).where(eq(usersTable.id, userId));
 
   try {
@@ -193,7 +194,7 @@ router.post("/operator-membership/init", requireAuth, async (req: AuthRequest, r
       merchantTransactionId: transactionId,
       merchantUserId: `USER_${userId}`,
       amount: finalPaise / 100,
-      redirectUrl: callbackUrl,
+      redirectUrl,
       callbackUrl,
       mobileNumber: billing?.mobile ?? user?.mobile ?? undefined,
     });
