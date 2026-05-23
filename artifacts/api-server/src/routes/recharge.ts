@@ -12,6 +12,7 @@ import { getUserOperatorTier, resolveCommissionTier } from "../lib/operator-tier
 import { verifyTpin, hasTpin, tpinRequiredFor } from "../lib/tpin";
 import { detectMobileOperator } from "../lib/mobile-prefix";
 import { detectViaEzytm } from "../lib/ezytm-detect";
+import { getPlansForOperator } from "../lib/ezytm-plans";
 
 const router = Router();
 
@@ -54,6 +55,26 @@ router.get("/recharge/detect", async (req, res) => {
   const det = detectMobileOperator(number);
   res.json({ detection: det });
 });
+});
+
+// ─── GET /recharge/plans — Ezytm plans browser ───────────────────────────────
+router.get("/recharge/plans", async (req, res) => {
+  const operatorCode = String(req.query.operatorCode ?? "").trim();
+  const circleCode = String(req.query.circleCode ?? "12").trim();
+  if (!operatorCode) {
+    res.status(400).json({ error: "operatorCode required" });
+    return;
+  }
+  try {
+    const categories = await getPlansForOperator(operatorCode, circleCode);
+    res.json({ categories });
+  } catch (err) {
+    req.log.warn({ err: (err as Error).message }, "[recharge/plans] failed");
+    res.json({ categories: [] });
+  }
+});
+
+router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
 
 // ─── GET /recharge/quote — preview commission for an amount ──────────────────
 router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
