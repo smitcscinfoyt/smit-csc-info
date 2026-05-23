@@ -55,7 +55,6 @@ router.get("/recharge/detect", async (req, res) => {
   const det = detectMobileOperator(number);
   res.json({ detection: det });
 });
-});
 
 // ─── GET /recharge/plans — Ezytm plans browser ───────────────────────────────
 router.get("/recharge/plans", async (req, res) => {
@@ -73,8 +72,6 @@ router.get("/recharge/plans", async (req, res) => {
     res.json({ categories: [] });
   }
 });
-
-router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
 
 // ─── GET /recharge/quote — preview commission for an amount ──────────────────
 router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
