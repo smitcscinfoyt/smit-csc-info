@@ -153,7 +153,7 @@ export default function RechargeHub() {
     );
   }
 
-    return (
+      return (
     <div className="flex-1 bg-gray-50">
       <UpgradeCelebrationModal
         open={celebrate.open}
@@ -162,7 +162,6 @@ export default function RechargeHub() {
         error={celebrate.error}
         onClose={() => setCelebrate((c) => ({ ...c, open: false }))}
       />
-      <div className="container ...">
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-amber-500 shadow">
         <div className="container mx-auto max-w-6xl px-2">
           <div className="flex overflow-x-auto no-scrollbar">
