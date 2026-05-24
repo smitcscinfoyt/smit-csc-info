@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { db, rechargesTable, walletsTable, kycRecordsTable, walletLedgerTable, walletTopupsTable } from "@workspace/db";
+import { db, rechargesTable, walletsTable, kycRecordsTable, walletLedgerTable, walletTopupsTable, usersTable } from "@workspace/db";
+import { sendRechargeSuccessEmail } from "../lib/mailer";
 import { and, desc, eq, gte, lt, or, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuth, type AuthRequest } from "../lib/auth";
@@ -15,6 +16,29 @@ import { detectViaEzytm } from "../lib/ezytm-detect";
 import { getPlansForOperator } from "../lib/ezytm-plans";
 
 const router = Router();
+
+// Fire-and-forget recharge success email (looks up user, never throws)
+function sendRechargeSuccessEmailSafe(userId: number, row: any): void {
+  (async () => {
+    try {
+      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+      if (!u?.email) return;
+      await sendRechargeSuccessEmail({
+        toEmail: u.email,
+        toName: u.name || "Member",
+        operatorName: row.operatorName,
+        type: row.type,
+        accountNumber: row.accountNumber,
+        amountPaise: Number(row.amountPaise),
+        transactionId: row.a1RequestId,
+        completedAt: row.completedAt ?? new Date(),
+        commissionPaise: Number(row.commissionPaise ?? 0),
+      });
+    } catch (e: any) {
+      console.error("[recharge] email send failed:", e?.message ?? e);
+    }
+  })();
+}
 
 function genReqId(userId: number, type: string): string {
   const ts = Date.now().toString(36).toUpperCase();
@@ -322,10 +346,11 @@ export async function applyProviderResult(rechargeId: number, a1: A1Response) {
           refCode: row.a1RequestId,
           note: `Commission: ${row.operatorName} ${row.type}`,
         });
-        const [linked] = await db.update(rechargesTable)
+               const [linked] = await db.update(rechargesTable)
           .set({ commissionLedgerId: c.ledgerEntryId, updatedAt: new Date() })
           .where(eq(rechargesTable.id, row.id))
           .returning();
+        sendRechargeSuccessEmailSafe(row.userId, linked ?? claimed);
         return linked ?? claimed;
       } catch (e: any) {
         await db.update(rechargesTable)
@@ -334,9 +359,9 @@ export async function applyProviderResult(rechargeId: number, a1: A1Response) {
         throw e;
       }
     }
+    sendRechargeSuccessEmailSafe(row.userId, claimed);
     return claimed;
   }
-
   if (a1.status === "failed") {
     // CAS-FIRST to claim the failed transition.
     const [claimed] = await db.update(rechargesTable)
