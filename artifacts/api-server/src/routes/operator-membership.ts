@@ -234,6 +234,26 @@ async function reconcileMembershipPayment(txn: string): Promise<{ status: string
       .returning();
     if (updated) {
       await db.update(usersTable).set({ operatorTier: p.plan }).where(eq(usersTable.id, p.userId));
+
+      // Fire-and-forget congratulations email
+      try {
+        const { sendOperatorTierSuccessEmail } = await import("../lib/mailer");
+        const [u] = await db.select().from(usersTable).where(eq(usersTable.id, p.userId));
+        const toEmail = p.billingEmail || u?.email;
+        const toName = p.billingName || u?.name || "Member";
+        if (toEmail && (p.plan === "gold" || p.plan === "premium")) {
+          sendOperatorTierSuccessEmail({
+            toEmail,
+            toName,
+            tier: p.plan as "gold" | "premium",
+            amountPaise: Number(p.amountPaise),
+            transactionId: p.transactionId,
+            completedAt: updated.completedAt ?? new Date(),
+          }).catch((e) => console.error("[operator-membership] email send failed:", e?.message ?? e));
+        }
+      } catch (e: any) {
+        console.error("[operator-membership] email prep failed:", e?.message ?? e);
+      }
             try {
         const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
           .from(usersTable).where(eq(usersTable.id, p.userId));
