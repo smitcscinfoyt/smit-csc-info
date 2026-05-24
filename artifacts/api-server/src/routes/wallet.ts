@@ -7,6 +7,8 @@ import { creditWallet, ensureWallet, WalletError } from "../lib/wallet-engine";
 import { getGlobalSettings } from "../lib/recharge-config";
 import { initiatePhonePePayment, checkPhonePeStatus, isPhonePeConfigured, getCallbackBaseUrl, verifyV1Callback } from "../lib/phonepe";
 import { hasTpin } from "../lib/tpin";
+import { sendWalletTopupSuccessEmail } from "../lib/mailer";
+import { usersTable } from "@workspace/db";
 import { z } from "zod";
 
 const router = Router();
@@ -311,22 +313,28 @@ async function reconcileTopup(txn: string): Promise<{ status: string; error?: st
         refCode: txn,
         note: `Wallet top-up via PhonePe`,
       });
-      await db.update(walletTopupsTable)
+            await db.update(walletTopupsTable)
         .set({ ledgerEntryId: credit.ledgerEntryId, updatedAt: new Date() })
         .where(eq(walletTopupsTable.id, t.id));
-    }
-          try {
-        const { usersTable } = await import("@workspace/db");
-        const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
-          .from(usersTable).where(eq(usersTable.id, t.userId));
+
+      // Fire-and-forget success email
+      try {
+        const [u] = await db.select().from(usersTable).where(eq(usersTable.id, t.userId));
         if (u?.email) {
-          await sendWalletCreditEmail({
-            to: u.email, name: u.name,
-            amountRupees: Number(t.amountPaise) / 100,
-            transactionId: txn,
-          });
+          sendWalletTopupSuccessEmail({
+            toEmail: u.email,
+            toName: u.name || "Member",
+            amountPaise: Number(t.amountPaise),
+            transactionId: t.transactionId,
+            completedAt: updated.completedAt ?? new Date(),
+            method: t.method ?? "phonepe",
+            newBalancePaise: credit.balancePaise,
+          }).catch((e) => console.error("[wallet topup] email send failed:", e?.message ?? e));
         }
-      } catch (e) { console.error("[email] wallet credit failed:", e); }
+      } catch (e: any) {
+        console.error("[wallet topup] email prep failed:", e?.message ?? e);
+      }
+    }
     return { status: "success" };
   }
   if (state === "PENDING") return { status: "pending" };
