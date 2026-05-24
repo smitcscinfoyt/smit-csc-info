@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useVerifyPayment, getGetMembershipStatusQueryKey } from "@workspace/api-client-react";
+import { useVerifyPayment, getGetMembershipStatusQueryKey, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/lib/i18n";
@@ -20,7 +20,8 @@ export default function PaymentSuccess() {
     if (!txn) return;
     verifyMutation.mutate({ transactionId: txn }, {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: getGetMembershipStatusQueryKey() });
+       queryClient.invalidateQueries({ queryKey: getGetMembershipStatusQueryKey() });
+queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
       },
       onError: () => {
         setLocation(`/payment/pending?txn=${txn}&failed=1`);
