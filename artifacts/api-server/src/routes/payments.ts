@@ -97,10 +97,16 @@ async function handlePhonePeCallback(req: any, res: any): Promise<void> {
 
     // Generic fallbacks
     if (!merchantTransactionId) {
+          // Generic fallbacks
+    if (!merchantTransactionId) {
       merchantTransactionId =
         (req.body?.merchantTransactionId as string | undefined) ||
         (req.query?.transactionId        as string | undefined) ||
-        (req.query?.merchantTransactionId as string | undefined);
+        (req.query?.merchantTransactionId as string | undefined) ||
+        (req.query?.txn                   as string | undefined) ||  // FIX: our redirectUrl uses ?txn=
+        (req.query?.transaction_id        as string | undefined) ||
+        (req.body?.transactionId          as string | undefined) ||
+        (req.body?.txn                    as string | undefined);
     }
 
     console.log(`[PhonePe Callback] Resolved txnId: ${merchantTransactionId ?? "NOT FOUND"}`);
