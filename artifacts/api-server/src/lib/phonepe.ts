@@ -77,14 +77,21 @@ export function getCallbackBaseUrl(): string {
   if (process.env.SITE_URL) {
     return process.env.SITE_URL.replace(/\/$/, "");
   }
+  // Second priority: APP_URL (also set in production .env).
+  if (process.env.APP_URL) {
+    return process.env.APP_URL.replace(/\/$/, "");
+  }
   // Fallback: REPLIT_DOMAINS (set automatically on Replit deployments).
-  // The last entry is the custom domain; earlier entries are the .replit.app domain.
   const replitDomains = (process.env.REPLIT_DOMAINS || "")
     .split(",")
     .map((d) => d.trim())
     .filter(Boolean);
   if (replitDomains.length > 0) {
     return `https://${replitDomains[replitDomains.length - 1]}`;
+  }
+  // PRODUCTION SAFETY NET: never let PhonePe redirect to localhost on prod.
+  if (process.env.NODE_ENV === "production") {
+    return "https://smitcscinfo.com";
   }
   return "http://localhost:8080";
 }
