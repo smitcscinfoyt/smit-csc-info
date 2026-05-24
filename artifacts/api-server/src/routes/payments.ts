@@ -10,6 +10,7 @@ import {
   getCallbackBaseUrl,
   verifyV1Callback,
 } from "../lib/phonepe";
+import { sendMembershipSuccessEmail } from "../lib/mailer";
 
 const router = Router();
 
@@ -297,9 +298,33 @@ async function activateMembership(transactionId: string) {
     }
   }
 
-  console.log(
+    console.log(
     `[activateMembership] ✅ Plan "${payment.plan}" activated — expires ${expiryDate.toISOString()}`
   );
+
+  // Step 4: Fire-and-forget congratulations email (does not block payment flow)
+  try {
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId));
+    const toEmail = payment.billingEmail || u?.email;
+    const toName = payment.billingName || u?.name || "Member";
+    if (toEmail) {
+      sendMembershipSuccessEmail({
+        toEmail,
+        toName,
+        plan: payment.plan,
+        amountPaise: Number(payment.amount) * 100,
+        transactionId: payment.transactionId,
+        completedAt: new Date(),
+        expiryDate,
+        isRenewal: false,
+      }).catch((e) => console.error("[activateMembership] email send failed:", e?.message ?? e));
+    }
+  } catch (e: any) {
+    console.error("[activateMembership] email prep failed:", e?.message ?? e);
+  }
+
+  return updated;
+}
 
     // Send welcome email (non-blocking)
   try {
