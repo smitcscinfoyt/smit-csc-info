@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { PartyPopper } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,28 +109,37 @@ export default function RechargeHub() {
   const dashQ   = useQuery({ queryKey: ["recharge", "dashboard"], queryFn: () => getRechargeDashboard(), enabled: !!user, refetchInterval: 60_000 });
   const tierQ   = useQuery({ queryKey: ["operator-membership", "status"], queryFn: getOperatorMembershipStatus, enabled: !!user });
 
-  // On mount: if returning from PhonePe with #upgrade?txn=..., verify and show toast.
+    // ── Upgrade celebration modal state ──────────────────────────────
+  const [celebrate, setCelebrate] = useState<{
+    open: boolean;
+    state: "loading" | "success" | "pending" | "failed";
+    tier?: OperatorTier;
+    error?: string;
+  }>({ open: false, state: "loading" });
+
+  // On mount: if returning from PhonePe with #upgrade?txn=..., verify & celebrate.
   useEffect(() => {
     if (!user) return;
     const txn = readTxnFromHash();
     if (!txn) return;
     setTabState("upgrade");
+    setCelebrate({ open: true, state: "loading" });
     (async () => {
       try {
         const r = await verifyOperatorMembership(txn);
         if (r.status === "success") {
-          toast({ title: "Upgrade successful", description: `You are now on ${r.tier.toUpperCase()} plan.` });
+          setCelebrate({ open: true, state: "success", tier: r.tier });
         } else if (r.status === "pending") {
-          toast({ title: "Payment pending", description: "We will update your plan once PhonePe confirms." });
+          setCelebrate({ open: true, state: "pending" });
         } else {
-          toast({ title: "Payment failed", description: r.error ?? "Please try again.", variant: "destructive" });
+          setCelebrate({ open: true, state: "failed", error: r.error });
         }
         await qc.invalidateQueries({ queryKey: ["operator-membership", "status"] });
         await qc.invalidateQueries({ queryKey: ["wallet"] });
         // Strip the query portion of the hash to avoid re-running verify.
         history.replaceState(null, "", "#upgrade");
       } catch (err: any) {
-        toast({ title: "Could not verify payment", description: err?.message ?? "", variant: "destructive" });
+        setCelebrate({ open: true, state: "failed", error: err?.message ?? "Verification failed" });
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,9 +153,16 @@ export default function RechargeHub() {
     );
   }
 
-  return (
+    return (
     <div className="flex-1 bg-gray-50">
-      {/* Sub-header tab bar */}
+      <UpgradeCelebrationModal
+        open={celebrate.open}
+        state={celebrate.state}
+        tier={celebrate.tier}
+        error={celebrate.error}
+        onClose={() => setCelebrate((c) => ({ ...c, open: false }))}
+      />
+      <div className="container ...">
       <div className="bg-gradient-to-r from-purple-700 via-purple-600 to-amber-500 shadow">
         <div className="container mx-auto max-w-6xl px-2">
           <div className="flex overflow-x-auto no-scrollbar">
@@ -1412,5 +1431,98 @@ function DownloadAppView() {
         <Button disabled className="mt-2"><Download className="h-4 w-4 mr-2" />Coming Soon</Button>
       </CardContent>
     </Card>
+  );
+}
+// ──────────────────────────────────────────────────────────────
+// Upgrade Celebration Modal (placed at file end)
+// ──────────────────────────────────────────────────────────────
+function UpgradeCelebrationModal({
+  open, state, tier, error, onClose,
+}: {
+  open: boolean;
+  state: "loading" | "success" | "pending" | "failed";
+  tier?: OperatorTier;
+  error?: string;
+  onClose: () => void;
+}) {
+  const planLabel = tier === "premium" ? "PREMIUM" : tier === "gold" ? "GOLD" : "";
+  const gradient = tier === "premium"
+    ? "from-fuchsia-600 via-purple-600 to-indigo-700"
+    : "from-amber-400 via-orange-500 to-yellow-600";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md p-0 overflow-hidden border-0">
+        <AnimatePresence mode="wait">
+          {state === "loading" && (
+            <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="p-10 flex flex-col items-center text-center bg-white">
+              <Loader2 className="h-14 w-14 text-indigo-600 animate-spin mb-4" />
+              <h2 className="text-xl font-bold mb-1">Confirming Payment...</h2>
+              <p className="text-sm text-muted-foreground">PhonePe સાથે verify કરી રહ્યા છીએ. થોડી સેકન્ડ રાહ જુઓ.</p>
+            </motion.div>
+          )}
+
+          {state === "success" && (
+            <motion.div key="success" initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className={`p-8 text-center text-white bg-gradient-to-br ${gradient} relative overflow-hidden`}>
+              {/* Confetti dots */}
+              {[...Array(14)].map((_, i) => (
+                <motion.div key={i}
+                  initial={{ y: -20, opacity: 0, scale: 0 }}
+                  animate={{ y: [0, 300], opacity: [0, 1, 0], scale: [0, 1, 0.5] }}
+                  transition={{ duration: 2.2, delay: i * 0.08, repeat: Infinity, repeatDelay: 1 }}
+                  className="absolute w-2 h-2 rounded-full bg-white/80"
+                  style={{ left: `${(i * 7) % 100}%`, top: 0 }}
+                />
+              ))}
+              <motion.div initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.15, type: "spring", stiffness: 300, damping: 14 }}
+                className="h-24 w-24 mx-auto bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mb-5 ring-4 ring-white/40">
+                <PartyPopper className="h-12 w-12" />
+              </motion.div>
+              <motion.h2 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+                className="text-3xl font-extrabold mb-2">🎉 Congratulations!</motion.h2>
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                className="text-lg opacity-95 mb-1">તમારું <b>{planLabel}</b> plan activate થઈ ગયું!</motion.p>
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+                className="text-sm opacity-80 mb-6">હવે higher commission rates ની મજા લો. Lifetime access.</motion.p>
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.75 }}>
+                <Button onClick={onClose} className="bg-white text-gray-900 hover:bg-gray-100 font-bold px-8 h-11">
+                  Start Earning <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {state === "pending" && (
+            <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="p-8 text-center bg-white">
+              <div className="h-20 w-20 mx-auto bg-amber-100 rounded-full flex items-center justify-center mb-4">
+                <Clock className="h-10 w-10 text-amber-600" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">Payment Pending</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                PhonePe confirmation આવી રહ્યું છે. થોડી મિનિટ માં તમારું plan automatically activate થઈ જશે.
+              </p>
+              <Button onClick={onClose} variant="outline" className="w-full">Close</Button>
+            </motion.div>
+          )}
+
+          {state === "failed" && (
+            <motion.div key="failed" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="p-8 text-center bg-white">
+              <div className="h-20 w-20 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <XCircle className="h-10 w-10 text-red-600" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">Verification Failed</h2>
+              <p className="text-sm text-muted-foreground mb-6">{error ?? "કૃપા કરી ફરી પ્રયત્ન કરો."}</p>
+              <Button onClick={onClose} variant="outline" className="w-full">Close</Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </DialogContent>
+    </Dialog>
   );
 }
