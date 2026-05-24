@@ -275,7 +275,7 @@ async function reconcileMembershipPayment(txn: string): Promise<{ status: string
 async function handleMembershipCallback(req: any, res: any): Promise<void> {
   const base = getCallbackBaseUrl();
   const appBase = (process.env.SMIT_CSC_BASE_PATH ?? "/").replace(/\/$/, "");
-  try {
+   try {
     let txn: string | undefined =
       (req.query?.merchantOrderId as string | undefined) ||
       (req.query?.orderId as string | undefined) ||
@@ -283,7 +283,11 @@ async function handleMembershipCallback(req: any, res: any): Promise<void> {
       (req.body?.orderId as string | undefined) ||
       (req.body?.merchantTransactionId as string | undefined) ||
       (req.query?.transactionId as string | undefined) ||
-      (req.query?.merchantTransactionId as string | undefined);
+      (req.query?.merchantTransactionId as string | undefined) ||
+      (req.query?.txn as string | undefined) ||                 // FIX: redirectUrl uses ?txn=
+      (req.query?.transaction_id as string | undefined) ||
+      (req.body?.transactionId as string | undefined) ||
+      (req.body?.txn as string | undefined);
 
     if (!txn && req.body?.response) {
       try {
