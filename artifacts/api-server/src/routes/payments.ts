@@ -95,9 +95,7 @@ async function handlePhonePeCallback(req: any, res: any): Promise<void> {
       }
     }
 
-    // Generic fallbacks
-    if (!merchantTransactionId) {
-          // Generic fallbacks
+       // Generic fallbacks
     if (!merchantTransactionId) {
       merchantTransactionId =
         (req.body?.merchantTransactionId as string | undefined) ||
