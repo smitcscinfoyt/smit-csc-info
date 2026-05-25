@@ -397,6 +397,27 @@ router.post("/admin/grant-prime", requireAdmin, async (req, res): Promise<void> 
     })
     .returning();
 
+  // ── Fire-and-forget congratulations email to member ──────────────────────
+  void (async () => {
+    try {
+      const { sendMembershipSuccessEmail } = await import("../lib/mailer");
+      await sendMembershipSuccessEmail({
+        toEmail: user.email,
+        toName: user.name || "Member",
+        plan: plan,
+        planDisplayName: `Prime (${days}-day Admin Grant)`,
+        durationLabel: `${days} days`,
+        amountPaise: 0,
+        transactionId,
+        completedAt: now,
+        expiryDate,
+        isRenewal: false,
+      });
+    } catch (e: any) {
+      logger.error({ err: e?.message }, "[admin/grant-prime] email failed");
+    }
+  })();
+
   res.status(201).json({
     success: true,
     message: `Prime membership granted to ${user.name} (${user.email}) for ${days} days`,
