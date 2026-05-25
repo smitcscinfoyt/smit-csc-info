@@ -1,4 +1,3 @@
-import { sendWelcomeEmail } from "../lib/emailService";
 import { Router } from "express";
 import { db, paymentsTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -10,7 +9,7 @@ import {
   getCallbackBaseUrl,
   verifyV1Callback,
 } from "../lib/phonepe";
-import { sendMembershipSuccessEmail } from "../lib/mailer";
+import { notifyPrimeMembershipPayment } from "../lib/payment-notifications";
 
 const router = Router();
 
@@ -242,19 +241,6 @@ async function activateMembership(transactionId: string) {
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + days);
 
-    // Send welcome email (non-blocking)
-  try {
-    const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
-      .from(usersTable).where(eq(usersTable.id, payment.userId));
-    if (u?.email) {
-      await sendWelcomeEmail({
-        to: u.email, name: u.name, plan: payment.plan,
-        amountRupees: Number(payment.amount),
-        transactionId: payment.transactionId, expiryDate: expiryDate,
-      });
-    }
-  } catch (e) { console.error("[email] welcome failed:", e); }
-
   // Step 1: Mark payment record as successful with expiry date
   const [updated] = await db
     .update(paymentsTable)
@@ -302,42 +288,35 @@ async function activateMembership(transactionId: string) {
     `[activateMembership] ✅ Plan "${payment.plan}" activated — expires ${expiryDate.toISOString()}`
   );
 
-  // Step 4: Fire-and-forget congratulations email (does not block payment flow)
-  try {
-    const [u] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId));
-    const toEmail = payment.billingEmail || u?.email;
-    const toName = payment.billingName || u?.name || "Member";
-    if (toEmail) {
-      sendMembershipSuccessEmail({
+  // Step 4: Payment success email (SMTP, retried; non-blocking for PhonePe callback)
+  void (async () => {
+    try {
+      const [u] = await db.select().from(usersTable).where(eq(usersTable.id, payment.userId));
+      const toEmail = (payment.billingEmail || u?.email || "").trim();
+      const toName = payment.billingName || u?.name || "Member";
+      if (!toEmail) {
+        console.warn(`[activateMembership] No email for userId=${payment.userId} — receipt skipped`);
+        return;
+      }
+      await notifyPrimeMembershipPayment({
+        userId: payment.userId,
+        paymentRowId: payment.id,
         toEmail,
         toName,
-        plan: payment.plan,
-        amountPaise: Number(payment.amount) * 100,
+        planId: payment.plan,
+        amountRupees: Number(payment.amount),
         transactionId: payment.transactionId,
         completedAt: new Date(),
         expiryDate,
-        isRenewal: false,
-      }).catch((e) => console.error("[activateMembership] email send failed:", e?.message ?? e));
-    }
-  } catch (e: any) {
-    console.error("[activateMembership] email prep failed:", e?.message ?? e);
-  }
-
-  return updated;
-}
-
-    // Send welcome email (non-blocking)
-  try {
-    const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
-      .from(usersTable).where(eq(usersTable.id, payment.userId));
-    if (u?.email) {
-      await sendWelcomeEmail({
-        to: u.email, name: u.name, plan: payment.plan,
-        amountRupees: Number(payment.amount),
-        transactionId: payment.transactionId, expiryDate: expiryDate,
+        couponCode: payment.couponCode,
+        discountPaise: payment.discountPaise,
       });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[activateMembership] payment email failed:", msg);
     }
-  } catch (e) { console.error("[email] welcome failed:", e); }
+  })();
+
   return updated;
 }
 

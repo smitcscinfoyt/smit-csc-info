@@ -13,7 +13,6 @@ import crypto from "crypto";
 import { and, eq } from "drizzle-orm";
 import { db, usersTable, operatorMembershipPaymentsTable, couponsTable } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../lib/auth";
-import { sendWelcomeEmail } from "../lib/emailService";
 import {
   initiatePhonePePayment,
   checkPhonePeStatus,
@@ -254,17 +253,6 @@ async function reconcileMembershipPayment(txn: string): Promise<{ status: string
       } catch (e: any) {
         console.error("[operator-membership] email prep failed:", e?.message ?? e);
       }
-            try {
-        const [u] = await db.select({ email: usersTable.email, name: usersTable.name })
-          .from(usersTable).where(eq(usersTable.id, p.userId));
-        if (u?.email) {
-          await sendWelcomeEmail({
-            to: u.email, name: u.name, plan: p.plan,
-            amountRupees: Number(p.amountPaise) / 100,
-            transactionId: p.transactionId,
-          });
-        }
-      } catch (e) { console.error("[email] welcome failed:", e); }
       // Record coupon redemption if a coupon was applied
       if (p.couponCode) {
         const [c] = await db.select().from(couponsTable).where(eq(couponsTable.code, p.couponCode));

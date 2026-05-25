@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { sendTestEmail, getSmtpStatus } from "../lib/mailer";
+import { sendTestEmail, sendMembershipSuccessEmail, getSmtpStatus } from "../lib/mailer";
 
 const router = Router();
 
@@ -65,6 +65,58 @@ router.get("/test-email", async (req, res): Promise<void> => {
         : err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT"
         ? "Cannot connect. Verify SMTP_HOST and SMTP_PORT are correct."
         : "Check server logs for details.",
+    });
+  }
+});
+
+/**
+ * GET /api/test-email/payment?to=member@example.com
+ * Sends a sample Prime payment success receipt (for design/SMTP verification).
+ */
+router.get("/test-email/payment", async (req, res): Promise<void> => {
+  const to = typeof req.query.to === "string" ? req.query.to.trim() : null;
+  const status = getSmtpStatus();
+
+  if (!status.configured) {
+    res.status(503).json({ success: false, message: "SMTP not configured" });
+    return;
+  }
+  if (!to) {
+    res.status(400).json({ success: false, message: "Provide ?to=recipient@email.com" });
+    return;
+  }
+
+  try {
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 90);
+    await sendMembershipSuccessEmail({
+      toEmail: to,
+      toName: "Test Member",
+      plan: "quarterly",
+      planDisplayName: "Prime Quarterly Plan",
+      planDisplayNameGu: "પ્રાઇમ ત્રિ-માસિક પ્લાન",
+      durationLabel: "3 months",
+      benefits: [
+        "All Monthly Plan benefits",
+        "Priority support",
+        "Offline PDF access",
+      ],
+      amountPaise: 79900,
+      transactionId: `TEST-${Date.now()}`,
+      completedAt: new Date(),
+      expiryDate: expiry,
+      isRenewal: false,
+    });
+    res.json({
+      success: true,
+      message: `Sample payment receipt sent to ${to} from ${process.env.SMTP_FROM ?? "admin@smitcscinfo.com"}`,
+    });
+  } catch (err: unknown) {
+    const e = err as { message?: string; code?: string };
+    res.status(500).json({
+      success: false,
+      error: e?.message ?? "Send failed",
+      code: e?.code,
     });
   }
 });

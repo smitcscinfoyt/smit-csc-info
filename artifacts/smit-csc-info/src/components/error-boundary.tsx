@@ -3,13 +3,13 @@ import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface Props { children: ReactNode; }
-interface State { hasError: boolean; }
+interface State { hasError: boolean; message?: string; }
 
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, message: error.message };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -33,6 +33,11 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="text-sm text-gray-600 mb-6">
             Please try again later. If the problem continues, refresh the page or return to the home page.
           </p>
+          {import.meta.env.DEV && this.state.message && (
+            <p className="text-xs text-left text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-6 font-mono break-words">
+              {this.state.message}
+            </p>
+          )}
           <Button
             onClick={this.handleReset}
             className="w-full bg-gradient-to-r from-amber-400 to-yellow-600 hover:from-amber-500 hover:to-yellow-700 text-purple-950 font-semibold border-0"

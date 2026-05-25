@@ -1,22 +1,45 @@
 import nodemailer from "nodemailer";
+import {
+  buildPaymentReceiptHtml,
+  type PaymentReceiptRow,
+} from "./email-templates/payment-receipt-html";
+
+const ADMIN_EMAIL = "admin@smitcscinfo.com";
+const SMTP_RETRY_ATTEMPTS = 3;
+const SMTP_RETRY_BASE_MS = 1_200;
 
 // ─── App base URL ─────────────────────────────────────────────────────────────
 
 function getAppUrl(): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  return "http://localhost:8080";
+  return "http://localhost:3000";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ─── SMTP config ──────────────────────────────────────────────────────────────
 
 function getSmtpConfig() {
+  const user = process.env.SMTP_USER ?? "";
+  const configuredFrom = process.env.SMTP_FROM?.trim();
+  let from = `"Smit CSC Info" <${ADMIN_EMAIL}>`;
+  if (configuredFrom) {
+    from = configuredFrom.includes("<")
+      ? configuredFrom
+      : `"Smit CSC Info" <${configuredFrom}>`;
+  } else if (user.includes("@")) {
+    from = `"Smit CSC Info" <${user}>`;
+  }
   return {
     host: process.env.SMTP_HOST ?? "",
     port: parseInt(process.env.SMTP_PORT ?? "587", 10),
-    user: process.env.SMTP_USER ?? "",
+    user,
     pass: process.env.SMTP_PASS ?? "",
-    from: process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@smitcscinfo.com",
+    from,
+    replyTo: process.env.ADMIN_EMAIL?.trim() || ADMIN_EMAIL,
   };
 }
 
@@ -51,10 +74,14 @@ export function getSmtpStatus(): { configured: boolean; host: string; port: numb
   return { configured: isSmtpConfigured(), host, port, user };
 }
 
-// ─── Core send function ───────────────────────────────────────────────────────
+// ─── Core send function (with retries for payment reliability) ────────────────
 
-async function sendMail(opts: { to: string; subject: string; html: string }): Promise<void> {
-  const { from } = getSmtpConfig();
+async function sendMailOnce(opts: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  const { from, replyTo } = getSmtpConfig();
   const transport = createTransport();
 
   if (!transport) {
@@ -68,37 +95,61 @@ async function sendMail(opts: { to: string; subject: string; html: string }): Pr
     return;
   }
 
-  try {
-    const info = await transport.sendMail({
-      from: `"Smit CSC Info" <${from}>`,
-      to:      opts.to,
-      subject: opts.subject,
-      html:    opts.html,
-    });
-    console.log(`[MAILER] ✅ Email sent to ${opts.to} — messageId: ${info.messageId}`);
-  } catch (err: any) {
-    const code    = err?.code    ?? "UNKNOWN";
-    const message = err?.message ?? "Unknown error";
-    console.error("════════════════════════════════════════════════════");
-    console.error("[MAILER] ❌ SEND FAILED");
-    console.error(`[MAILER]    Error code : ${code}`);
-    console.error(`[MAILER]    Message    : ${message}`);
+  const info = await transport.sendMail({
+    from,
+    replyTo,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+  });
+  console.log(`[MAILER] ✅ Email sent to ${opts.to} — messageId: ${info.messageId}`);
+}
 
-    if (code === "EAUTH" || message.toLowerCase().includes("auth")) {
-      console.error("[MAILER] 🔑 Authentication error — check SMTP_USER / SMTP_PASS");
-      console.error("[MAILER]    Gmail users: use an App Password, not your regular password");
-      console.error("[MAILER]    Gmail > Manage Google Account > Security > 2-Step Verification > App Passwords");
-    } else if (code === "ECONNREFUSED" || code === "ETIMEDOUT") {
-      console.error("[MAILER] 🌐 Connection error — check SMTP_HOST / SMTP_PORT");
-      console.error("[MAILER]    Gmail: smtp.gmail.com, Port 587 (TLS) or 465 (SSL)");
-      console.error("[MAILER]    Hostinger: smtp.hostinger.com, Port 587");
-    } else if (code === "ESOCKET") {
-      console.error("[MAILER] 🔒 TLS/socket error — try switching port (587 ↔ 465)");
-    }
+function logSmtpFailure(err: unknown): void {
+  const e = err as { code?: string; message?: string };
+  const code = e?.code ?? "UNKNOWN";
+  const message = e?.message ?? "Unknown error";
+  console.error("════════════════════════════════════════════════════");
+  console.error("[MAILER] ❌ SEND FAILED");
+  console.error(`[MAILER]    Error code : ${code}`);
+  console.error(`[MAILER]    Message    : ${message}`);
 
-    console.error("════════════════════════════════════════════════════");
-    throw err;
+  if (code === "EAUTH" || message.toLowerCase().includes("auth")) {
+    console.error("[MAILER] 🔑 Authentication error — check SMTP_USER / SMTP_PASS (GitHub Secrets)");
+    console.error("[MAILER]    Gmail: use an App Password with 2-Step Verification enabled");
+  } else if (code === "ECONNREFUSED" || code === "ETIMEDOUT") {
+    console.error("[MAILER] 🌐 Connection error — check SMTP_HOST / SMTP_PORT");
+  } else if (code === "ESOCKET") {
+    console.error("[MAILER] 🔒 TLS/socket error — try port 587 (TLS) or 465 (SSL)");
   }
+  console.error("════════════════════════════════════════════════════");
+}
+
+async function sendMail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  retries?: number;
+}): Promise<void> {
+  const attempts = opts.retries ?? SMTP_RETRY_ATTEMPTS;
+  let lastErr: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await sendMailOnce(opts);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < attempts) {
+        const delay = SMTP_RETRY_BASE_MS * attempt;
+        console.warn(`[MAILER] Retry ${attempt}/${attempts - 1} for ${opts.to} in ${delay}ms…`);
+        await sleep(delay);
+      }
+    }
+  }
+
+  logSmtpFailure(lastErr);
+  throw lastErr;
 }
 
 // ─── Service request email (Insurance / Money Transfer / NSDL PAN, etc.) ─────
@@ -193,8 +244,6 @@ export async function sendTestEmail(toEmail: string): Promise<void> {
 }
 // ─── Payment success emails ───────────────────────────────────────────────────
 
-type PaymentEmailKind = "recharge" | "wallet_topup" | "operator_tier" | "membership" | "membership_renewal";
-
 function rupees(paise: number): string {
   return (Number(paise) / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -205,69 +254,41 @@ function fmtDate(d: Date | string): string {
 }
 
 function buildPaymentSuccessHtml(opts: {
-  kind: PaymentEmailKind;
   toName: string;
   heading: string;
   subheading: string;
+  subheadingGu?: string;
   rows: Array<[string, string]>;
+  rowHtml?: Array<[string, string]>;
   gradient?: string;
   ctaLabel?: string;
   ctaUrl?: string;
   footerNote?: string;
+  benefits?: string[];
+  preheader?: string;
 }): string {
-  const gradient = opts.gradient || "linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%)";
-  const rowsHtml = opts.rows.map(([k, v]) => `
-    <tr>
-      <td style="padding:10px 14px;background:#f8fafc;font-weight:600;color:#475569;font-size:13px;border-bottom:1px solid #eef2f7;width:42%">${k}</td>
-      <td style="padding:10px 14px;color:#0f172a;font-size:14px;border-bottom:1px solid #eef2f7;font-weight:500">${v}</td>
-    </tr>`).join("");
-  const cta = opts.ctaUrl && opts.ctaLabel ? `
-    <div style="text-align:center;margin:0 0 24px;">
-      <a href="${opts.ctaUrl}" style="display:inline-block;padding:13px 32px;background:${gradient};color:#fff;font-size:14px;font-weight:700;text-decoration:none;border-radius:10px;">
-        ${opts.ctaLabel}
-      </a>
-    </div>` : "";
-  const footer = opts.footerNote ? `
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;margin:0 0 8px;">
-      <p style="margin:0;font-size:13px;color:#166534;line-height:1.5;">${opts.footerNote}</p>
-    </div>` : "";
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
-<body style="margin:0;padding:0;background:#f4f4f9;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f9;padding:32px 12px;">
-    <tr><td align="center">
-      <table width="100%" style="max-width:560px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(15,23,42,.08);">
-        <tr>
-          <td style="background:${gradient};padding:32px 36px;text-align:center;">
-            <p style="margin:0;font-size:22px;font-weight:800;color:#fff;letter-spacing:.3px;">Smit CSC Info</p>
-            <p style="margin:4px 0 0;font-size:12px;color:rgba(255,255,255,.85);">Gujarat's #1 CSC Resource Platform</p>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:32px 36px 8px;text-align:center;">
-            <h2 style="margin:0 0 8px;font-size:22px;font-weight:800;color:#0f172a;">${opts.heading}</h2>
-            <p style="margin:0 0 4px;font-size:15px;color:#334155;">Hello <b>${opts.toName}</b> 👋</p>
-            <p style="margin:0 0 20px;font-size:14px;color:#64748b;line-height:1.6;">${opts.subheading}</p>
-          </td>
-        </tr>
-        <tr><td style="padding:0 36px 24px;">
-          <table style="width:100%;border-collapse:collapse;border:1px solid #eef2f7;border-radius:10px;overflow:hidden;">
-            ${rowsHtml}
-          </table>
-        </td></tr>
-        ${cta ? `<tr><td style="padding:0 36px;">${cta}</td></tr>` : ""}
-        ${footer ? `<tr><td style="padding:0 36px 24px;">${footer}</td></tr>` : ""}
-        <tr>
-          <td style="background:#f8f8ff;padding:18px 36px;text-align:center;border-top:1px solid #ececf5;">
-            <p style="margin:0 0 4px;font-size:12px;color:#64748b;">Need help? Email <a href="mailto:admin@smitcscinfo.com" style="color:#4F46E5;text-decoration:none">admin@smitcscinfo.com</a></p>
-            <p style="margin:0;font-size:11px;color:#aaa;">© ${new Date().getFullYear()} Smit CSC Info · Gujarat, India</p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+  const receiptRows: PaymentReceiptRow[] = opts.rows.map(([label, value]) => ({
+    label,
+    value,
+  }));
+  if (opts.rowHtml) {
+    for (const [label, value] of opts.rowHtml) {
+      receiptRows.push({ label, value, valueIsHtml: true });
+    }
+  }
+  return buildPaymentReceiptHtml({
+    memberName: opts.toName,
+    headline: opts.heading,
+    congratulation: opts.subheading,
+    congratulationGu: opts.subheadingGu,
+    rows: receiptRows,
+    benefits: opts.benefits,
+    ctaLabel: opts.ctaLabel,
+    ctaUrl: opts.ctaUrl,
+    footerNote: opts.footerNote,
+    gradient: opts.gradient,
+    preheader: opts.preheader,
+  });
 }
 
 export async function sendRechargeSuccessEmail(opts: {
@@ -288,22 +309,34 @@ export async function sendRechargeSuccessEmail(opts: {
     ["Amount", `₹ ${rupees(opts.amountPaise)}`],
     ["Transaction ID", opts.transactionId],
     ["Date & Time", fmtDate(opts.completedAt)],
-    ["Status", `<span style="color:#16a34a;font-weight:700">✓ SUCCESS</span>`],
+  ];
+  const rowHtml: Array<[string, string]> = [
+    ["Status", `<span style="color:#16a34a;font-weight:800;">✓ PAYMENT SUCCESS</span>`],
   ];
   if (opts.commissionPaise && opts.commissionPaise > 0) {
-    rows.splice(5, 0, ["Commission Earned", `<span style="color:#16a34a;font-weight:700">+ ₹ ${rupees(opts.commissionPaise)}</span>`]);
+    rowHtml.unshift([
+      "Commission Earned",
+      `<span style="color:#16a34a;font-weight:700;">+ ₹ ${rupees(opts.commissionPaise)}</span>`,
+    ]);
   }
   const html = buildPaymentSuccessHtml({
-    kind: "recharge",
     toName: opts.toName,
-    heading: "🎉 Recharge Successful!",
-    subheading: `તમારું <b>${opts.operatorName}</b> recharge સફળતાપૂર્વક પૂર્ણ થયું છે. વિગતો નીચે જુઓ.`,
+    heading: "Recharge Successful!",
+    subheading: `Congratulations! Your ${opts.operatorName} recharge was completed successfully. Transaction details are below.`,
+    subheadingGu: `અભિનંદન! તમારું ${opts.operatorName} recharge સફળતાપૂર્વક પૂર્ણ થયું છે.`,
     rows,
+    rowHtml,
     gradient: "linear-gradient(135deg,#059669 0%,#10b981 100%)",
     ctaLabel: "View My Recharges",
     ctaUrl: `${getAppUrl()}/recharge`,
+    preheader: `Recharge confirmed — ₹${rupees(opts.amountPaise)} — ${opts.transactionId}`,
   });
-  await sendMail({ to: opts.toEmail, subject: `✅ Recharge Successful — ₹${rupees(opts.amountPaise)} ${opts.operatorName}`, html });
+  await sendMail({
+    to: opts.toEmail,
+    subject: `✅ Recharge Successful — ₹${rupees(opts.amountPaise)} ${opts.operatorName}`,
+    html,
+    retries: SMTP_RETRY_ATTEMPTS,
+  });
 }
 
 export async function sendWalletTopupSuccessEmail(opts: {
@@ -316,26 +349,35 @@ export async function sendWalletTopupSuccessEmail(opts: {
   newBalancePaise?: number;
 }): Promise<void> {
   const rows: Array<[string, string]> = [
-    ["Amount Added", `<span style="color:#16a34a;font-weight:700">+ ₹ ${rupees(opts.amountPaise)}</span>`],
+    ["Amount Added", `₹ ${rupees(opts.amountPaise)}`],
     ["Payment Method", (opts.method ?? "PhonePe").toUpperCase()],
     ["Transaction ID", opts.transactionId],
     ["Date & Time", fmtDate(opts.completedAt)],
-    ["Status", `<span style="color:#16a34a;font-weight:700">✓ CREDITED</span>`],
+  ];
+  const rowHtml: Array<[string, string]> = [
+    ["Status", `<span style="color:#16a34a;font-weight:800;">✓ WALLET CREDITED</span>`],
   ];
   if (typeof opts.newBalancePaise === "number") {
-    rows.push(["New Wallet Balance", `<b>₹ ${rupees(opts.newBalancePaise)}</b>`]);
+    rows.push(["New Wallet Balance", `₹ ${rupees(opts.newBalancePaise)}`]);
   }
   const html = buildPaymentSuccessHtml({
-    kind: "wallet_topup",
     toName: opts.toName,
-    heading: "💰 Wallet Top-up Successful!",
-    subheading: `તમારા wallet માં <b>₹ ${rupees(opts.amountPaise)}</b> સફળતાપૂર્વક add થયા છે. હવે recharge અને other services use કરી શકો છો.`,
+    heading: "Wallet Top-up Successful!",
+    subheading: `Congratulations! ₹ ${rupees(opts.amountPaise)} has been added to your wallet. You can now use recharge and other paid services.`,
+    subheadingGu: `અભિનંદન! તમારા wallet માં ₹ ${rupees(opts.amountPaise)} સફળતાપૂર્વક add થયા છે.`,
     rows,
+    rowHtml,
     gradient: "linear-gradient(135deg,#7c3aed 0%,#a855f7 100%)",
     ctaLabel: "Open Wallet",
-    ctaUrl: `${getAppUrl()}/recharge`,
+    ctaUrl: `${getAppUrl()}/wallet`,
+    preheader: `Wallet credited — ₹${rupees(opts.amountPaise)} — ${opts.transactionId}`,
   });
-  await sendMail({ to: opts.toEmail, subject: `✅ ₹${rupees(opts.amountPaise)} added to your wallet`, html });
+  await sendMail({
+    to: opts.toEmail,
+    subject: `✅ ₹${rupees(opts.amountPaise)} added to your wallet | ${opts.transactionId}`,
+    html,
+    retries: SMTP_RETRY_ATTEMPTS,
+  });
 }
 
 export async function sendOperatorTierSuccessEmail(opts: {
@@ -353,64 +395,107 @@ export async function sendOperatorTierSuccessEmail(opts: {
     ? "linear-gradient(135deg,#7c2d92 0%,#6d28d9 50%,#4338ca 100%)"
     : "linear-gradient(135deg,#d97706 0%,#f59e0b 50%,#eab308 100%)";
   const rows: Array<[string, string]> = [
-    ["Plan Activated", `<span style="font-weight:800;color:${isPremium ? "#6d28d9" : "#d97706"}">${label} (Lifetime)</span>`],
+    ["Plan Activated", `${label} (Lifetime)`],
     ["Commission Rate", commissionLine],
     ["Amount Paid", `₹ ${rupees(opts.amountPaise)}`],
     ["Transaction ID", opts.transactionId],
     ["Date & Time", fmtDate(opts.completedAt)],
-    ["Status", `<span style="color:#16a34a;font-weight:700">✓ ACTIVATED</span>`],
+  ];
+  const rowHtml: Array<[string, string]> = [
+    ["Status", `<span style="color:#16a34a;font-weight:800;">✓ PAYMENT CONFIRMED</span>`],
   ];
   const html = buildPaymentSuccessHtml({
-    kind: "operator_tier",
     toName: opts.toName,
-    heading: `🎉 ${label} Plan Activated!`,
-    subheading: `અભિનંદન! તમારું <b>${label}</b> plan lifetime માટે activate થઈ ગયું છે. હવે દરેક recharge પર <b>${commissionLine}</b> મળશે.`,
+    heading: `${label} Plan Activated!`,
+    subheading: `Congratulations! Your ${label} operator plan is now active for lifetime. You will earn ${commissionLine} on every successful recharge.`,
+    subheadingGu: `અભિનંદન! તમારું ${label} plan lifetime માટે activate થઈ ગયું છે.`,
     rows,
+    rowHtml,
     gradient,
     ctaLabel: "Start Earning",
     ctaUrl: `${getAppUrl()}/recharge`,
-    footerNote: `💎 <b>Lifetime Access:</b> Plan કદી expire થશે નહીં. દરેક successful recharge પર automatic commission તમારા wallet માં credit થશે.`,
+    footerNote:
+      "💎 <strong>Lifetime access:</strong> Your plan never expires. Commission is credited automatically to your wallet after each successful recharge.",
+    preheader: `${label} plan activated — ${opts.transactionId}`,
   });
-  await sendMail({ to: opts.toEmail, subject: `🎉 ${label} Plan Activated — Welcome to Smit CSC Info`, html });
+  await sendMail({
+    to: opts.toEmail,
+    subject: `🎉 ${label} Plan Activated — Payment Confirmed | ${opts.transactionId}`,
+    html,
+    retries: SMTP_RETRY_ATTEMPTS,
+  });
 }
 
 export async function sendMembershipSuccessEmail(opts: {
   toEmail: string;
   toName: string;
   plan: string;
+  planDisplayName?: string;
+  planDisplayNameGu?: string;
+  durationLabel?: string;
+  benefits?: string[];
   amountPaise: number;
   transactionId: string;
   completedAt: Date | string;
   expiryDate?: Date | string | null;
   isRenewal?: boolean;
+  couponCode?: string;
+  discountPaise?: number;
 }): Promise<void> {
-  const heading = opts.isRenewal ? "🔄 Membership Renewed!" : "🎉 Welcome to Prime!";
+  const planLabel = opts.planDisplayName ?? opts.plan.replace(/^\w/, (c) => c.toUpperCase());
+  const heading = opts.isRenewal ? "Membership Renewed Successfully!" : "Payment Successful — Welcome to Prime!";
   const subheading = opts.isRenewal
-    ? `તમારી <b>${opts.plan.toUpperCase()}</b> membership સફળતાપૂર્વક renew થઈ ગઈ. Thank you for staying with us! 🙏`
-    : `અભિનંદન! તમારી <b>${opts.plan.toUpperCase()}</b> membership activate થઈ ગઈ છે. હવે બધી premium features unlock થઈ ગઈ છે.`;
+    ? `Congratulations! Your ${planLabel} has been renewed. Thank you for continuing with Smit CSC Info — your premium access remains active.`
+    : `Congratulations! Your payment was successful and your ${planLabel} is now active. You now have full access to premium tutorials, tools, and documents.`;
+  const subheadingGu = opts.isRenewal
+    ? `અભિનંદન! તમારી ${opts.planDisplayNameGu ?? planLabel} membership સફળતાપૂર્વક renew થઈ ગઈ. Smit CSC Info સાથે જોડાયેલા રહેવા બદલ આભાર.`
+    : `અભિનંદન! તમારી ચૂકવણી સફળ થઈ અને ${opts.planDisplayNameGu ?? planLabel} activate થઈ ગયું છે. હવે તમે બધી premium સુવિધાઓ વાપરી શકો છો.`;
+
   const rows: Array<[string, string]> = [
-    ["Plan", `<b>${opts.plan.toUpperCase()}</b>`],
+    ["Plan", planLabel],
+    ["Duration", opts.durationLabel ?? "—"],
     ["Amount Paid", `₹ ${rupees(opts.amountPaise)}`],
     ["Transaction ID", opts.transactionId],
-    ["Date & Time", fmtDate(opts.completedAt)],
+    ["Payment Date", fmtDate(opts.completedAt)],
   ];
-  if (opts.expiryDate) {
-    rows.push(["Valid Until", `<b>${fmtDate(opts.expiryDate)}</b>`]);
+  if (opts.couponCode) {
+    rows.push(["Coupon Applied", opts.couponCode.toUpperCase()]);
   }
-  rows.push(["Status", `<span style="color:#16a34a;font-weight:700">✓ ${opts.isRenewal ? "RENEWED" : "ACTIVATED"}</span>`]);
+  if (opts.discountPaise && opts.discountPaise > 0) {
+    rows.push(["Discount", `− ₹ ${rupees(opts.discountPaise)}`]);
+  }
+  if (opts.expiryDate) {
+    rows.push(["Valid Until", fmtDate(opts.expiryDate)]);
+  }
+
+  const rowHtml: Array<[string, string]> = [
+    [
+      "Status",
+      `<span style="color:#16a34a;font-weight:800;">✓ PAYMENT ${opts.isRenewal ? "RENEWED" : "CONFIRMED"}</span>`,
+    ],
+  ];
 
   const html = buildPaymentSuccessHtml({
-    kind: opts.isRenewal ? "membership_renewal" : "membership",
     toName: opts.toName,
     heading,
     subheading,
+    subheadingGu,
     rows,
-    gradient: "linear-gradient(135deg,#dc2626 0%,#ea580c 50%,#f59e0b 100%)",
-    ctaLabel: "Explore Prime Features",
-    ctaUrl: `${getAppUrl()}/membership`,
-    footerNote: `⭐ <b>Premium Access:</b> તમે હવે બધા exclusive content, tools અને documents access કરી શકો છો.`,
+    rowHtml,
+    benefits: opts.benefits,
+    gradient: "linear-gradient(135deg,#7c2d12 0%,#ea580c 45%,#f59e0b 100%)",
+    ctaLabel: "Open Prime Dashboard",
+    ctaUrl: `${getAppUrl()}/dashboard`,
+    footerNote:
+      "⭐ <strong>Premium unlocked:</strong> Access exclusive Gujarati tutorials, PDF tools, document library, and priority support from your dashboard.",
+    preheader: `Payment confirmed — ${planLabel} — Txn ${opts.transactionId}`,
   });
-  await sendMail({ to: opts.toEmail, subject: `✅ ${heading.replace(/[🎉🔄]/g, "").trim()} — ${opts.plan.toUpperCase()}`, html });
+
+  const subject = opts.isRenewal
+    ? `✅ Membership Renewed — ${planLabel} | ${opts.transactionId}`
+    : `🎉 Payment Successful — Welcome to ${planLabel} | ${opts.transactionId}`;
+
+  await sendMail({ to: opts.toEmail, subject, html, retries: SMTP_RETRY_ATTEMPTS });
 }
 
 // ─── Prime renewal/expiry reminder email ──────────────────────────────────────

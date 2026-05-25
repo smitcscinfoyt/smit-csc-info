@@ -19,6 +19,7 @@ export default function Membership() {
   const { data: plans, isLoading } = useGetMembershipPlans({
     query: { queryKey: getGetMembershipPlansQueryKey() }
   });
+  const planList = Array.isArray(plans) ? plans : [];
 
   const { data: status } = useGetMembershipStatus({
     query: { queryKey: getGetMembershipStatusQueryKey(), enabled: !!user }
@@ -358,7 +359,7 @@ export default function Membership() {
           </div>
         ) : (
           <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-            {plans?.map((plan) => {
+            {planList.map((plan) => {
               const isPopular = plan.id === "quarterly";
               return (
                 <StaggerItem key={plan.id}>

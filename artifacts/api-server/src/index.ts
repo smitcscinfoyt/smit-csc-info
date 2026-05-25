@@ -2,7 +2,8 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startPrimeReminderScheduler, stopPrimeReminderScheduler } from "./lib/prime-reminders";
 
-const rawPort = process.env["PORT"];
+// PORT in .env is the Vite dev server; API_PORT is the Express listener.
+const rawPort = process.env["API_PORT"] ?? process.env["PORT"];
 
 if (!rawPort) {
   throw new Error(
