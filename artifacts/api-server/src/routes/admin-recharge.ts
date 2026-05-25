@@ -308,6 +308,29 @@ router.post("/admin/manual-topups/:id/approve", requireAdmin, async (req: AuthRe
     await db.update(walletTopupsTable)
       .set({ ledgerEntryId: credit.ledgerEntryId, updatedAt: new Date() })
       .where(eq(walletTopupsTable.id, id));
+
+    // ── Fire-and-forget wallet topup success email to member ──────────────
+    void (async () => {
+      try {
+        const { sendWalletTopupSuccessEmail } = await import("../lib/mailer");
+        const [u] = await db.select().from(usersTable).where(eq(usersTable.id, t.userId));
+        const toEmail = (u?.email ?? "").trim();
+        if (toEmail) {
+          await sendWalletTopupSuccessEmail({
+            toEmail,
+            toName: u?.name || "Member",
+            amountPaise: Number(t.amountPaise),
+            transactionId: t.transactionId,
+            completedAt: new Date(),
+            method: t.method ?? "Manual",
+            newBalancePaise: credit.balancePaise,
+          });
+        }
+      } catch (e: any) {
+        req.log.error({ err: e?.message }, "[admin/manual-topup] email failed");
+      }
+    })();
+
     res.json({ ok: true, balancePaise: credit.balancePaise });
   } catch (err: any) {
     // Roll back status so admin can retry
