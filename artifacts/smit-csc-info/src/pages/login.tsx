@@ -151,55 +151,35 @@ export default function Login() {
     });
   };
 
-    // Handle social redirect result when page loads after redirect (mobile flow)
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (!result) return;
-        const idToken = await result.user.getIdToken();
-        const res = await exchangeFirebaseToken(idToken);
-        login(res.token, res.user as any);
-        toast({ title: t.login.signedInFacebook });
-        await routeAfterLogin(res.user as any);
-      })
-      .catch((err: any) => {
-        if (!err) return;
-        const msg = err?.code === "auth/account-exists-with-different-credential"
-          ? "An account already exists with this email. Try email/password login."
-          : err?.message ?? "Sign-in failed. Please try again.";
-        toast({ variant: "destructive", title: "Sign-in failed", description: msg });
-      });
-  }, []);
+ const handleSocialLogin = async (provider: "google" | "facebook") => {
+  setSocialLoading(provider);
+  try {
+    const selectedProvider = provider === "facebook" ? facebookProvider : googleProvider;
 
-    const handleSocialLogin = async (provider: "google" | "facebook") => {
-    setSocialLoading(provider);
-    try {
-      const selectedProvider = provider === "facebook" ? facebookProvider : googleProvider;
-      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
-      if (isMobile) {
-        // Mobile: popups get blocked → use redirect
-        await signInWithRedirect(auth, selectedProvider);
-        return; // page navigates away
-      }
-
-      // Desktop: popup works smoothly
-      const result = await signInWithPopup(auth, selectedProvider);
-      const idToken = await result.user.getIdToken();
-      const res = await exchangeFirebaseToken(idToken);
-      login(res.token, res.user as any);
-      toast({ title: provider === "facebook" ? t.login.signedInFacebook : t.login.signedInGoogle });
-      await routeAfterLogin(res.user as any);
-    } catch (err: any) {
-      const msg = err?.code === "auth/popup-closed-by-user" ? "Sign-in cancelled." :
-        err?.code === "auth/account-exists-with-different-credential" ? "An account already exists with this email. Try email/password login." :
-        err?.code === "auth/unauthorized-domain" ? "This domain is not authorised. Please contact support." :
-        err?.message ?? "Social login failed. Please try again.";
-      toast({ variant: "destructive", title: "Sign-in failed", description: msg });
-    } finally {
-      setSocialLoading(null);
-    }
-  };
+    // Always use popup — signInWithRedirect causes sessionStorage errors on
+    // mobile browsers with storage partitioning (Chrome 115+, Safari 17+).
+    const result = await signInWithPopup(auth, selectedProvider);
+    const idToken = await result.user.getIdToken();
+    const res = await exchangeFirebaseToken(idToken);
+    login(res.token, res.user as any);
+    toast({ title: provider === "facebook" ? t.login.signedInFacebook : t.login.signedInGoogle });
+    await routeAfterLogin(res.user as any);
+  } catch (err: any) {
+    const msg =
+      err?.code === "auth/popup-closed-by-user"
+        ? "Sign-in cancelled."
+        : err?.code === "auth/popup-blocked"
+        ? "Popup blocked. Please allow popups for this site and try again."
+        : err?.code === "auth/account-exists-with-different-credential"
+        ? "An account already exists with this email. Try email/password login."
+        : err?.code === "auth/unauthorized-domain"
+        ? "This domain is not authorised. Please contact support."
+        : err?.message ?? "Social login failed. Please try again.";
+    toast({ variant: "destructive", title: "Sign-in failed", description: msg });
+  } finally {
+    setSocialLoading(null);
+  }
+};
   
   const handleForgotPassword = async () => {
     const email = resetEmail || form.getValues("email");
