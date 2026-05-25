@@ -42,7 +42,7 @@ jobs:
             git reset --hard origin/main
             git clean -fd --exclude=.env
 
-                        printf '' > "$APP_DIR/.env"
+            printf '' > "$APP_DIR/.env"
             echo "NODE_ENV=production" >> "$APP_DIR/.env"
             echo "APP_URL=https://smitcscinfo.com" >> "$APP_DIR/.env"
             echo "SITE_URL=${{ secrets.ENV_SITE_URL }}" >> "$APP_DIR/.env"
@@ -51,10 +51,9 @@ jobs:
             echo "PHONEPE_MERCHANT_ID=${{ secrets.ENV_PHONEPE_MERCHANT_ID }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_SECRET=${{ secrets.ENV_PHONEPE_CLIENT_SECRET }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_ID=${{ secrets.ENV_PHONEPE_CLIENT_ID }}" >> "$APP_DIR/.env"
-                        echo "PHONEPE_CLIENT_ID=${{ secrets.ENV_PHONEPE_CLIENT_ID }}" >> "$APP_DIR/.env"
             echo "PHONEPE_CLIENT_VERSION=1" >> "$APP_DIR/.env"
             echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/pg" >> "$APP_DIR/.env"
-            echo "SMTP_HOST=smtp.gmail.com" >> "$APP_DIR/.env"
+            echo "SMTP_HOST=smtp.zoho.in" >> "$APP_DIR/.env"
             echo "SMTP_PORT=587" >> "$APP_DIR/.env"
             echo "SMTP_USER=${{ secrets.ENV_SMTP_USER }}" >> "$APP_DIR/.env"
             echo "SMTP_PASS=${{ secrets.ENV_SMTP_PASS }}" >> "$APP_DIR/.env"
@@ -64,10 +63,10 @@ jobs:
             echo "A1TOPUP_PASSWORD=${{ secrets.ENV_A1TOPUP_PASSWORD }}" >> "$APP_DIR/.env"
             echo "A1TOPUP_BASE_URL=${{ secrets.ENV_A1TOPUP_BASE_URL }}" >> "$APP_DIR/.env"
             echo "A1TOPUP_WEBHOOK_SECRET=${{ secrets.ENV_A1TOPUP_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
-                        echo "PHONEPE_WEBHOOK_USERNAME=${{ secrets.ENV_PHONEPE_WEBHOOK_USERNAME }}" >> "$APP_DIR/.env"
+            echo "PHONEPE_WEBHOOK_USERNAME=${{ secrets.ENV_PHONEPE_WEBHOOK_USERNAME }}" >> "$APP_DIR/.env"
             echo "PHONEPE_WEBHOOK_PASSWORD=${{ secrets.ENV_PHONEPE_WEBHOOK_PASSWORD }}" >> "$APP_DIR/.env"
             echo "LOG_LEVEL=info" >> "$APP_DIR/.env"
-                        echo "GOOGLE_VISION_API_KEY=${{ secrets.ENV_GOOGLE_VISION_API_KEY }}" >> "$APP_DIR/.env"
+            echo "GOOGLE_VISION_API_KEY=${{ secrets.ENV_GOOGLE_VISION_API_KEY }}" >> "$APP_DIR/.env"
             echo "AI_INTEGRATIONS_GEMINI_BASE_URL=${{ secrets.ENV_GEMINI_BASE_URL }}" >> "$APP_DIR/.env"
             echo "AI_INTEGRATIONS_GEMINI_API_KEY=${{ secrets.ENV_GEMINI_API_KEY }}" >> "$APP_DIR/.env"
             echo "REMOVE_BG_API_KEY=${{ secrets.ENV_REMOVE_BG_API_KEY }}" >> "$APP_DIR/.env"
@@ -80,20 +79,20 @@ jobs:
             echo "EZYTM_API_USERID=${{ secrets.EZYTM_API_USERID }}" >> "$APP_DIR/.env"
             echo "EZYTM_API_PASSWORD=${{ secrets.EZYTM_API_PASSWORD }}" >> "$APP_DIR/.env"
 
-                        # Configure system nginx
+            # Configure system nginx
             sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
             sudo ln -sf /etc/nginx/sites-available/smit-csc-info /etc/nginx/sites-enabled/smit-csc-info
             sudo nginx -t && sudo systemctl reload nginx || true
 
-                        # Install SSL certificate
+            # Install SSL certificate
             if ! command -v certbot &> /dev/null; then
               sudo apt-get install -y certbot python3-certbot-nginx
             fi
             sudo certbot --nginx -d smitcscinfo.com -d www.smitcscinfo.com --non-interactive --agree-tos -m smitcscinfoyt@gmail.com --redirect || true
-            
+
             chmod +x "$APP_DIR/deploy.sh"
             "$APP_DIR/deploy.sh"
 
-                        # Set admin role for site owner
+            # Set admin role for site owner
             sleep 5
             docker compose -f "$APP_DIR/docker-compose.yml" exec -T db psql -U csc_admin -d smit_csc -c "UPDATE users SET role='admin' WHERE email='smitcscinfoyt@gmail.com';"
