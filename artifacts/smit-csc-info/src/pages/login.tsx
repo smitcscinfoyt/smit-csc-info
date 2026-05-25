@@ -53,6 +53,42 @@ export default function Login() {
     else setLocation("/");
   }, [user, setLocation]);
 
+  // Handle redirect result — runs when user comes back after signInWithRedirect.
+  // This is the fallback path for browsers that block the popup.
+  useEffect(() => {
+    let cancelled = false;
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result || cancelled) return;
+        const idToken = await result.user.getIdToken();
+        const res = await exchangeFirebaseToken(idToken);
+        login(res.token, res.user as any);
+        toast({ title: t.login.signedInGoogle });
+        if (res.user?.role === "admin" || res.user?.role === "manager") {
+          setLocation("/admin");
+        } else {
+          setLocation("/");
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        // Only show error for real failures, not for "no pending redirect"
+        const code = err?.code ?? "";
+        if (code && code !== "auth/no-current-user") {
+          toast({
+            variant: "destructive",
+            title: "Sign-in failed",
+            description:
+              code === "auth/unauthorized-domain"
+                ? "This domain is not authorised. Please contact support."
+                : err?.message ?? "Social login failed.",
+          });
+        }
+      });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [socialLoading, setSocialLoading]       = useState<"google" | "facebook" | null>(null);
   const [showPassword, setShowPassword]         = useState(false);
   const [resetLoading, setResetLoading]         = useState(false);
@@ -151,36 +187,55 @@ export default function Login() {
     });
   };
 
- const handleSocialLogin = async (provider: "google" | "facebook") => {
-  setSocialLoading(provider);
-  try {
+  const handleSocialLogin = async (provider: "google" | "facebook") => {
+    setSocialLoading(provider);
     const selectedProvider = provider === "facebook" ? facebookProvider : googleProvider;
+    try {
+      // Try popup first — instant UX, works on most desktop browsers.
+      const result = await signInWithPopup(auth, selectedProvider);
+      const idToken = await result.user.getIdToken();
+      const res = await exchangeFirebaseToken(idToken);
+      login(res.token, res.user as any);
+      toast({ title: provider === "facebook" ? t.login.signedInFacebook : t.login.signedInGoogle });
+      await routeAfterLogin(res.user as any);
+    } catch (err: any) {
+      const code: string = err?.code ?? "";
 
-    // Always use popup — signInWithRedirect causes sessionStorage errors on
-    // mobile browsers with storage partitioning (Chrome 115+, Safari 17+).
-    const result = await signInWithPopup(auth, selectedProvider);
-    const idToken = await result.user.getIdToken();
-    const res = await exchangeFirebaseToken(idToken);
-    login(res.token, res.user as any);
-    toast({ title: provider === "facebook" ? t.login.signedInFacebook : t.login.signedInGoogle });
-    await routeAfterLogin(res.user as any);
-  } catch (err: any) {
-    const msg =
-      err?.code === "auth/popup-closed-by-user"
-        ? "Sign-in cancelled."
-        : err?.code === "auth/popup-blocked"
-        ? "Popup blocked. Please allow popups for this site and try again."
-        : err?.code === "auth/account-exists-with-different-credential"
-        ? "An account already exists with this email. Try email/password login."
-        : err?.code === "auth/unauthorized-domain"
-        ? "This domain is not authorised. Please contact support."
-        : err?.message ?? "Social login failed. Please try again.";
-    toast({ variant: "destructive", title: "Sign-in failed", description: msg });
-  } finally {
-    setSocialLoading(null);
-  }
-};
-  
+      if (code === "auth/popup-blocked" || code === "auth/popup-cancelled-by-user") {
+        // Browser blocked the popup — fall back to full-page redirect.
+        // getRedirectResult() in the useEffect above will pick up the result.
+        try {
+          await signInWithRedirect(auth, selectedProvider);
+          // signInWithRedirect navigates away; code below won't run.
+          return;
+        } catch (redirectErr: any) {
+          toast({
+            variant: "destructive",
+            title: "Sign-in failed",
+            description: redirectErr?.message ?? "Could not start sign-in. Please try again.",
+          });
+          setSocialLoading(null);
+          return;
+        }
+      }
+
+      // All other errors — show a user-friendly message.
+      const msg =
+        code === "auth/popup-closed-by-user"
+          ? "Sign-in cancelled."
+          : code === "auth/account-exists-with-different-credential"
+          ? "An account already exists with this email. Try email/password login."
+          : code === "auth/unauthorized-domain"
+          ? "This domain is not authorised. Please contact support."
+          : code === "auth/cancelled-popup-request"
+          ? "Only one sign-in popup can be open at a time."
+          : err?.message ?? "Social login failed. Please try again.";
+
+      toast({ variant: "destructive", title: "Sign-in failed", description: msg });
+      setSocialLoading(null);
+    }
+  };
+
   const handleForgotPassword = async () => {
     const email = resetEmail || form.getValues("email");
     if (!email || !email.includes("@")) {
