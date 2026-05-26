@@ -54,7 +54,7 @@ jobs:
             echo "PHONEPE_CLIENT_VERSION=1" >> "$APP_DIR/.env"
             echo "PHONEPE_BASE_URL=https://api.phonepe.com/apis/pg" >> "$APP_DIR/.env"
             echo "SMTP_HOST=smtp.zoho.in" >> "$APP_DIR/.env"
-            echo "SMTP_PORT=587" >> "$APP_DIR/.env"
+            echo "SMTP_PORT=465" >> "$APP_DIR/.env"
             echo "SMTP_USER=admin@smitcscinfo.com" >> "$APP_DIR/.env"
             echo "SMTP_PASS=${{ secrets.ENV_SMTP_PASS }}" >> "$APP_DIR/.env"
             echo "SMTP_FROM=Smit CSC Info <admin@smitcscinfo.com>" >> "$APP_DIR/.env"
