@@ -1,25 +1,45 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Loader2, Check, X, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Check, X, ExternalLink, ShieldOff } from "lucide-react";
 import {
   adminListManualTopups, adminApproveManualTopup, adminRejectManualTopup,
   formatINR, type ManualTopupAdminItem,
 } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function AdminManualTopups() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const [tab, setTab] = useState<"awaiting_review" | "success" | "rejected">("awaiting_review");
   const [rejectTarget, setRejectTarget] = useState<ManualTopupAdminItem | null>(null);
   const [reason, setReason] = useState("");
+
+  // ── Admin-only guard ──────────────────────────────────────────────────────
+  if (user && user.role !== "admin") {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center space-y-4 p-8">
+          <ShieldOff className="h-14 w-14 text-red-400 mx-auto" />
+          <h2 className="text-xl font-bold text-gray-900">Access Denied</h2>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            Only administrators can access Manual Top-ups.
+          </p>
+          <Button variant="outline" onClick={() => setLocation("/admin")}>← Back to Admin</Button>
+        </div>
+      </div>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "manual-topups", tab],
