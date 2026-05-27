@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, Loader2, Save, Settings, Percent, RefreshCw, Check,
-  Smartphone, Tv, Receipt,
+  Smartphone, Tv, Receipt, ShieldOff,
 } from "lucide-react";
 import {
   adminGetSettings, adminUpdateSettings,
@@ -19,13 +19,33 @@ import {
   type RechargeSettings, type CommissionSlab, type RechargeType,
 } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function AdminRechargeSettings() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: ["admin", "recharge-settings"], queryFn: adminGetSettings });
   const [s, setS] = useState<RechargeSettings | null>(null);
   useEffect(() => { if (data) setS(data); }, [data]);
+
+  // ── Admin-only guard ──────────────────────────────────────────────────────
+  if (user && user.role !== "admin") {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center space-y-4 p-8">
+          <ShieldOff className="h-14 w-14 text-red-400 mx-auto" />
+          <h2 className="text-xl font-bold text-gray-900">Access Denied</h2>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            Only administrators can access Recharge Settings & Commission Manager.
+          </p>
+          <Button variant="outline" onClick={() => setLocation("/admin")}>← Back to Admin</Button>
+        </div>
+      </div>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
     mutationFn: (patch: Partial<RechargeSettings>) => adminUpdateSettings(patch),
