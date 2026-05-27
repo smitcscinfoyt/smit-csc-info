@@ -146,11 +146,13 @@ export default function AdminDashboard() {
             <Wallet className="h-6 w-6 text-primary" />Wallets
           </Button>
         </Link>
-        <Link href="/admin/manual-topups">
-          <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-manual-topups">
-            <Wallet className="h-6 w-6 text-amber-600" />Manual Top-ups
-          </Button>
-        </Link>
+        {isAdmin && (
+          <Link href="/admin/manual-topups">
+            <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-manual-topups">
+              <Wallet className="h-6 w-6 text-amber-600" />Manual Top-ups
+            </Button>
+          </Link>
+        )}
         <Link href="/admin/kyc">
           <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-kyc">
             <ShieldCheck className="h-6 w-6 text-primary" />KYC Review
@@ -161,21 +163,25 @@ export default function AdminDashboard() {
             <Percent className="h-6 w-6 text-primary" />Commission
           </Button>
         </Link>
-        <Link href="/admin/recharge-settings">
-          <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-recharge-settings">
-            <Settings className="h-6 w-6 text-primary" />Recharge Settings
-          </Button>
-        </Link>
+        {isAdmin && (
+          <Link href="/admin/recharge-settings">
+            <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-recharge-settings">
+              <Settings className="h-6 w-6 text-primary" />Recharge Settings
+            </Button>
+          </Link>
+        )}
         <Link href="/admin/reports">
           <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-reports">
             <BarChart3 className="h-6 w-6 text-primary" />Reports & Analytics
           </Button>
         </Link>
-        <Link href="/admin/coupons">
-          <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-coupons">
-            <Tag className="h-6 w-6 text-emerald-600" />Coupons
-          </Button>
-        </Link>
+        {isAdmin && (
+          <Link href="/admin/coupons">
+            <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-coupons">
+              <Tag className="h-6 w-6 text-emerald-600" />Coupons
+            </Button>
+          </Link>
+        )}
       </div>
     </div>
   );
