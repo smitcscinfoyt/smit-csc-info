@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +13,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, Edit2, Trash2, Tag, Copy } from "lucide-react";
+import { Loader2, Plus, Edit2, Trash2, Tag, Copy, ShieldOff } from "lucide-react";
 import {
   listAdminCoupons, createAdminCoupon, updateAdminCoupon, deleteAdminCoupon,
   type AdminCoupon, type CouponInput,
 } from "@/lib/checkout-api";
+import { useAuth } from "@/hooks/use-auth";
 
 function formatINR(paise: number): string {
   return `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -80,6 +82,8 @@ function emptyForm(): CouponFormState {
 }
 
 export default function AdminCoupons() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [items, setItems] = useState<AdminCoupon[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +92,23 @@ export default function AdminCoupons() {
   const [form, setForm] = useState<CouponFormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<AdminCoupon | null>(null);
+
+  // ── Admin-only guard ──────────────────────────────────────────────────────
+  if (user && user.role !== "admin") {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center space-y-4 p-8">
+          <ShieldOff className="h-14 w-14 text-red-400 mx-auto" />
+          <h2 className="text-xl font-bold text-gray-900">Access Denied</h2>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            Only administrators can access Coupons management.
+          </p>
+          <Button variant="outline" onClick={() => setLocation("/admin")}>← Back to Admin</Button>
+        </div>
+      </div>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   async function load() {
     setLoading(true);
@@ -122,14 +143,12 @@ export default function AdminCoupons() {
       perUserLimit: String(c.perUserLimit),
       minOrderRupees: String(Math.floor(c.minOrderPaise / 100)),
       validFrom,
-      // FIX: If stored validUntil is already past validFrom, auto-extend to validFrom+30d
       validUntil: new Date(validUntil) > new Date(validFrom) ? validUntil : addDays(validFrom, 30),
       isActive: c.isActive,
     });
     setDialogOpen(true);
   }
 
-  // FIX: When validFrom changes, if validUntil is now before validFrom, auto-update validUntil
   function handleValidFromChange(newFrom: string) {
     const updatedUntil = new Date(form.validUntil) <= new Date(newFrom)
       ? addDays(newFrom, 30)
@@ -196,7 +215,6 @@ export default function AdminCoupons() {
       await load();
     } catch (err: any) {
       const errMsg: string = err?.data?.error || err?.message || "";
-      // FIX: If delete blocked due to existing payments, offer to deactivate instead
       if (errMsg.toLowerCase().includes("referenced") || errMsg.toLowerCase().includes("redemption") || errMsg.toLowerCase().includes("deactivate")) {
         setDeactivateTarget(c);
       } else {
@@ -467,7 +485,6 @@ export default function AdminCoupons() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Valid From</Label>
-                  {/* FIX: use handleValidFromChange so validUntil auto-updates when From changes */}
                   <Input
                     type="datetime-local"
                     value={form.validFrom}
@@ -477,7 +494,6 @@ export default function AdminCoupons() {
                 </div>
                 <div>
                   <Label>Valid Until</Label>
-                  {/* FIX: min attribute prevents selecting date before validFrom in browser picker */}
                   <Input
                     type="datetime-local"
                     value={form.validUntil}
@@ -509,7 +525,7 @@ export default function AdminCoupons() {
           </DialogContent>
         </Dialog>
 
-        {/* FIX: Deactivate-instead dialog when delete is blocked by existing payments */}
+        {/* Deactivate-instead dialog when delete is blocked by existing payments */}
         <Dialog open={!!deactivateTarget} onOpenChange={(open) => { if (!open) setDeactivateTarget(null); }}>
           <DialogContent>
             <DialogHeader>
