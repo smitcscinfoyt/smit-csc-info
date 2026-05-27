@@ -88,6 +88,15 @@ $COMPOSE build
 log "Build successful."
 
 # =====================================
+# REMOVE STALE ONE-SHOT CONTAINERS
+# =====================================
+# The migrate container has restart: "no" so Docker leaves it stopped
+# after each run. On the next deploy, recreating it causes a name conflict.
+# Remove it first so docker compose up can recreate it cleanly.
+log "Removing stale migrate container (if any)..."
+$COMPOSE rm -f migrate 2>/dev/null || true
+
+# =====================================
 # START NEW CONTAINERS ONLY AFTER SUCCESS
 # =====================================
 log "Starting updated containers..."
