@@ -1,33 +1,33 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Sparkles, Crown, X, Lock, Loader2 } from "lucide-react";
+import {
+  MessageCircle,
+  Sparkles,
+  Crown,
+  X,
+  Lock,
+  Send,
+  Loader2,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/api";
 
-const SAHAYAK_APP_URL =
-  "https://4d344117-7475-4a77-afc2-97eb084417ae-00-1cp7xayvr76vs.riker.replit.dev/";
-
-declare global {
-  interface Window {
-    SmitCSCPrime?: boolean;
-  }
+interface ChatMessage {
+  role: "user" | "bot";
+  text: string;
 }
 
-/**
- * Floating "Smit AI Sahayak" chat bubble.
- *
- * Visibility: Always visible to every visitor (logged-out, free, prime).
- * Access:
- *   • Prime members  -> taps open a slide-up chat panel that embeds the
- *                       Smit AI Sahayak app in an iframe.
- *   • Everyone else  -> taps show an "Upgrade to Prime" sheet that
- *                       deep-links to the Membership page.
- */
+interface GeminiHistory {
+  role: "user" | "model";
+  parts: Array<{ text: string }>;
+}
+
 export function AiSahayakWidget() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+
   const { data: status } = useQuery<{ is_prime: boolean }>({
     queryKey: ["user-status"],
     queryFn: () => apiFetch<{ is_prime: boolean }>("/api/user/status"),
@@ -36,32 +36,85 @@ export function AiSahayakWidget() {
   });
 
   const isPrime = !!user && !!status?.is_prime;
-  if (typeof window !== "undefined") window.SmitCSCPrime = isPrime;
 
   const [chatOpen, setChatOpen] = useState(false);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const historyRef = useRef<GeminiHistory[]>([]);
 
-  function handleClick() {
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, sending]);
+
+  function handleOpen() {
     if (isPrime) {
+      if (messages.length === 0) {
+        setMessages([
+          {
+            role: "bot",
+            text: "નમસ્કાર! હું Smit AI Sahayak છું 🙏\nCSC સ્કીમ, document list, સરકારી યોજના — ગુજરાતીમાં પૂછો!",
+          },
+        ]);
+      }
       setChatOpen(true);
-      return;
+      setTimeout(() => inputRef.current?.focus(), 300);
+    } else {
+      setShowUpsell(true);
     }
-    setShowUpsell(true);
   }
 
-  function goToMembership() {
-    setShowUpsell(false);
-    setLocation("/membership");
+  async function sendMessage() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", text }]);
+    setSending(true);
+
+    try {
+      const data = await apiFetch<{ reply: string }>("/api/sahayak/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          history: historyRef.current,
+          isPrime,
+        }),
+      });
+      const reply = data.reply ?? "ક્ષમા કરશો, ત્રુટિ આવી.";
+      historyRef.current = [
+        ...historyRef.current,
+        { role: "user", parts: [{ text }] },
+        { role: "model", parts: [{ text: reply }] },
+      ].slice(-20);
+      setMessages((prev) => [...prev, { role: "bot", text: reply }]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { role: "bot", text: "ક્ષમા કરશો, server સાથે જોડાણ ન થઈ." },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   }
 
   return (
     <>
-      {/* Floating bubble — always visible (hidden while chat panel is open) */}
+      {/* Floating bubble */}
       {!chatOpen && (
         <motion.button
           type="button"
-          onClick={handleClick}
+          onClick={handleOpen}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.4 }}
@@ -69,7 +122,7 @@ export function AiSahayakWidget() {
           whileTap={{ scale: 0.94 }}
           aria-label="Open Smit AI Sahayak"
           data-testid="ai-sahayak-bubble"
-          className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-[60] h-14 w-14 rounded-full shadow-2xl shadow-purple-900/40 flex items-center justify-center text-purple-950 group"
+          className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-[60] h-14 w-14 rounded-full shadow-2xl flex items-center justify-center text-purple-950 group"
           style={{
             background: "linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)",
             boxShadow:
@@ -87,7 +140,7 @@ export function AiSahayakWidget() {
         </motion.button>
       )}
 
-      {/* Prime chat panel (iframe) */}
+      {/* Chat panel */}
       <AnimatePresence>
         {chatOpen && (
           <>
@@ -97,7 +150,6 @@ export function AiSahayakWidget() {
               exit={{ opacity: 0 }}
               onClick={() => setChatOpen(false)}
               className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
-              data-testid="ai-sahayak-chat-backdrop"
             />
             <motion.div
               initial={{ opacity: 0, y: 30, scale: 0.97 }}
@@ -112,11 +164,10 @@ export function AiSahayakWidget() {
                 background:
                   "linear-gradient(160deg, #1a0938 0%, #2d0a5b 45%, #3b0764 100%)",
               }}
-              data-testid="ai-sahayak-chat-panel"
             >
               {/* Header */}
               <div
-                className="flex items-center justify-between px-4 py-3 border-b border-amber-300/20"
+                className="flex items-center justify-between px-4 py-3 border-b border-amber-300/20 flex-shrink-0"
                 style={{
                   background:
                     "linear-gradient(135deg, rgba(255,215,0,0.12), rgba(124,58,237,0.18))",
@@ -124,7 +175,7 @@ export function AiSahayakWidget() {
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
-                    className="h-9 w-9 rounded-xl flex items-center justify-center shadow"
+                    className="h-9 w-9 rounded-xl flex items-center justify-center shadow flex-shrink-0"
                     style={{ background: "linear-gradient(135deg, #FFD700, #DAA520)" }}
                   >
                     <Sparkles className="h-5 w-5 text-purple-950" />
@@ -147,30 +198,61 @@ export function AiSahayakWidget() {
                   onClick={() => setChatOpen(false)}
                   aria-label="Close chat"
                   className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-amber-200 flex items-center justify-center transition-colors"
-                  data-testid="ai-sahayak-chat-close"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
 
-              {/* Iframe body */}
-              <div className="relative flex-1 bg-white">
-                {!iframeLoaded && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-purple-50 to-amber-50">
-                    <Loader2 className="h-7 w-7 text-purple-600 animate-spin" />
-                    <div className="text-xs font-semibold text-purple-700">
-                      Loading Smit AI Sahayak…
-                    </div>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 min-h-0">
+                {messages.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm"
+                        : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                ))}
+                {sending && (
+                  <div className="self-start flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-sm bg-white/6 border border-amber-300/10">
+                    <Loader2 className="h-3.5 w-3.5 text-amber-300 animate-spin" />
+                    <span className="text-[12px] text-amber-300/70">ટાઇપ કરે છે...</span>
                   </div>
                 )}
-                <iframe
-                  src={SAHAYAK_APP_URL}
-                  title="Smit AI Sahayak"
-                  className="w-full h-full border-0"
-                  onLoad={() => setIframeLoaded(true)}
-                  allow="clipboard-write; microphone"
-                  data-testid="ai-sahayak-iframe"
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="flex-shrink-0 flex gap-2 items-center p-3 border-t border-amber-300/15 bg-black/20">
+                <input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="ગુજરાતીમાં લખો..."
+                  disabled={sending}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/6 border border-amber-300/20 text-amber-100 placeholder-amber-300/40 text-[13px] outline-none focus:border-amber-400/50 transition-colors disabled:opacity-50"
                 />
+                <button
+                  type="button"
+                  onClick={sendMessage}
+                  disabled={!input.trim() || sending}
+                  className="h-10 w-10 rounded-xl flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
+                  style={{
+                    background: "linear-gradient(135deg, #FFD700, #DAA520)",
+                  }}
+                  aria-label="Send"
+                >
+                  <Send className="h-4 w-4 text-purple-950" />
+                </button>
+              </div>
+
+              <div className="flex-shrink-0 text-center py-1.5 text-[10px] text-amber-300/25 border-t border-amber-300/8">
+                Smit CSC Info — Powered by Gemini AI
               </div>
             </motion.div>
           </>
@@ -187,7 +269,6 @@ export function AiSahayakWidget() {
               exit={{ opacity: 0 }}
               onClick={() => setShowUpsell(false)}
               className="fixed inset-0 z-[70] bg-black/55 backdrop-blur-sm"
-              data-testid="ai-sahayak-backdrop"
             />
             <motion.div
               initial={{ opacity: 0, y: 30, scale: 0.96 }}
@@ -202,14 +283,12 @@ export function AiSahayakWidget() {
                 background:
                   "linear-gradient(160deg, #1a0938 0%, #2d0a5b 45%, #3b0764 100%)",
               }}
-              data-testid="ai-sahayak-upsell"
             >
               <button
                 type="button"
                 onClick={() => setShowUpsell(false)}
                 aria-label="Close"
                 className="absolute top-3 right-3 h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-amber-200 flex items-center justify-center transition-colors z-10"
-                data-testid="ai-sahayak-close"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -255,13 +334,12 @@ export function AiSahayakWidget() {
 
                 <button
                   type="button"
-                  onClick={goToMembership}
+                  onClick={() => { setShowUpsell(false); setLocation("/membership"); }}
                   className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl font-bold text-purple-950 shadow-lg active:scale-[0.98] transition-transform"
                   style={{
                     background:
                       "linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)",
                   }}
-                  data-testid="ai-sahayak-upgrade-cta"
                 >
                   <Crown className="h-4 w-4" />
                   Upgrade to Prime to unlock
@@ -270,12 +348,8 @@ export function AiSahayakWidget() {
                 {!user && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowUpsell(false);
-                      setLocation("/login");
-                    }}
+                    onClick={() => { setShowUpsell(false); setLocation("/login"); }}
                     className="w-full mt-2 text-xs font-medium text-amber-200/80 hover:text-amber-100 transition-colors py-2"
-                    data-testid="ai-sahayak-login"
                   >
                     Already a Prime member? Log in →
                   </button>
