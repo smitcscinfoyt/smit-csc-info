@@ -30,6 +30,7 @@ import moneyRouter from "./money";
 import couponsRouter from "./coupons";
 import liveDataRouter from "./live-data";
 import newsRouter from "./news";
+import sahayakRouter from "./sahayak";
 
 const router: IRouter = Router();
 
@@ -64,5 +65,6 @@ router.use(moneyRouter);
 router.use(couponsRouter);
 router.use(liveDataRouter);
 router.use(newsRouter);
+router.use(sahayakRouter);
 
 export default router;
