@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import { ensureWallet, debitWallet, creditWallet, WalletError } from "../lib/wallet-engine";
 import { computeCommission, type RechargeType } from "../lib/commission-engine";
-import { doRecharge, checkStatus, isA1TopupConfigured, OPERATORS, CIRCLES, verifyWebhookSig, type A1Response } from "../lib/a1topup";
+import { doRecharge, fetchBill, checkStatus, isA1TopupConfigured, OPERATORS, CIRCLES, verifyWebhookSig, type A1Response } from "../lib/a1topup";
 import { getGlobalSettings } from "../lib/recharge-config";
 import { getPrimeStatus } from "../lib/prime-status";
 import { getUserOperatorTier, resolveCommissionTier } from "../lib/operator-tier";
@@ -118,6 +118,34 @@ router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
     commissionPaise: c.commissionPaise,
     netCostPaise: amountPaise - c.commissionPaise,
   });
+});
+
+// ─── GET /recharge/bill-info — fetch consumer name + due amount before payment ─
+router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const operatorCode = String(req.query.operatorCode ?? "").trim();
+  const consumerNumber = String(req.query.consumerNumber ?? "").trim();
+
+  if (!operatorCode || !consumerNumber || consumerNumber.length < 4) {
+    res.status(400).json({ error: "operatorCode and consumerNumber required" });
+    return;
+  }
+  if (!isA1TopupConfigured()) {
+    res.status(503).json({ error: "Recharge provider not configured" });
+    return;
+  }
+  try {
+    const info = await fetchBill({ operatorCode, consumerNumber });
+    res.json({
+      found: info.found,
+      consumerName: info.consumerName ?? null,
+      dueAmount: info.dueAmount ?? null,
+      dueDate: info.dueDate ?? null,
+      billNumber: info.billNumber ?? null,
+    });
+  } catch (err: any) {
+    req.log.warn({ err: err?.message }, "[recharge/bill-info] fetch failed");
+    res.json({ found: false, consumerName: null, dueAmount: null, dueDate: null, billNumber: null });
+  }
 });
 
 // ─── POST /recharge — create + execute a recharge ────────────────────────────
@@ -277,6 +305,8 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   // Hit A1Topup
   // A1Topup requires `circlecode` for mobile recharges — default to Gujarat (12)
   const effectiveCircle = type === "mobile" ? (circleCode || "12") : circleCode;
+  // A1Topup bill/utility payments require consumer number in `value1` (not just `number`)
+  const isBillType = type === "bill";
   let a1: A1Response;
   try {
     a1 = await doRecharge({
@@ -285,6 +315,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       number: acct,
       amountRupees: amountPaise / 100,
       circleCode: effectiveCircle,
+      value1: isBillType ? acct : undefined,
     });
   } catch (err: any) {
     // Network/parse error — keep status processing, schedule background reconcile via /status endpoint.
