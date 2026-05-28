@@ -93,8 +93,11 @@ log "Build successful."
 # The migrate container has restart: "no" so Docker leaves it stopped
 # after each run. On the next deploy, recreating it causes a name conflict.
 # Remove it first so docker compose up can recreate it cleanly.
+# Also remove any stale containers with old project-prefix names
+# (e.g. b3428d0d25c9_smit-csc-info-migrate-1) that docker compose rm misses.
 log "Removing stale migrate container (if any)..."
 $COMPOSE rm -f migrate 2>/dev/null || true
+docker ps -a --filter "name=migrate" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
 
 # =====================================
 # START NEW CONTAINERS ONLY AFTER SUCCESS
