@@ -284,7 +284,7 @@ function rawToRecharge(r: any): RechargeRecord {
 
 export async function initRecharge(p: {
   type: RechargeType; operatorCode: string; number: string; amount: number;
-  circleCode?: string; tpin?: string; idempotencyKey: string;
+  circleCode?: string; customerName?: string; tpin?: string; idempotencyKey: string;
 }): Promise<RechargeRecord> {
   const r = await apiFetch<any>("/api/recharge", {
     method: "POST",
@@ -294,11 +294,25 @@ export async function initRecharge(p: {
       number: p.number,
       amountPaise: p.amount,
       circleCode: p.circleCode,
+      customerName: p.customerName,
       tpin: p.tpin,
       idempotencyKey: p.idempotencyKey,
     }),
   });
   return rawToRecharge(r);
+}
+
+export interface BillInfoResult {
+  found: boolean;
+  consumerName: string | null;
+  dueAmount: number | null;
+  dueDate: string | null;
+  billNumber: string | null;
+}
+
+export async function fetchBillInfo(operatorCode: string, consumerNumber: string): Promise<BillInfoResult> {
+  const qs = new URLSearchParams({ operatorCode, consumerNumber });
+  return apiFetch<BillInfoResult>(`/api/recharge/bill-info?${qs}`);
 }
 
 export async function getRechargeHistory(limit = 50, offset = 0, status?: string) {
