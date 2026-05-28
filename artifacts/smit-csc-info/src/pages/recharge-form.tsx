@@ -17,6 +17,7 @@ import {
   detectOperator, type OperatorDetection,
   getPlans, type PlanCategory,
   type RechargeType,
+  fetchBillInfo, type BillInfoResult,
 } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
@@ -101,6 +102,11 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [showTpin, setShowTpin] = useState(false);
   const [idempotencyKey] = useState(() => `${effCategory}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
+  // ── Bill info (consumer name + due amount) for utility categories ──
+  const isBillCategory = ["electricity", "gas", "postpaid", "insurance", "fastag"].includes(effCategory);
+  const [billInfo, setBillInfo] = useState<BillInfoResult | null>(null);
+  const [billInfoLoading, setBillInfoLoading] = useState(false);
+
   // ── Draft autosave (per service category) ───────────────────
   const DRAFT_KEY = `recharge-form:${effCategory}`;
   useEffect(() => {
@@ -160,6 +166,27 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     };
   }, [number, isMobile, effCategory]);
 
+  // ── Auto-fetch bill info when consumer number + operator are ready ──
+  useEffect(() => {
+    if (!isBillCategory || !operatorCode || number.length < 4) {
+      setBillInfo(null);
+      return;
+    }
+    let cancelled = false;
+    setBillInfoLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const info = await fetchBillInfo(operatorCode, number);
+        if (!cancelled) setBillInfo(info);
+      } catch {
+        if (!cancelled) setBillInfo(null);
+      } finally {
+        if (!cancelled) setBillInfoLoading(false);
+      }
+    }, 600);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [number, operatorCode, isBillCategory]);
+
   const { data: opsRes } = useQuery({ queryKey: ["operators"], queryFn: getOperators });
   const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: getWallet });
   const { data: tpinStatus } = useQuery({ queryKey: ["tpin", "status"], queryFn: getTpinStatus });
@@ -188,6 +215,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     mutationFn: (params: { tpin?: string }) => initRecharge({
       type: backendType, operatorCode, number, amount: amountPaise,
       circleCode: isMobile ? circleCode || undefined : undefined,
+      customerName: billInfo?.consumerName ?? undefined,
       tpin: params.tpin, idempotencyKey,
     }),
     onSuccess: (rec) => {
@@ -257,6 +285,26 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                 className="text-base"
                 data-testid="input-number"
               />
+              {/* Bill info — consumer name + due amount for utility bills */}
+              {isBillCategory && number.length >= 4 && operatorCode && (
+                <div className="mt-1.5 text-xs min-h-[18px]" data-testid="bill-info-status">
+                  {billInfoLoading ? (
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching bill details…
+                    </span>
+                  ) : billInfo?.consumerName ? (
+                    <span className="text-green-700 flex items-center gap-1.5 font-medium">
+                      <Check className="h-3.5 w-3.5" />
+                      {billInfo.consumerName}
+                      {billInfo.dueAmount != null && billInfo.dueAmount > 0 && (
+                        <span className="text-muted-foreground font-normal">
+                          · Due: ₹{billInfo.dueAmount.toFixed(2)}
+                        </span>
+                      )}
+                    </span>
+                  ) : billInfo && !billInfo.found ? null : null}
+                </div>
+              )}
               {(isMobile || effCategory === "postpaid") && number.length >= 4 && (
                 <div className="mt-1.5 text-xs flex items-center gap-1.5 min-h-[18px]" data-testid="auto-detect-status">
                   {detecting ? (
