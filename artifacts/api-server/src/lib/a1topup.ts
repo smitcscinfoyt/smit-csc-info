@@ -148,6 +148,62 @@ export async function doRecharge(args: RechargeArgs): Promise<A1Response> {
   return parseA1(raw);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Bill Fetch — get consumer name + due amount before payment
+// ─────────────────────────────────────────────────────────────────────────────
+export interface BillInfo {
+  consumerName?: string;
+  dueAmount?: number;
+  dueDate?: string;
+  billNumber?: string;
+  raw: Record<string, unknown>;
+  found: boolean;
+}
+
+export async function fetchBill(p: {
+  operatorCode: string;
+  consumerNumber: string;
+}): Promise<BillInfo> {
+  if (!isA1TopupConfigured()) throw new Error("A1Topup credentials not configured");
+  const raw = await callApi("/recharge/fetchbill", {
+    username: username(),
+    pwd: pwd(),
+    operatorcode: p.operatorCode,
+    number: p.consumerNumber,
+    value1: p.consumerNumber,
+    format: "json",
+  });
+
+  const name = pick<string>(raw,
+    "consumer_name", "consumername", "customername", "customer_name",
+    "name", "NAME", "cname", "billname", "bill_name",
+    "holder_name", "holdername",
+  );
+  const dueRaw = pick<string | number>(raw,
+    "due_amount", "dueamount", "net_amount", "netamount",
+    "amount", "bill_amount", "billamount",
+  );
+  const dueDate = pick<string>(raw, "due_date", "duedate", "bill_date");
+  const billNo = pick<string>(raw, "bill_number", "billno", "bill_no");
+
+  const statusCode = String(pick(raw, "status", "STATUS") ?? "");
+  const msg = String(pick(raw, "message", "msg") ?? "").toLowerCase();
+  const found =
+    !!name ||
+    statusCode === "1" || statusCode === "200" ||
+    msg.includes("success") ||
+    msg.includes("found");
+
+  return {
+    consumerName: name,
+    dueAmount: dueRaw !== undefined ? Number(dueRaw) : undefined,
+    dueDate: dueDate ? String(dueDate) : undefined,
+    billNumber: billNo ? String(billNo) : undefined,
+    raw,
+    found,
+  };
+}
+
 export async function checkStatus(requestId: string): Promise<A1Response> {
   if (!isA1TopupConfigured()) throw new Error("A1Topup credentials not configured");
   const raw = await callApi("/recharge/status", {
