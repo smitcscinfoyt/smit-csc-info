@@ -22,7 +22,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/api";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getTpinStatus, setTpin, changeTpin } from "@/lib/recharge-api";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { downloadCertificatePDF, downloadCertificatePNG } from "@/hooks/use-certificate";
 import { AvatarTierBadge, getLoginTier } from "@/components/role-badge";
@@ -560,6 +561,202 @@ function LogoutCard() {
   );
 }
 
+// ─── T-PIN section ──────────────────────────────────────────────────────────
+function TpinSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: tpinData, isLoading: tpinLoading } = useQuery({
+    queryKey: ["tpin", "status"],
+    queryFn: getTpinStatus,
+  });
+  const pinSet = !!tpinData?.hasPin;
+
+  // Set T-PIN form
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // Change T-PIN form
+  const [oldPin, setOldPin] = useState("");
+  const [changeNew, setChangeNew] = useState("");
+  const [changeConfirm, setChangeConfirm] = useState("");
+  const [showOld, setShowOld] = useState(false);
+  const [showChangeNew, setShowChangeNew] = useState(false);
+  const [showChangeConfirm, setShowChangeConfirm] = useState(false);
+
+  const setMutation = useMutation({
+    mutationFn: () => setTpin(newPin),
+    onSuccess: () => {
+      toast({ title: "T-PIN set successfully!", description: "Your transactions of ₹500+ are now protected." });
+      queryClient.invalidateQueries({ queryKey: ["tpin", "status"] });
+      setNewPin(""); setConfirmPin("");
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message ?? "Failed to set T-PIN", variant: "destructive" }),
+  });
+
+  const changeMutation = useMutation({
+    mutationFn: () => changeTpin(oldPin, changeNew),
+    onSuccess: () => {
+      toast({ title: "T-PIN changed successfully!" });
+      queryClient.invalidateQueries({ queryKey: ["tpin", "status"] });
+      setOldPin(""); setChangeNew(""); setChangeConfirm("");
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message ?? "Incorrect current T-PIN", variant: "destructive" }),
+  });
+
+  if (tpinLoading) return <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="h-4 w-4 animate-spin" /> Loading T-PIN status...</div>;
+
+  const pinIcon = pinSet
+    ? <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full"><CheckCircle2 className="h-3 w-3" />Set</span>
+    : <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full"><AlertCircle className="h-3 w-3" />Not set</span>;
+
+  return (
+    <div className="space-y-5 max-w-md">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">Transaction PIN (T-PIN)</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Required for transactions of ₹500 or more</p>
+        </div>
+        {pinIcon}
+      </div>
+
+      {!pinSet ? (
+        // ── Set T-PIN ──
+        <div className="space-y-3 rounded-lg border p-4 bg-amber-50/50">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">Set your T-PIN</p>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">New T-PIN (4–6 digits)</Label>
+            <div className="relative">
+              <Input
+                type={showNew ? "text" : "password"}
+                inputMode="numeric"
+                maxLength={6}
+                value={newPin}
+                onChange={e => setNewPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter 4–6 digit PIN"
+                className="pr-10"
+                data-testid="input-tpin-new"
+              />
+              <button type="button" onClick={() => setShowNew(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Confirm T-PIN</Label>
+            <div className="relative">
+              <Input
+                type={showConfirm ? "text" : "password"}
+                inputMode="numeric"
+                maxLength={6}
+                value={confirmPin}
+                onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="Re-enter PIN"
+                className="pr-10"
+                data-testid="input-tpin-confirm"
+              />
+              <button type="button" onClick={() => setShowConfirm(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {confirmPin && newPin && (
+              <p className={`text-[11px] flex items-center gap-1 ${newPin === confirmPin ? "text-green-600" : "text-red-500"}`}>
+                {newPin === confirmPin ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                {newPin === confirmPin ? "PINs match" : "PINs do not match"}
+              </p>
+            )}
+          </div>
+          <Button
+            onClick={() => setMutation.mutate()}
+            disabled={setMutation.isPending || newPin.length < 4 || newPin !== confirmPin}
+            className="gap-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white"
+            data-testid="btn-tpin-set"
+          >
+            {setMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Lock className="h-4 w-4" /> Set T-PIN
+          </Button>
+        </div>
+      ) : (
+        // ── Change T-PIN ──
+        <div className="space-y-3 rounded-lg border p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Change T-PIN</p>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Current T-PIN</Label>
+            <div className="relative">
+              <Input
+                type={showOld ? "text" : "password"}
+                inputMode="numeric"
+                maxLength={6}
+                value={oldPin}
+                onChange={e => setOldPin(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter current PIN"
+                className="pr-10"
+                data-testid="input-tpin-old"
+              />
+              <button type="button" onClick={() => setShowOld(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showOld ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">New T-PIN (4–6 digits)</Label>
+            <div className="relative">
+              <Input
+                type={showChangeNew ? "text" : "password"}
+                inputMode="numeric"
+                maxLength={6}
+                value={changeNew}
+                onChange={e => setChangeNew(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter new PIN"
+                className="pr-10"
+                data-testid="input-tpin-change-new"
+              />
+              <button type="button" onClick={() => setShowChangeNew(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showChangeNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Confirm New T-PIN</Label>
+            <div className="relative">
+              <Input
+                type={showChangeConfirm ? "text" : "password"}
+                inputMode="numeric"
+                maxLength={6}
+                value={changeConfirm}
+                onChange={e => setChangeConfirm(e.target.value.replace(/\D/g, ""))}
+                placeholder="Re-enter new PIN"
+                className="pr-10"
+                data-testid="input-tpin-change-confirm"
+              />
+              <button type="button" onClick={() => setShowChangeConfirm(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showChangeConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {changeConfirm && changeNew && (
+              <p className={`text-[11px] flex items-center gap-1 ${changeNew === changeConfirm ? "text-green-600" : "text-red-500"}`}>
+                {changeNew === changeConfirm ? <CheckCircle2 className="h-3 w-3" /> : <AlertCircle className="h-3 w-3" />}
+                {changeNew === changeConfirm ? "PINs match" : "PINs do not match"}
+              </p>
+            )}
+          </div>
+          <Button
+            onClick={() => changeMutation.mutate()}
+            disabled={changeMutation.isPending || oldPin.length < 4 || changeNew.length < 4 || changeNew !== changeConfirm}
+            className="gap-2 bg-gradient-to-r from-purple-700 to-amber-600 text-white"
+            data-testid="btn-tpin-change"
+          >
+            {changeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Lock className="h-4 w-4" /> Change T-PIN
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Security section ───────────────────────────────────────────────────────
 function SecuritySection() {
   const { toast } = useToast();
@@ -942,9 +1139,15 @@ export default function Account() {
               <SectionHeader
                 icon={Lock}
                 title="Security"
-                subtitle="Change your password to keep your account safe"
+                subtitle="Manage your password and Transaction PIN (T-PIN)"
               />
-              <SecuritySection />
+              <div className="space-y-8">
+                <TpinSection />
+                <div className="border-t pt-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-4">Change Password</p>
+                  <SecuritySection />
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="certificate" className="p-6 sm:p-8 m-0" data-testid="tabpanel-certificate">
