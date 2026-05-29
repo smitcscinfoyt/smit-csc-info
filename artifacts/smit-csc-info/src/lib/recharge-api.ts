@@ -287,6 +287,22 @@ export async function initRecharge(p: {
   circleCode?: string; customerName?: string; tpin?: string; idempotencyKey: string;
   /** Session token from fetchBill (bill-info) — required by some utility operators (e.g. PGVCL) */
   billSession?: string | null;
+  /**
+   * Override for A1Topup value1.
+   * - Insurance (LIC etc.): Date of Birth in DD-MM-YYYY format
+   * - Mahanagar Gas: Bill Group Number
+   * - MSEDC Maharashtra: Billing Unit
+   * - Landline: STD Code
+   * When omitted, the backend defaults to the account/consumer number.
+   */
+  value1Override?: string | null;
+  /**
+   * Override for A1Topup value2.
+   * - MSEDC Maharashtra: Processing Cycle
+   * - BSNL Landline: Account Number
+   * When omitted, the backend uses the fetchbill session (for operators that need it).
+   */
+  value2Override?: string | null;
 }): Promise<RechargeRecord> {
   const r = await apiFetch<any>("/api/recharge", {
     method: "POST",
@@ -300,6 +316,8 @@ export async function initRecharge(p: {
       tpin: p.tpin,
       idempotencyKey: p.idempotencyKey,
       billSession: p.billSession ?? undefined,
+      value1Override: p.value1Override ?? undefined,
+      value2Override: p.value2Override ?? undefined,
     }),
   });
   return rawToRecharge(r);

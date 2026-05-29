@@ -161,6 +161,22 @@ const rechargeBody = z.object({
   tpin: z.string().optional(),
   /** Session token from fetchbill — required by some utility operators (e.g. PGVCL) as value2 */
   billSession: z.string().optional(),
+  /**
+   * Override for A1Topup `value1`. When provided this replaces the default
+   * (consumer/account number). Used for:
+   *   - Insurance: Date of Birth (DD-MM-YYYY)
+   *   - Mahanagar Gas: Bill Group Number
+   *   - MSEDC Electricity: Billing Unit
+   *   - Landline: STD Code
+   */
+  value1Override: z.string().optional(),
+  /**
+   * Override for A1Topup `value2`. When provided this replaces the default
+   * (fetchbill session). Used for:
+   *   - MSEDC Electricity: Processing Cycle
+   *   - BSNL Landline: Account Number
+   */
+  value2Override: z.string().optional(),
 });
 
 router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -170,7 +186,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
     res.status(400).json({ error: "Invalid recharge request", details: parsed.error.format() });
     return;
   }
-  const { type, operatorCode, number, amountPaise, circleCode, customerName, idempotencyKey, tpin, billSession } = parsed.data;
+  const { type, operatorCode, number, amountPaise, circleCode, customerName, idempotencyKey, tpin, billSession, value1Override, value2Override } = parsed.data;
 
   // Idempotency: if a recharge with this key already exists, return it.
   const [existing] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.userId, userId), eq(rechargesTable.idempotencyKey, idempotencyKey)));
@@ -308,10 +324,14 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   // Hit A1Topup
   // A1Topup requires `circlecode` for mobile recharges — default to Gujarat (12)
   const effectiveCircle = type === "mobile" ? (circleCode || "12") : circleCode;
-  // A1Topup bill/utility payments require consumer number in `value1` (not just `number`).
-  // Some operators (e.g. PGVCL electricity) also require the fetchbill session token as `value2`.
-  // Without value2 these operators return "Paramenter is missing".
+  // Build value1 / value2 per A1Topup official docs:
+  //   value1Override – caller-supplied extra field (LIC DOB, Gas Bill Group, MSEDC Billing Unit)
+  //   value2Override – caller-supplied extra field (MSEDC Processing Cycle, BSNL Account)
+  //   billSession    – session token from fetchbill (required by electricity operators)
+  // For standard bill/utility operators value1 defaults to the account number.
   const isBillType = type === "bill";
+  const v1 = value1Override?.trim() || (isBillType ? acct : undefined);
+  const v2 = value2Override?.trim() || (isBillType && billSession ? billSession : undefined);
   let a1: A1Response;
   try {
     a1 = await doRecharge({
@@ -320,8 +340,8 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       number: acct,
       amountRupees: amountPaise / 100,
       circleCode: effectiveCircle,
-      value1: isBillType ? acct : undefined,
-      value2: isBillType && billSession ? billSession : undefined,
+      value1: v1,
+      value2: v2,
     });
   } catch (err: any) {
     // Network/parse error — keep status processing, schedule background reconcile via /status endpoint.

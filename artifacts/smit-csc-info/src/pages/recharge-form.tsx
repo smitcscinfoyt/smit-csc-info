@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft, Loader2, Smartphone, Tv, Receipt, Wallet, AlertCircle,
-  Phone, Lightbulb, Flame, ShieldCheck, CreditCard, Gift, Sparkles, Check,
+  Phone, Lightbulb, Flame, ShieldCheck, CreditCard, Gift, Sparkles, Check, Info,
 } from "lucide-react";
 import { TpinDialog } from "@/components/recharge/tpin-dialog";
 import {
@@ -102,10 +102,55 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [showTpin, setShowTpin] = useState(false);
   const [idempotencyKey] = useState(() => `${effCategory}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
+  // ── Extra fields required by some operators (value1Override / value2Override) ──
+  // Insurance: Date of Birth (DD-MM-YYYY) → value1
+  // Mahanagar Gas (MG): Bill Group Number → value1
+  // MSEDC Maharashtra electricity: Billing Unit → value1, Processing Cycle → value2
+  const [extraValue1, setExtraValue1] = useState("");
+  const [extraValue2, setExtraValue2] = useState("");
+
   // ── Bill info (consumer name + due amount) for utility categories ──
   const isBillCategory = ["electricity", "gas", "postpaid", "insurance", "fastag"].includes(effCategory);
   const [billInfo, setBillInfo] = useState<BillInfoResult | null>(null);
   const [billInfoLoading, setBillInfoLoading] = useState(false);
+
+  // ── Operator-specific field requirements ─────────────────────
+  // Based on A1Topup official API docs:
+  //  - Insurance (all): value1 = DOB in DD-MM-YYYY
+  //  - Mahanagar Gas (MG): value1 = Bill Group Number
+  //  - MSEDC Maharashtra: value1 = Billing Unit, value2 = Processing Cycle
+  const needsDob      = effCategory === "insurance";
+  const needsBillGrp  = effCategory === "gas" && operatorCode === "MG";
+  const needsMsedcV1  = effCategory === "electricity" && operatorCode === "MSEDC";
+  const needsMsedcV2  = effCategory === "electricity" && operatorCode === "MSEDC";
+  const showExtraValue1 = needsDob || needsBillGrp || needsMsedcV1;
+  const showExtraValue2 = needsMsedcV2;
+
+  const extraValue1Label = needsDob
+    ? "Date of Birth (DD-MM-YYYY)"
+    : needsBillGrp
+      ? "Bill Group Number"
+      : needsMsedcV1
+        ? "Billing Unit"
+        : "";
+  const extraValue1Placeholder = needsDob
+    ? "e.g. 15-08-1990"
+    : needsBillGrp
+      ? "Bill Group / Cycle No."
+      : needsMsedcV1
+        ? "Billing Unit code"
+        : "";
+  const extraValue1Hint = needsDob
+    ? "Required by LIC/Insurance — enter in DD-MM-YYYY format"
+    : needsBillGrp
+      ? "Required for Mahanagar Gas — found on your bill"
+      : needsMsedcV1
+        ? "Required for MSEDC — enter Billing Unit from your bill"
+        : "";
+
+  // Reset extra fields when operator/category changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setExtraValue1(""); setExtraValue2(""); }, [operatorCode, effCategory]);
 
   // ── Draft autosave (per service category) ───────────────────
   const DRAFT_KEY = `recharge-form:${effCategory}`;
@@ -218,6 +263,8 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
       customerName: billInfo?.consumerName ?? undefined,
       tpin: params.tpin, idempotencyKey,
       billSession: billInfo?.session ?? undefined,
+      value1Override: extraValue1.trim() || undefined,
+      value2Override: extraValue2.trim() || undefined,
     }),
     onSuccess: (rec) => {
       qc.invalidateQueries({ queryKey: ["wallet"] });
@@ -238,6 +285,22 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum ₹${meta.minAmount}` }); return; }
     if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum ₹${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
     if (insufficient) { toast({ variant: "destructive", title: "Insufficient wallet balance", description: "Add money" }); return; }
+    // Validate required extra fields
+    if (showExtraValue1 && !extraValue1.trim()) {
+      toast({ variant: "destructive", title: `Enter ${extraValue1Label}`, description: extraValue1Hint });
+      return;
+    }
+    if (needsDob) {
+      const dobRe = /^(0[1-9]|[12][0-9]|3[01])-(0[1-9]|1[0-2])-\d{4}$/;
+      if (!dobRe.test(extraValue1.trim())) {
+        toast({ variant: "destructive", title: "Invalid Date of Birth", description: "Enter in DD-MM-YYYY format, e.g. 15-08-1990" });
+        return;
+      }
+    }
+    if (showExtraValue2 && !extraValue2.trim()) {
+      toast({ variant: "destructive", title: "Enter Processing Cycle", description: "Required for MSEDC — found on your electricity bill" });
+      return;
+    }
     if (requiresTpin) {
       if (!tpinStatus?.hasPin) {
         toast({ variant: "destructive", title: "T-PIN not set", description: "T-PIN required for larger amounts" });
@@ -354,6 +417,48 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                 })}</SelectContent>
               </Select>
             </div>
+
+            {/* Extra required fields — shown per operator/category */}
+            {showExtraValue1 && (
+              <div>
+                <Label htmlFor="extra-v1">
+                  {extraValue1Label}
+                  <span className="text-red-500 ml-0.5">*</span>
+                </Label>
+                <Input
+                  id="extra-v1"
+                  value={extraValue1}
+                  onChange={(e) => setExtraValue1(e.target.value)}
+                  placeholder={extraValue1Placeholder}
+                  className="text-base"
+                  data-testid="input-extra-v1"
+                />
+                {extraValue1Hint && (
+                  <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    <Info className="h-3 w-3 shrink-0" />{extraValue1Hint}
+                  </p>
+                )}
+              </div>
+            )}
+            {showExtraValue2 && (
+              <div>
+                <Label htmlFor="extra-v2">
+                  Processing Cycle
+                  <span className="text-red-500 ml-0.5">*</span>
+                </Label>
+                <Input
+                  id="extra-v2"
+                  value={extraValue2}
+                  onChange={(e) => setExtraValue2(e.target.value)}
+                  placeholder="Processing Cycle code (from bill)"
+                  className="text-base"
+                  data-testid="input-extra-v2"
+                />
+                <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                  <Info className="h-3 w-3 shrink-0" />Required for MSEDC Maharashtra — found on your electricity bill
+                </p>
+              </div>
+            )}
 
             <div>
               <Label htmlFor="amt">Amount (₹)</Label>
