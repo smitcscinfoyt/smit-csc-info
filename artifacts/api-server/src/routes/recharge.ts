@@ -389,14 +389,21 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
       } else if (!fb.found) {
-        // A1Topup's fetchBill returned "not found" for this consumer number.
-        // This can be a FALSE NEGATIVE — A1Topup's fetchBill API is intermittent
-        // for Gujarat operators (PGVCL, MGVCL etc.) and may fail to verify a valid
-        // consumer number. We do NOT hard-block here. Instead we proceed without a
-        // session token and let A1Topup's actual recharge API decide. If A1Topup
-        // truly cannot process this consumer, the recharge will fail and the wallet
-        // is automatically refunded — the user keeps their money in all cases.
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found — proceeding without session (will attempt recharge anyway)');
+        // fetchBill returned "not found" after all retries.
+        // For electricity operators A1Topup requires the session token (value2)
+        // from fetchBill. Without it, A1Topup returns "Paramenter is missing"
+        // and immediately refunds — confusing for operators.
+        // Fail-fast here (before wallet debit) with a clear error instead.
+        if (ELECTRICITY_OPS.has(operatorCode)) {
+          req.log.warn({ op: operatorCode, acct }, '[recharge] freshFetchBill: no session after retries — blocking electricity recharge');
+          await db.update(rechargesTable)
+            .set({ status: 'failed', errorReason: 'Consumer number could not be verified by the electricity provider. Please double-check the number and try again.', updatedAt: new Date(), completedAt: new Date() })
+            .where(eq(rechargesTable.id, rechargeRow.id));
+          res.status(422).json({ error: 'Consumer number could not be verified. Please check the number and try again.', code: 'CONSUMER_NOT_FOUND' });
+          return;
+        }
+        // Non-electricity operators: session not required, proceed normally.
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found — proceeding without session');
       } else {
         // found:true but no session — operator does not need it; proceed normally
         req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
