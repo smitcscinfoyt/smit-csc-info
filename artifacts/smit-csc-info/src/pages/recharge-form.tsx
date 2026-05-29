@@ -65,9 +65,9 @@ interface MetaEntry {
   numLen: number;
   /** Backend recharge type (mobile/dth/bill) */
   backendType: RechargeType;
-  /** Min recharge amount (₹) */
+  /** Min recharge amount (â¹) */
   minAmount: number;
-  /** Max recharge amount (₹) */
+  /** Max recharge amount (â¹) */
   maxAmount: number;
 }
 
@@ -102,19 +102,20 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [showTpin, setShowTpin] = useState(false);
   const [idempotencyKey] = useState(() => `${effCategory}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
-  // ── Extra fields required by some operators (value1Override / value2Override) ──
-  // Insurance: Date of Birth (DD-MM-YYYY) → value1
-  // Mahanagar Gas (MG): Bill Group Number → value1
-  // MSEDC Maharashtra electricity: Billing Unit → value1, Processing Cycle → value2
+  // ââ Extra fields required by some operators (value1Override / value2Override) ââ
+  // Insurance: Date of Birth (DD-MM-YYYY) â value1
+  // Mahanagar Gas (MG): Bill Group Number â value1
+  // MSEDC Maharashtra electricity: Billing Unit â value1, Processing Cycle â value2
   const [extraValue1, setExtraValue1] = useState("");
   const [extraValue2, setExtraValue2] = useState("");
 
-  // ── Bill info (consumer name + due amount) for utility categories ──
+  // ââ Bill info (consumer name + due amount) for utility categories ââ
   const isBillCategory = ["electricity", "gas", "postpaid", "insurance", "fastag"].includes(effCategory);
   const [billInfo, setBillInfo] = useState<BillInfoResult | null>(null);
   const [billInfoLoading, setBillInfoLoading] = useState(false);
+  const [billFetchError, setBillFetchError] = useState(false);
 
-  // ── Operator-specific field requirements ─────────────────────
+  // ââ Operator-specific field requirements âââââââââââââââââââââ
   // Based on A1Topup official API docs:
   //  - Insurance (all): value1 = DOB in DD-MM-YYYY
   //  - Mahanagar Gas (MG): value1 = Bill Group Number
@@ -141,18 +142,18 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
         ? "Billing Unit code"
         : "";
   const extraValue1Hint = needsDob
-    ? "Required by LIC/Insurance — enter in DD-MM-YYYY format"
+    ? "Required by LIC/Insurance â enter in DD-MM-YYYY format"
     : needsBillGrp
-      ? "Required for Mahanagar Gas — found on your bill"
+      ? "Required for Mahanagar Gas â found on your bill"
       : needsMsedcV1
-        ? "Required for MSEDC — enter Billing Unit from your bill"
+        ? "Required for MSEDC â enter Billing Unit from your bill"
         : "";
 
   // Reset extra fields when operator/category changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setExtraValue1(""); setExtraValue2(""); }, [operatorCode, effCategory]);
 
-  // ── Draft autosave (per service category) ───────────────────
+  // ââ Draft autosave (per service category) âââââââââââââââââââ
   const DRAFT_KEY = `recharge-form:${effCategory}`;
   useEffect(() => {
     const d = loadDraft<{ number: string; amount: string; operatorCode: string; circleCode: string }>(DRAFT_KEY);
@@ -169,7 +170,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   }, [effCategory]);
   useDraftAutosave(DRAFT_KEY, { number, amount, operatorCode, circleCode });
 
-  // ─── Auto-detect operator + circle from mobile prefix ─────────────────
+  // âââ Auto-detect operator + circle from mobile prefix âââââââââââââââââ
   const [detection, setDetection] = useState<OperatorDetection | null>(null);
   const [detecting, setDetecting] = useState(false);
   const userTouchedOp = useRef(false);
@@ -211,26 +212,44 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     };
   }, [number, isMobile, effCategory]);
 
-  // ── Auto-fetch bill info when consumer number + operator are ready ──
-  useEffect(() => {
-    if (!isBillCategory || !operatorCode || number.length < 4) {
-      setBillInfo(null);
-      return;
-    }
-    let cancelled = false;
-    setBillInfoLoading(true);
-    const t = setTimeout(async () => {
+  // ââ Auto-fetch bill info when consumer number + operator are ready ââ
+  const fetchBillData = async () => {
+      setBillFetchError(false);
+      if (!isBillCategory || !operatorCode || number.length < 4) { setBillInfo(null); return; }
+      setBillInfoLoading(true);
       try {
         const info = await fetchBillInfo(operatorCode, number);
-        if (!cancelled) setBillInfo(info);
+        setBillInfo(info);
+        setBillFetchError(false);
       } catch {
-        if (!cancelled) setBillInfo(null);
+        setBillInfo(null);
+        setBillFetchError(true);
       } finally {
-        if (!cancelled) setBillInfoLoading(false);
+        setBillInfoLoading(false);
       }
-    }, 600);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [number, operatorCode, isBillCategory]);
+    };
+
+    useEffect(() => {
+      if (!isBillCategory || !operatorCode || number.length < 4) {
+        setBillInfo(null);
+        setBillFetchError(false);
+        return;
+      }
+      let cancelled = false;
+      setBillInfoLoading(true);
+      setBillFetchError(false);
+      const t = setTimeout(async () => {
+        try {
+          const info = await fetchBillInfo(operatorCode, number);
+          if (!cancelled) { setBillInfo(info); setBillFetchError(false); }
+        } catch {
+          if (!cancelled) { setBillInfo(null); setBillFetchError(true); }
+        } finally {
+          if (!cancelled) setBillInfoLoading(false);
+        }
+      }, 600);
+      return () => { cancelled = true; clearTimeout(t); };
+    }, [number, operatorCode, isBillCategory]);
 
   const { data: opsRes } = useQuery({ queryKey: ["operators"], queryFn: getOperators });
   const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: getWallet });
@@ -282,8 +301,8 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const handleSubmit = () => {
     if (!operatorCode) { toast({ variant: "destructive", title: "Select operator" }); return; }
     if (!number || number.length < minNumLen) { toast({ variant: "destructive", title: "Enter a valid number" }); return; }
-    if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum ₹${meta.minAmount}` }); return; }
-    if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum ₹${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
+    if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum â¹${meta.minAmount}` }); return; }
+    if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum â¹${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
     if (insufficient) { toast({ variant: "destructive", title: "Insufficient wallet balance", description: "Add money" }); return; }
     // Validate required extra fields
     if (showExtraValue1 && !extraValue1.trim()) {
@@ -298,7 +317,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
       }
     }
     if (showExtraValue2 && !extraValue2.trim()) {
-      toast({ variant: "destructive", title: "Enter Processing Cycle", description: "Required for MSEDC — found on your electricity bill" });
+      toast({ variant: "destructive", title: "Enter Processing Cycle", description: "Required for MSEDC â found on your electricity bill" });
       return;
     }
     if (requiresTpin) {
@@ -320,13 +339,13 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             <meta.icon className="h-5 w-5" />{titleOverride ?? meta.title}
           </div>
           <div className="text-xs sm:text-sm flex items-center gap-1.5 bg-white/15 px-2.5 py-1 rounded-full">
-            <Wallet className="h-3.5 w-3.5" />{wallet ? formatINR(wallet.balance) : "—"}
+            <Wallet className="h-3.5 w-3.5" />{wallet ? formatINR(wallet.balance) : "â"}
           </div>
         </div>
       ) : (
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><meta.icon className="h-5 w-5 text-primary" />{titleOverride ?? meta.title}</CardTitle>
-          <CardDescription className="flex items-center gap-2"><Wallet className="h-4 w-4" />Balance: <span className="font-semibold">{wallet ? formatINR(wallet.balance) : "—"}</span></CardDescription>
+          <CardDescription className="flex items-center gap-2"><Wallet className="h-4 w-4" />Balance: <span className="font-semibold">{wallet ? formatINR(wallet.balance) : "â"}</span></CardDescription>
         </CardHeader>
       )}
           <CardContent className="space-y-4">
@@ -349,12 +368,12 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                 className="text-base"
                 data-testid="input-number"
               />
-              {/* Bill info — consumer name + due amount for utility bills */}
+              {/* Bill info â consumer name + due amount for utility bills */}
               {isBillCategory && number.length >= 4 && operatorCode && (
                 <div className="mt-1.5 text-xs min-h-[18px]" data-testid="bill-info-status">
                   {billInfoLoading ? (
                     <span className="text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching bill details…
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching bill detailsâ¦
                     </span>
                   ) : billInfo?.consumerName ? (
                     <span className="text-green-700 flex items-center gap-1.5 font-medium">
@@ -362,24 +381,39 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                       {billInfo.consumerName}
                       {billInfo.dueAmount != null && billInfo.dueAmount > 0 && (
                         <span className="text-muted-foreground font-normal">
-                          · Due: ₹{billInfo.dueAmount.toFixed(2)}
+                          Â· Due: â¹{billInfo.dueAmount.toFixed(2)}
                         </span>
                       )}
                     </span>
-                  ) : billInfo && !billInfo.found ? null : null}
+                  ) : billFetchError ? (
+                      <span className="text-amber-600 flex items-center gap-1.5 text-xs">
+                        <AlertCircle className="h-3 w-3" /> Bill details unavailable.{" "}
+                        <button
+                          type="button"
+                          className="underline hover:text-amber-800"
+                          onClick={fetchBillData}
+                        >
+                          Retry
+                        </button>
+                      </span>
+                    ) : billInfo && !billInfo.found ? (
+                      <span className="text-amber-600 flex items-center gap-1.5 text-xs">
+                        <Info className="h-3 w-3" /> Consumer not found. Check the number and operator.
+                      </span>
+                    ) : null}
                 </div>
               )}
               {(isMobile || effCategory === "postpaid") && number.length >= 4 && (
                 <div className="mt-1.5 text-xs flex items-center gap-1.5 min-h-[18px]" data-testid="auto-detect-status">
                   {detecting ? (
                     <span className="text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Detecting operator…
+                      <Loader2 className="h-3 w-3 animate-spin" /> Detecting operatorâ¦
                     </span>
                   ) : detection ? (
                     <span className="text-green-700 flex items-center gap-1.5 font-medium flex-wrap">
                       <Sparkles className="h-3.5 w-3.5" />
                       Auto-detected: <span className="font-semibold">{detection.operatorName}</span>
-                      {isMobile && <> · <span>{detection.circleName}</span></>}
+                      {isMobile && <> Â· <span>{detection.circleName}</span></>}
                       {detection.source === "ezytm" ? (
                         <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
                           MNP-aware
@@ -418,7 +452,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
               </Select>
             </div>
 
-            {/* Extra required fields — shown per operator/category */}
+            {/* Extra required fields â shown per operator/category */}
             {showExtraValue1 && (
               <div>
                 <Label htmlFor="extra-v1">
@@ -455,16 +489,16 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                   data-testid="input-extra-v2"
                 />
                 <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                  <Info className="h-3 w-3 shrink-0" />Required for MSEDC Maharashtra — found on your electricity bill
+                  <Info className="h-3 w-3 shrink-0" />Required for MSEDC Maharashtra â found on your electricity bill
                 </p>
               </div>
             )}
 
             <div>
-              <Label htmlFor="amt">Amount (₹)</Label>
+              <Label htmlFor="amt">Amount (â¹)</Label>
               <Input id="amt" type="number" inputMode="numeric" min={meta.minAmount} max={meta.maxAmount} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="299" className="text-lg font-semibold" data-testid="input-amount" />
               <div className="mt-2 flex flex-wrap gap-2">
-                {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>₹{a}</Button>)}
+                {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>â¹{a}</Button>)}
                            </div>
             </div>
 
@@ -495,7 +529,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             {requiresTpin && !tpinStatus?.hasPin && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>T-PIN required for ₹500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
+                <AlertDescription>T-PIN required for â¹500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
               </Alert>
             )}
 
@@ -544,7 +578,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   );
 }
 
-// ─── Plan Browser (Ezytm) ────────────────────────────────────────────
+// âââ Plan Browser (Ezytm) ââââââââââââââââââââââââââââââââââââââââââââ
 function PlanBrowser({ operatorCode, circleCode, onPick }: {
   operatorCode: string;
   circleCode: string;
@@ -575,13 +609,13 @@ function PlanBrowser({ operatorCode, circleCode, onPick }: {
         <span className="flex items-center gap-1.5">
           <Sparkles className="h-4 w-4" /> Browse Plans
         </span>
-        <span className="text-xs">{open ? "Hide ▲" : "Show ▼"}</span>
+        <span className="text-xs">{open ? "Hide â²" : "Show â¼"}</span>
       </button>
       {open && (
         <div className="bg-white">
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading plans…
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading plansâ¦
             </div>
           ) : cats.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No plans available</div>
@@ -613,12 +647,12 @@ function PlanBrowser({ operatorCode, circleCode, onPick }: {
                     data-testid={`plan-${p.rs}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs text-gray-600 line-clamp-2">{p.desc || "—"}</div>
+                      <div className="text-xs text-gray-600 line-clamp-2">{p.desc || "â"}</div>
                       {p.validity && (
                         <div className="text-[11px] text-indigo-700 mt-0.5">Validity: {p.validity}</div>
                       )}
                     </div>
-                    <div className="font-bold text-base text-indigo-700 shrink-0">₹{p.rs}</div>
+                    <div className="font-bold text-base text-indigo-700 shrink-0">â¹{p.rs}</div>
                   </button>
                 ))}
               </div>
