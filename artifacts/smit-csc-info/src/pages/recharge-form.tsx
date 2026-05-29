@@ -115,13 +115,15 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [billInfo, setBillInfo] = useState<BillInfoResult | null>(null);
   const [billInfoLoading, setBillInfoLoading] = useState(false);
   const [billFetchError, setBillFetchError] = useState(false);
-  // Block submit only when consumer is explicitly NOT found (API confirmed not found).
-  // Network/parse errors (billFetchError) are temporary — do NOT block, show retry instead.
-  // Some operators (e.g. PGVCL) may return non-standard responses where
-  // "found" is misdetected, but a session token IS present — that means the
-  // consumer is valid and we must allow payment.
+  // Block submit only when consumer is explicitly NOT found AND the category
+  // has reliable fetchbill (postpaid, insurance, fastag, gas).
+  // Electricity operators (e.g. PGVCL) have unreliable fetchbill via A1Topup —
+  // they often return found:false for valid consumers, so we never hard-block
+  // electricity; we just warn. Network errors never block (show retry instead).
+  const isElectricity = effCategory === "electricity";
   const billFetchBlocking =
     isBillCategory &&
+    !isElectricity &&
     !!operatorCode &&
     number.length >= 4 &&
     !billFetchError &&
@@ -405,9 +407,15 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                       </button>
                     </span>
                   ) : billInfo && !billInfo.found ? (
-                    <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
-                      <AlertCircle className="h-3 w-3" /> Consumer not found. Check the number. Payment is blocked.
-                    </span>
+                    isElectricity ? (
+                      <span className="text-amber-700 flex items-center gap-1.5 text-xs font-medium">
+                        <AlertCircle className="h-3 w-3" /> Could not verify consumer. Double-check the number before paying.
+                      </span>
+                    ) : (
+                      <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
+                        <AlertCircle className="h-3 w-3" /> Consumer not found. Check the number. Payment is blocked.
+                      </span>
+                    )
                   ) : null}
                 </div>
               )}

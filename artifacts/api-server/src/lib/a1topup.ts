@@ -210,8 +210,10 @@ export async function fetchBill(p: {
     ]);
     for (const [k, v] of Object.entries(raw)) {
       if (typeof v === "string" && v.length >= 8 && !skipKeys.has(k.toLowerCase())) {
-        // Accept values that look like a token: alphanumeric+symbols, not purely numeric, not a date
-        if (/^[a-zA-Z0-9+/=_\-:.]+$/.test(v) && !/^\d+$/.test(v) && !/^\d{2}[\/\-]\d{2}/.test(v)) {
+        // Accept values that look like a token: alphanumeric+symbols, not a date
+        // NOTE: Do NOT exclude purely-numeric values — some operators (e.g. PGVCL) return
+        // a numeric session token. Excluding them caused session detection to fail.
+        if (/^[a-zA-Z0-9+/=_\-:.]+$/.test(v) && !/^\d{2}[\/\-]\d{2}/.test(v)) {
           session = v;
           logger.info({ key: k, val: v.slice(0, 20) }, "[A1Topup] fetchbill: auto-detected session from field");
           break;
