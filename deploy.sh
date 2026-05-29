@@ -130,6 +130,9 @@
       waited=$((waited + 2))
   done
 
+  log "Stopping all containers to clear any stale Docker state..."
+  $COMPOSE down --remove-orphans 2>&1 || true
+
   log "Starting containers..."
   $COMPOSE up -d --remove-orphans
 
