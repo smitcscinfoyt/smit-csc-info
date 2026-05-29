@@ -30,9 +30,9 @@ export function isA1TopupConfigured(): boolean {
   return !!(username() && pwd());
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Generic A1 response (recharge / status / balance)
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export interface A1Response {
   status: "success" | "pending" | "failed";
   rawStatusCode: string;
@@ -89,7 +89,7 @@ async function callApi(path: string, params: Record<string, string>): Promise<Re
 
   const safe = { ...params } as Record<string, string>;
   for (const k of ["pwd", "password", "otp"]) if (k in safe) safe[k] = "***";
-  logger.info({ path, params: safe }, "[A1Topup] →");
+  logger.info({ path, params: safe }, "[A1Topup] â");
 
   const resp = await fetch(url.toString(), { method: "GET", headers: { Accept: "application/json" } });
   const text = await resp.text();
@@ -97,7 +97,7 @@ async function callApi(path: string, params: Record<string, string>): Promise<Re
   try {
     json = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    logger.error({ status: resp.status, text }, "[A1Topup] ← non-JSON");
+    logger.error({ status: resp.status, text }, "[A1Topup] â non-JSON");
     // Wrap plain-text error into a structured failed response instead of throwing,
     // so callers can handle it through normal status-code logic.
     const plainMsg = text.trim().slice(0, 300) || "Unknown error";
@@ -106,13 +106,13 @@ async function callApi(path: string, params: Record<string, string>): Promise<Re
       message: plainMsg,
     } as Record<string, unknown>;
   }
-  logger.info({ status: resp.status, body: json }, "[A1Topup] ←");
+  logger.info({ status: resp.status, body: json }, "[A1Topup] â");
   return json;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Recharge / Status / Balance
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 interface RechargeArgs {
   /** our internal idempotent request id */
   requestId: string;
@@ -121,7 +121,7 @@ interface RechargeArgs {
   number: string;
   /** rupees (whole or 2-decimal) */
   amountRupees: number;
-  /** circle code (numeric per A1Topup table) — required for mobile per docs */
+  /** circle code (numeric per A1Topup table) â required for mobile per docs */
   circleCode?: string;
   /** Extra fields for landline / utility (value1, value2 per docs) */
   value1?: string;
@@ -148,15 +148,15 @@ export async function doRecharge(args: RechargeArgs): Promise<A1Response> {
   return parseA1(raw);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bill Fetch — get consumer name + due amount before payment
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Bill Fetch â get consumer name + due amount before payment
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export interface BillInfo {
   consumerName?: string;
   dueAmount?: number;
   dueDate?: string;
   billNumber?: string;
-  /** Session token returned by A1Topup fetchbill — must be passed as value2 on the actual payment call */
+  /** Session token returned by A1Topup fetchbill â must be passed as value2 on the actual payment call */
   session?: string;
   raw: Record<string, unknown>;
   found: boolean;
@@ -198,11 +198,16 @@ export async function fetchBill(p: {
 
   const statusCode = String(pick(raw, "status", "STATUS") ?? "");
   const msg = String(pick(raw, "message", "msg") ?? "").toLowerCase();
-  const found =
-    !!name ||
-    statusCode === "1" || statusCode === "200" ||
-    msg.includes("success") ||
-    msg.includes("found");
+  // If A1Topup returned a session token the consumer exists — some operators
+    // (e.g. PGVCL) return non-standard status/message but always include a
+    // session when the consumer number is valid. Checking !!session first
+    // prevents false "not found" that would block valid bill payments.
+    const found =
+      !!session ||
+      !!name ||
+      statusCode === "1" || statusCode === "200" ||
+      msg.includes("success") ||
+      msg.includes("found");
 
   return {
     consumerName: name,
@@ -237,9 +242,9 @@ export async function getBalance(): Promise<{ balance: number; raw: A1Response }
   return { balance: r.balance ?? 0, raw: r };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Money Transfer (DMT) API
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export interface DmtResponse {
   ok: boolean;
   status: "success" | "pending" | "failed";
@@ -288,10 +293,10 @@ function parseDmt(raw: Record<string, unknown>): DmtResponse {
   // A1Topup quirk: when status/message are both null, infer success ONLY when
   // the response carries *write-proof* fields (server-generated identifiers /
   // structured payloads). Echoed inputs alone (Sender_name, beneficiaryName,
-  // pincode, sender_mobile, account_number) prove NOTHING — A1Topup also
+  // pincode, sender_mobile, account_number) prove NOTHING â A1Topup also
   // echoes them on rejected calls. This is the difference between:
-  //   • Real success: { txid:"...", ben_id:"...", sender_id:"..." }  → write happened
-  //   • Echo-only:   { Sender_name:"...", pincode:"...", txid:null } → silently rejected
+  //   â¢ Real success: { txid:"...", ben_id:"...", sender_id:"..." }  â write happened
+  //   â¢ Echo-only:   { Sender_name:"...", pincode:"...", txid:null } â silently rejected
   const hasEchoData =
     pick(raw, "sender_details") !== undefined ||                                           // search returned sender object
     pick(raw, "beneficiaryList", "beneficiarylist", "beneficiary_list") !== undefined ||   // search returned ben list
@@ -368,7 +373,7 @@ export async function dmtSearchBeneficiary(p: { senderMobile: string }): Promise
       raw: b,
     }));
   }
-  // Sender info — A1Topup uses `sender_details`
+  // Sender info â A1Topup uses `sender_details`
   const sender = (raw.sender_details ?? raw.sender) as Record<string, unknown> | null | undefined;
   if (sender && typeof sender === "object") {
     parsed.sender = {
@@ -463,9 +468,9 @@ export async function dmtTransfer(p: {
   return parseDmt(raw);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Webhook signature verification (HMAC-SHA256, fail-closed)
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export function verifyWebhookSig(rawBody: string, signature: string | undefined): boolean {
   const secret = webhookSecret();
   if (!secret) return false;
@@ -477,10 +482,10 @@ export function verifyWebhookSig(rawBody: string, signature: string | undefined)
   return crypto.timingSafeEqual(a, b);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Operator catalog — official A1Topup codes (letters!) per Developer API PDF.
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Operator catalog â official A1Topup codes (letters!) per Developer API PDF.
 // Codes here are sent verbatim as `operatorcode` to A1Topup.
-// ─────────────────────────────────────────────────────────────────────────────
+// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 export const OPERATORS = {
   mobile: [
     { code: "A",  name: "Airtel" },
@@ -506,108 +511,108 @@ export const OPERATORS = {
     { code: "DP",  name: "Tata Docomo Postpaid" },
   ],
   electricity: [
-    // ── Gujarat ──────────────────────────────────────────────────────
-    { code: "PGVCL",      name: "PGVCL — Paschim Gujarat" },
-    { code: "MGVCL",      name: "MGVCL — Madhya Gujarat" },
-    { code: "UGVCL",      name: "UGVCL — Uttar Gujarat" },
-    { code: "DGVCL",      name: "DGVCL — Dakshin Gujarat" },
-    { code: "TORRENTAHM", name: "Torrent Power — Ahmedabad" },
-    { code: "TORRENTSUR", name: "Torrent Power — Surat" },
-    { code: "TORRENTSHI", name: "Torrent Power — SHIL" },
-    { code: "TORRENTBHI", name: "Torrent Power — Bhivandi" },
-    { code: "TORRENTDAH", name: "Torrent Power — Dahej" },
+    // ââ Gujarat ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "PGVCL",      name: "PGVCL â Paschim Gujarat" },
+    { code: "MGVCL",      name: "MGVCL â Madhya Gujarat" },
+    { code: "UGVCL",      name: "UGVCL â Uttar Gujarat" },
+    { code: "DGVCL",      name: "DGVCL â Dakshin Gujarat" },
+    { code: "TORRENTAHM", name: "Torrent Power â Ahmedabad" },
+    { code: "TORRENTSUR", name: "Torrent Power â Surat" },
+    { code: "TORRENTSHI", name: "Torrent Power â SHIL" },
+    { code: "TORRENTBHI", name: "Torrent Power â Bhivandi" },
+    { code: "TORRENTDAH", name: "Torrent Power â Dahej" },
     { code: "GPCL",       name: "Gift Power Company Limited" },
-    // ── Delhi / NCR ───────────────────────────────────────────────────
-    { code: "BSES",   name: "BSES Rajdhani — Delhi" },
-    { code: "BSESY",  name: "BSES Yamuna — Delhi" },
-    { code: "TPD",    name: "Tata Power — Delhi" },
+    // ââ Delhi / NCR âââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "BSES",   name: "BSES Rajdhani â Delhi" },
+    { code: "BSESY",  name: "BSES Yamuna â Delhi" },
+    { code: "TPD",    name: "Tata Power â Delhi" },
     { code: "NDPL",   name: "North Delhi Power Limited" },
     { code: "NDMC",   name: "New Delhi Municipal Council" },
     { code: "MCG",    name: "Municipal Corporation of Gurugram" },
-    { code: "NP",     name: "Noida Power — NOIDA" },
-    // ── Mumbai / Maharashtra ──────────────────────────────────────────
-    { code: "TPDM",      name: "Tata Power — Mumbai" },
-    { code: "BEST",      name: "BEST — Mumbai" },
+    { code: "NP",     name: "Noida Power â NOIDA" },
+    // ââ Mumbai / Maharashtra ââââââââââââââââââââââââââââââââââââââââââ
+    { code: "TPDM",      name: "Tata Power â Mumbai" },
+    { code: "BEST",      name: "BEST â Mumbai" },
     { code: "BMESTU",    name: "BrihanMumbai Electric Supply" },
-    { code: "MSEDC",     name: "MSEDC — Maharashtra" },
-    { code: "RELIANCE",  name: "Reliance Energy — Mumbai" },
-    { code: "AEML",      name: "Adani Electricity — Mumbai" },
-    { code: "SNDL",      name: "SNDL Power — Nagpur" },
+    { code: "MSEDC",     name: "MSEDC â Maharashtra" },
+    { code: "RELIANCE",  name: "Reliance Energy â Mumbai" },
+    { code: "AEML",      name: "Adani Electricity â Mumbai" },
+    { code: "SNDL",      name: "SNDL Power â Nagpur" },
     { code: "CSPDCL",    name: "Chhattisgarh State Power (CSPDCL)" },
     { code: "GOAELC",    name: "Goa Electricity" },
-    // ── Rajasthan ─────────────────────────────────────────────────────
-    { code: "JVV",    name: "Jaipur Vidyut Vitran — Rajasthan" },
-    { code: "JDVV",   name: "Jodhpur Vidyut Vitran — Rajasthan" },
-    { code: "AJV",    name: "Ajmer Vidyut Vitran — Rajasthan" },
-    { code: "KEDL",   name: "KEDL — Kota" },
+    // ââ Rajasthan âââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "JVV",    name: "Jaipur Vidyut Vitran â Rajasthan" },
+    { code: "JDVV",   name: "Jodhpur Vidyut Vitran â Rajasthan" },
+    { code: "AJV",    name: "Ajmer Vidyut Vitran â Rajasthan" },
+    { code: "KEDL",   name: "KEDL â Kota" },
     { code: "BESL",   name: "Bikaner Electricity Supply" },
     { code: "TPADL",  name: "TP Ajmer Distribution" },
-    // ── Uttar Pradesh ────────────────────────────────────────────────
-    { code: "UPPCLU", name: "UPPCL — Uttar Pradesh Urban" },
-    { code: "UPPCLR", name: "UPPCL — Uttar Pradesh Rural" },
+    // ââ Uttar Pradesh ââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "UPPCLU", name: "UPPCL â Uttar Pradesh Urban" },
+    { code: "UPPCLR", name: "UPPCL â Uttar Pradesh Rural" },
     { code: "KESCO",  name: "Kanpur Electricity Supply" },
     { code: "MVVNL",  name: "Madhyanchal Vidyut Vitran Nigam" },
-    // ── Haryana ───────────────────────────────────────────────────────
+    // ââ Haryana âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     { code: "DHBVN", name: "Dakshin Haryana Bijli Vitran Nigam" },
     { code: "UHBV",  name: "Uttar Haryana Bijli Vitran Nigam" },
-    // ── Madhya Pradesh ───────────────────────────────────────────────
+    // ââ Madhya Pradesh âââââââââââââââââââââââââââââââââââââââââââââââ
     { code: "MKV",        name: "MP Madhya Kshetra Vidyut Vitaran (Urban)" },
-    { code: "PKV",        name: "Paschim Kshetra Vitaran — MP" },
+    { code: "PKV",        name: "Paschim Kshetra Vitaran â MP" },
     { code: "MPPKVVCL",   name: "MP Poorv Kshetra Vidyut Vitaran (Urban)" },
-    { code: "MPPKVVCLPU", name: "MP Poorv Kshetra Vidyut Vitaran — Jabalpur" },
+    { code: "MPPKVVCLPU", name: "MP Poorv Kshetra Vidyut Vitaran â Jabalpur" },
     { code: "MPPKVVCLMR", name: "MP Madhya Kshetra Vidyut Vitaran (Rural)" },
-    // ── Andhra Pradesh / Telangana ───────────────────────────────────
-    { code: "SPA",      name: "Southern Power — Andhra Pradesh" },
-    { code: "SPT",      name: "Southern Power — Telangana" },
-    { code: "APCPDCL",  name: "Central Power Distribution — AP" },
-    { code: "APEPDCL",  name: "APEPDCL — Andhra Pradesh" },
-    { code: "TSNPDCL",  name: "TSNPDCL — Telangana Northern" },
-    // ── Karnataka ────────────────────────────────────────────────────
+    // ââ Andhra Pradesh / Telangana âââââââââââââââââââââââââââââââââââ
+    { code: "SPA",      name: "Southern Power â Andhra Pradesh" },
+    { code: "SPT",      name: "Southern Power â Telangana" },
+    { code: "APCPDCL",  name: "Central Power Distribution â AP" },
+    { code: "APEPDCL",  name: "APEPDCL â Andhra Pradesh" },
+    { code: "TSNPDCL",  name: "TSNPDCL â Telangana Northern" },
+    // ââ Karnataka ââââââââââââââââââââââââââââââââââââââââââââââââââââ
     { code: "BESCOM",  name: "Bangalore Electricity Supply (BESCOM)" },
     { code: "HESCOM",  name: "Hubli Electricity Supply (HESCOM)" },
     { code: "GESCL",   name: "Gulbarga Electricity Supply" },
     { code: "CESCOM",  name: "Chamundeshwari Electricity (Mysore)" },
-    // ── Tamil Nadu ───────────────────────────────────────────────────
-    { code: "TNEB",  name: "TNEB — Tamil Nadu" },
-    // ── Kerala ───────────────────────────────────────────────────────
-    { code: "KSEB",    name: "KSEB — Kerala" },
+    // ââ Tamil Nadu âââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "TNEB",  name: "TNEB â Tamil Nadu" },
+    // ââ Kerala âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "KSEB",    name: "KSEB â Kerala" },
     { code: "KDHPCPL", name: "Kannan Devan Hills Power" },
-    // ── Punjab / Himachal / J&K ──────────────────────────────────────
+    // ââ Punjab / Himachal / J&K ââââââââââââââââââââââââââââââââââââââ
     { code: "PSPCL",  name: "Punjab State Power Corporation" },
     { code: "HPSEBL", name: "Himachal Pradesh State Electricity Board" },
     { code: "JKPDD",  name: "J&K Power Development Department" },
     { code: "UKPCL",  name: "Uttarakhand Power Corporation" },
-    // ── West Bengal / East India ─────────────────────────────────────
-    { code: "CESC",    name: "CESC — West Bengal" },
-    { code: "WBSEDCL", name: "WBSEDCL — West Bengal" },
-    { code: "IPWB",    name: "India Power — West Bengal" },
+    // ââ West Bengal / East India âââââââââââââââââââââââââââââââââââââ
+    { code: "CESC",    name: "CESC â West Bengal" },
+    { code: "WBSEDCL", name: "WBSEDCL â West Bengal" },
+    { code: "IPWB",    name: "India Power â West Bengal" },
     { code: "IPCL",    name: "India Power Corporation" },
     { code: "NBE",     name: "North Bihar Electricity" },
     { code: "SBE",     name: "South Bihar Electricity" },
-    { code: "JBVNL",   name: "JBVNL — Jharkhand" },
+    { code: "JBVNL",   name: "JBVNL â Jharkhand" },
     { code: "MVV",     name: "Muzaffarpur Vidyut Vitran" },
     { code: "JUSCL",   name: "Jamshedpur Utilities & Services" },
     { code: "BHES",    name: "Bharatpur Electricity Services" },
     { code: "DDCL",    name: "DNH Power Distribution" },
-    // ── Odisha ───────────────────────────────────────────────────────
-    { code: "WESCO",   name: "Western Electricity Supply — Orissa" },
-    { code: "NESCO",   name: "NESCO — Odisha" },
-    { code: "SOUTHCO", name: "SOUTHCO — Odisha" },
+    // ââ Odisha âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "WESCO",   name: "Western Electricity Supply â Orissa" },
+    { code: "NESCO",   name: "NESCO â Odisha" },
+    { code: "SOUTHCO", name: "SOUTHCO â Odisha" },
     { code: "TPCODL",  name: "TP Central Odisha Distribution" },
-    // ── Assam / North East ───────────────────────────────────────────
+    // ââ Assam / North East âââââââââââââââââââââââââââââââââââââââââââ
     { code: "APDCLR",  name: "Assam Power Distribution (RAPDR)" },
-    { code: "APDCLN",  name: "APDCL — Assam (Non-RAPDR)" },
-    { code: "MEPDCL",  name: "MEPDCL — Meghalaya" },
-    { code: "ARPDOP",  name: "Dept. of Power — Arunachal Pradesh" },
-    { code: "NDOP",    name: "Dept. of Power — Nagaland" },
-    { code: "MPED",    name: "Power & Electricity — Mizoram" },
+    { code: "APDCLN",  name: "APDCL â Assam (Non-RAPDR)" },
+    { code: "MEPDCL",  name: "MEPDCL â Meghalaya" },
+    { code: "ARPDOP",  name: "Dept. of Power â Arunachal Pradesh" },
+    { code: "NDOP",    name: "Dept. of Power â Nagaland" },
+    { code: "MPED",    name: "Power & Electricity â Mizoram" },
     { code: "MSPDCLPR", name: "Manipur State Power (Prepaid)" },
     { code: "TSECL",   name: "Tripura State Electricity Corp." },
-    // ── Karnataka (Mangalore) ────────────────────────────────────────
-    { code: "MESCOMR",  name: "MESCOM Mangalore — RAPDR" },
-    { code: "MESCOMNR", name: "MESCOM Mangalore — Non-RAPDR" },
-    // ── Other ────────────────────────────────────────────────────────
-    { code: "TRP",    name: "Torrent Power — Agra" },
+    // ââ Karnataka (Mangalore) ââââââââââââââââââââââââââââââââââââââââ
+    { code: "MESCOMR",  name: "MESCOM Mangalore â RAPDR" },
+    { code: "MESCOMNR", name: "MESCOM Mangalore â Non-RAPDR" },
+    // ââ Other ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    { code: "TRP",    name: "Torrent Power â Agra" },
     { code: "PGPED",  name: "Puducherry Electricity Dept." },
     { code: "SPR",    name: "Sikkim Power Rural" },
     { code: "SPU",    name: "Sikkim Power Urban" },
@@ -649,12 +654,12 @@ export const OPERATORS = {
   // For backward compatibility with existing `bill` type code paths.
   // Aggregates all bill-type operator codes for backend operator lookup.
   bill: [
-    { code: "PGVCL",      name: "PGVCL — Paschim Gujarat" },
-    { code: "MGVCL",      name: "MGVCL — Madhya Gujarat" },
-    { code: "UGVCL",      name: "UGVCL — Uttar Gujarat" },
-    { code: "DGVCL",      name: "DGVCL — Dakshin Gujarat" },
-    { code: "TORRENTAHM", name: "Torrent Power — Ahmedabad" },
-    { code: "TORRENTSUR", name: "Torrent Power — Surat" },
+    { code: "PGVCL",      name: "PGVCL â Paschim Gujarat" },
+    { code: "MGVCL",      name: "MGVCL â Madhya Gujarat" },
+    { code: "UGVCL",      name: "UGVCL â Uttar Gujarat" },
+    { code: "DGVCL",      name: "DGVCL â Dakshin Gujarat" },
+    { code: "TORRENTAHM", name: "Torrent Power â Ahmedabad" },
+    { code: "TORRENTSUR", name: "Torrent Power â Surat" },
     { code: "GG",         name: "Gujarat Gas" },
     { code: "AG",         name: "Adani Gas" },
     { code: "MG",         name: "Mahanagar Gas" },
@@ -662,7 +667,7 @@ export const OPERATORS = {
   ],
 } as const;
 
-/** Indian mobile circle codes — official numeric codes per A1Topup PDF. */
+/** Indian mobile circle codes â official numeric codes per A1Topup PDF. */
 export const CIRCLES = [
   { code: "12", name: "Gujarat" },
   { code: "3",  name: "Mumbai" },
