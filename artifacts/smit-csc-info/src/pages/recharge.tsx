@@ -1458,7 +1458,7 @@ function UpgradeCelebrationModal({
               className="p-10 flex flex-col items-center text-center bg-white">
               <Loader2 className="h-14 w-14 text-indigo-600 animate-spin mb-4" />
               <h2 className="text-xl font-bold mb-1">Confirming Payment...</h2>
-              <p className="text-sm text-muted-foreground">PhonePe સાથે verify કરી રહ્યા છીએ. થોડી સેકન્ડ રાહ જુઓ.</p>
+              <p className="text-sm text-muted-foreground">Verifying with PhonePe. Please wait a few seconds.</p>
             </motion.div>
           )}
 
@@ -1484,9 +1484,9 @@ function UpgradeCelebrationModal({
               <motion.h2 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
                 className="text-3xl font-extrabold mb-2">🎉 Congratulations!</motion.h2>
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-                className="text-lg opacity-95 mb-1">તમારું <b>{planLabel}</b> plan activate થઈ ગયું!</motion.p>
+                className="text-lg opacity-95 mb-1">Your <b>{planLabel}</b> plan has been activated!</motion.p>
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-                className="text-sm opacity-80 mb-6">હવે higher commission rates ની મજા લો. Lifetime access.</motion.p>
+                className="text-sm opacity-80 mb-6">Enjoy higher commission rates now. Lifetime access.</motion.p>
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.75 }}>
                 <Button onClick={onClose} className="bg-white text-gray-900 hover:bg-gray-100 font-bold px-8 h-11">
                   Start Earning <ArrowRight className="h-4 w-4 ml-2" />
@@ -1503,7 +1503,7 @@ function UpgradeCelebrationModal({
               </div>
               <h2 className="text-xl font-bold mb-2">Payment Pending</h2>
               <p className="text-sm text-muted-foreground mb-6">
-                PhonePe confirmation આવી રહ્યું છે. થોડી મિનિટ માં તમારું plan automatically activate થઈ જશે.
+                PhonePe confirmation is on the way. Your plan will automatically activate in a few minutes.
               </p>
               <Button onClick={onClose} variant="outline" className="w-full">Close</Button>
             </motion.div>
@@ -1516,7 +1516,7 @@ function UpgradeCelebrationModal({
                 <XCircle className="h-10 w-10 text-red-600" />
               </div>
               <h2 className="text-xl font-bold mb-2">Verification Failed</h2>
-              <p className="text-sm text-muted-foreground mb-6">{error ?? "કૃપા કરી ફરી પ્રયત્ન કરો."}</p>
+              <p className="text-sm text-muted-foreground mb-6">{error ?? "Please try again."}</p>
               <Button onClick={onClose} variant="outline" className="w-full">Close</Button>
             </motion.div>
           )}
