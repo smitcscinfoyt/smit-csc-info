@@ -171,6 +171,21 @@ export default function RechargeReceipt() {
                   <Share2 className="h-4 w-4 mr-2" />Share
                 </Button>
               </div>
+              {(rec.status === "failed" || rec.status === "refunded") && (
+                <Link
+                  href={(() => {
+                    const page = rec.type === "mobile" ? "mobile" : rec.type === "dth" ? "dth" : "bill";
+                    const amt = Math.round(rec.amount / 100);
+                    return "/recharge/" + page + "?retry=1&op=" + encodeURIComponent(rec.operatorCode) + "&num=" + encodeURIComponent(rec.number) + "&amt=" + amt;
+                  })()}
+                  className="block w-full"
+                >
+                  <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry — Same Details
+                  </Button>
+                </Link>
+              )}
               <div className="flex gap-2">
                 <Link href="/recharge" className="flex-1"><Button variant="outline" className="w-full">New Recharge</Button></Link>
                 <Link href="/wallet" className="flex-1"><Button variant="outline" className="w-full">Wallet</Button></Link>
