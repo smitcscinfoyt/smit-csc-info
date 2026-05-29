@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft, Loader2, Smartphone, Tv, Receipt, Wallet, AlertCircle,
-  Phone, Lightbulb, Flame, ShieldCheck, CreditCard, Gift, Sparkles, Check, Info,
+  Phone, Lightbulb, Flame, ShieldCheck, CreditCard, Gift, Sparkles, Check, Info, RefreshCw,
 } from "lucide-react";
 import { TpinDialog } from "@/components/recharge/tpin-dialog";
 import {
@@ -114,17 +114,17 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [billInfo, setBillInfo] = useState<BillInfoResult | null>(null);
   const [billInfoLoading, setBillInfoLoading] = useState(false);
   const [billFetchError, setBillFetchError] = useState(false);
-  // Block submit for bill categories when consumer verification fails or is in progress.
-  // Declared AFTER useState hooks to avoid temporal dead zone (ReferenceError).
-  // Block only when consumer is truly not found (no session returned).
-    // Some operators (e.g. PGVCL) may return non-standard responses where
-    // "found" is misdetected, but a session token IS present — that means the
-    // consumer is valid and we must allow payment.
-    const billFetchBlocking =
-      isBillCategory &&
-      !!operatorCode &&
-      number.length >= 4 &&
-      (billInfoLoading || !billInfo || (billInfo.found === false && !billInfo.session));
+  // Block submit only when consumer is explicitly NOT found (API confirmed not found).
+  // Network/parse errors (billFetchError) are temporary — do NOT block, show retry instead.
+  // Some operators (e.g. PGVCL) may return non-standard responses where
+  // "found" is misdetected, but a session token IS present — that means the
+  // consumer is valid and we must allow payment.
+  const billFetchBlocking =
+    isBillCategory &&
+    !!operatorCode &&
+    number.length >= 4 &&
+    !billFetchError &&
+    (billInfoLoading || (!billInfo) || (billInfo.found === false && !billInfo.session));
 
   // --- Operator-specific field requirements ----------------------
   // Based on A1Topup official API docs:
@@ -397,14 +397,17 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                       )}
                     </span>
                   ) : billFetchError ? (
-                      <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
-                          <AlertCircle className="h-3 w-3" /> Consumer not found. Check the number and try again. Payment blocked.
-                        </span>
-                    ) : billInfo && !billInfo.found ? (
-                      <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
-                          <AlertCircle className="h-3 w-3" /> Consumer not found. Check the number. Payment is blocked.
-                        </span>
-                    ) : null}
+                    <span className="text-amber-700 flex items-center gap-1.5 text-xs font-medium">
+                      <AlertCircle className="h-3 w-3" /> Could not fetch bill details.
+                      <button type="button" onClick={fetchBillData} className="underline flex items-center gap-0.5 hover:text-amber-900">
+                        <RefreshCw className="h-3 w-3" /> Retry
+                      </button>
+                    </span>
+                  ) : billInfo && !billInfo.found ? (
+                    <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
+                      <AlertCircle className="h-3 w-3" /> Consumer not found. Check the number. Payment is blocked.
+                    </span>
+                  ) : null}
                 </div>
               )}
               {(isMobile || effCategory === "postpaid") && number.length >= 4 && (
