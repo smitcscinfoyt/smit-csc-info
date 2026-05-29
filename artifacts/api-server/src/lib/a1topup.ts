@@ -254,12 +254,12 @@ export async function fetchBill(p: {
   // be treated as found=true.
   const negativeMsg =
     msg.includes("not found") ||
-    msg.includes("invalid") ||
-    msg.includes("incorrect") ||
+    msg.includes("invalid consumer") ||
+    msg.includes("incorrect consumer") ||
+    msg.includes("consumer not found") ||
+    msg.includes("bill not found") ||
     msg.includes("does not exist") ||
-    msg.includes("no record") ||
-    msg.includes("failed") ||
-    msg.includes("error");
+    msg.includes("no record");
   const found =
     !!session ||
     !!name ||
