@@ -99,7 +99,7 @@ export interface RechargeSettings {
 export const paiseToRupees = (paise: number): number => Math.round(paise) / 100;
 export const formatINR = (paise: number): string => {
   const n = Number.isFinite(paise) ? paise : 0;
-  return `₹${(n / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `\u20B9${(n / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 export const rupeesToPaise = (rupees: number | string): number => {
   const n = typeof rupees === "string" ? parseFloat(rupees) : rupees;

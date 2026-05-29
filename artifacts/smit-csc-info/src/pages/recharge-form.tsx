@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowLeft, Loader2, Smartphone, Tv, Receipt, Wallet, AlertCircle,
   Phone, Lightbulb, Flame, ShieldCheck, CreditCard, Gift, Sparkles, Check, Info, RefreshCw,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import { TpinDialog } from "@/components/recharge/tpin-dialog";
 import {
@@ -65,9 +66,9 @@ interface MetaEntry {
   numLen: number;
   /** Backend recharge type (mobile/dth/bill) */
   backendType: RechargeType;
-  /** Min recharge amount (₹) */
+  /** Min recharge amount (Rs.) */
   minAmount: number;
-  /** Max recharge amount (₹) */
+  /** Max recharge amount (Rs.) */
   maxAmount: number;
 }
 
@@ -312,8 +313,8 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const handleSubmit = () => {
     if (!operatorCode) { toast({ variant: "destructive", title: "Select operator" }); return; }
     if (!number || number.length < minNumLen) { toast({ variant: "destructive", title: "Enter a valid number" }); return; }
-    if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum ₹${meta.minAmount}` }); return; }
-    if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum ₹${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
+    if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum Rs.${meta.minAmount}` }); return; }
+    if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum Rs.${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
     if (insufficient) { toast({ variant: "destructive", title: "Insufficient wallet balance", description: "Add money" }); return; }
     // Validate required extra fields
     if (showExtraValue1 && !extraValue1.trim()) {
@@ -392,7 +393,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                       {billInfo.consumerName}
                       {billInfo.dueAmount != null && billInfo.dueAmount > 0 && (
                         <span className="text-muted-foreground font-normal">
-                          · Due: ₹{billInfo.dueAmount.toFixed(2)}
+                          - Due: {'\u20B9'}{billInfo.dueAmount.toFixed(2)}
                         </span>
                       )}
                     </span>
@@ -420,7 +421,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                     <span className="text-green-700 flex items-center gap-1.5 font-medium flex-wrap">
                       <Sparkles className="h-3.5 w-3.5" />
                       Auto-detected: <span className="font-semibold">{detection.operatorName}</span>
-                      {isMobile && <> · <span>{detection.circleName}</span></>}
+                      {isMobile && <><span className="mx-1">-</span><span>{detection.circleName}</span></>}
                       {detection.source === "ezytm" ? (
                         <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
                           MNP-aware
@@ -502,10 +503,10 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             )}
 
             <div>
-              <Label htmlFor="amt">Amount (₹)</Label>
+              <Label htmlFor="amt">Amount (Rs.)</Label>
               <Input id="amt" type="number" inputMode="numeric" min={meta.minAmount} max={meta.maxAmount} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="299" className="text-lg font-semibold" data-testid="input-amount" />
               <div className="mt-2 flex flex-wrap gap-2">
-                {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>₹{a}</Button>)}
+                {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>{'\u20B9'}{a}</Button>)}
                            </div>
             </div>
 
@@ -536,7 +537,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             {requiresTpin && !tpinStatus?.hasPin && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>T-PIN required for ₹500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
+                <AlertDescription>T-PIN required for Rs.500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
               </Alert>
             )}
 
@@ -616,7 +617,7 @@ function PlanBrowser({ operatorCode, circleCode, onPick }: {
         <span className="flex items-center gap-1.5">
           <Sparkles className="h-4 w-4" /> Browse Plans
         </span>
-        <span className="text-xs">{open ? "Hide ▲" : "Show ▼"}</span>
+        <span className="text-xs flex items-center gap-0.5">{open ? <><ChevronUp className="h-3 w-3" />Hide</> : <>Show <ChevronDown className="h-3 w-3" /></>}</span>
       </button>
       {open && (
         <div className="bg-white">
@@ -659,7 +660,7 @@ function PlanBrowser({ operatorCode, circleCode, onPick }: {
                         <div className="text-[11px] text-indigo-700 mt-0.5">Validity: {p.validity}</div>
                       )}
                     </div>
-                    <div className="font-bold text-base text-indigo-700 shrink-0">₹{p.rs}</div>
+                    <div className="font-bold text-base text-indigo-700 shrink-0">{'\u20B9'}{p.rs}</div>
                   </button>
                 ))}
               </div>
