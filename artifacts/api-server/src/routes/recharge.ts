@@ -149,6 +149,51 @@ router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Pr
   }
 });
 
+// --- GET /recharge/debug-fetchbill  (admin only) ----------------------------
+// Returns the full raw A1Topup fetchbill response so you can diagnose
+// exactly what an operator (e.g. PGVCL) sends back and verify the session
+// token is being captured correctly.
+// Usage: GET /api/recharge/debug-fetchbill?operatorCode=PGVCL&consumerNumber=35211005414
+router.get("/recharge/debug-fetchbill", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const [user] = await db.select({ role: usersTable.role }).from(usersTable).where(eq(usersTable.id, req.userId!));
+  if (!user || user.role !== "admin") {
+    res.status(403).json({ error: "Admin only" });
+    return;
+  }
+  const operatorCode = String(req.query.operatorCode ?? "").trim();
+  const consumerNumber = String(req.query.consumerNumber ?? "").trim();
+  if (!operatorCode || !consumerNumber || consumerNumber.length < 4) {
+    res.status(400).json({ error: "operatorCode and consumerNumber required" });
+    return;
+  }
+  if (!isA1TopupConfigured()) {
+    res.status(503).json({ error: "A1Topup not configured" });
+    return;
+  }
+  try {
+    const info = await fetchBill({ operatorCode, consumerNumber });
+    res.json({
+      found: info.found,
+      consumerName: info.consumerName ?? null,
+      dueAmount: info.dueAmount ?? null,
+      dueDate: info.dueDate ?? null,
+      billNumber: info.billNumber ?? null,
+      session: info.session ?? null,
+      sessionCaptured: !!info.session,
+      // Full raw A1Topup response — every field returned by the operator
+      rawResponse: info.raw,
+      rawKeys: Object.keys(info.raw),
+      // All string values long enough to be a session token
+      potentialSessionFields: Object.fromEntries(
+        Object.entries(info.raw).filter(([, v]) => typeof v === "string" && (v as string).length >= 6)
+      ),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "fetchbill failed" });
+  }
+});
+
+
 // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /recharge Ã¢ÂÂ create + execute a recharge Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 const rechargeBody = z.object({
   type: z.enum(["mobile", "dth", "bill"]),
