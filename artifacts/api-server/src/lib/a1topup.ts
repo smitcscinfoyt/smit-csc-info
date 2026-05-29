@@ -239,12 +239,17 @@ export async function fetchBill(p: {
   // (e.g. PGVCL) return non-standard status/message but always include a
   // session when the consumer number is valid. Checking !!session first
   // prevents false "not found" that would block valid bill payments.
+  //
+  // NOTE: msg.includes("found") is intentionally NOT used — it matches
+  // negative phrases like "Bill Not Found" / "Consumer Not Found", causing
+  // a false-positive that hides the missing session and leads to
+  // "Paramenter is missing" from A1Topup's payment API.
   const found =
     !!session ||
     !!name ||
     statusCode === "1" || statusCode === "200" ||
     msg.includes("success") ||
-    msg.includes("found");
+    msg === "found";
 
   return {
     consumerName: name,

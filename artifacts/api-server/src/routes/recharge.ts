@@ -370,12 +370,16 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
       } else if (!fb.found) {
-        // A1Topup's electricity fetchBill (especially PGVCL) is unreliable —
-        // it often returns not-found even for valid consumer numbers. We log
-        // the miss but still proceed so the user can attempt the payment.
-        // If A1Topup then returns 'Paramenter is missing', the transaction
-        // status will show as failed and the wallet will be refunded.
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: consumer not found in A1Topup — proceeding without session (unreliable fetchBill)');
+        // A1Topup definitively said the consumer number is not found
+        // (e.g. "Bill Not Found", "Consumer Not Found"). Electricity operators
+        // require a fetchBill session as value2 — without it A1Topup returns
+        // "Paramenter is missing" and immediately refunds. Block here BEFORE
+        // any wallet debit to protect the user's balance.
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: consumer not found — blocking payment to prevent Paramenter-is-missing refund');
+        await db.update(rechargesTable)
+          .set({ status: "failed", errorReason: `Consumer number ${acct} not found in A1Topup for ${op.name}. Please verify the consumer number is correct.`, updatedAt: new Date(), completedAt: new Date() })
+          .where(eq(rechargesTable.id, rechargeRow.id));
+        return res.status(422).json({ error: `Consumer number not found in A1Topup for ${op.name}. Please double-check the consumer / account number and try again.` });
       } else {
         // found:true but no session — operator does not need it; proceed normally
         req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
