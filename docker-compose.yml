@@ -4,8 +4,6 @@ services:
     container_name: smit_csc_db
     restart: always
     environment:
-      ZOHO_EMAIL: ${ZOHO_EMAIL}
-      ZOHO_PASSWORD: ${ZOHO_PASSWORD}
       POSTGRES_DB: smit_csc
       POSTGRES_USER: csc_admin
       POSTGRES_PASSWORD: secure_db_password
