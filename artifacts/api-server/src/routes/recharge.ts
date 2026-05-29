@@ -141,10 +141,11 @@ router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Pr
       dueAmount: info.dueAmount ?? null,
       dueDate: info.dueDate ?? null,
       billNumber: info.billNumber ?? null,
+      session: info.session ?? null,
     });
   } catch (err: any) {
     req.log.warn({ err: err?.message }, "[recharge/bill-info] fetch failed");
-    res.json({ found: false, consumerName: null, dueAmount: null, dueDate: null, billNumber: null });
+    res.json({ found: false, consumerName: null, dueAmount: null, dueDate: null, billNumber: null, session: null });
   }
 });
 
@@ -158,6 +159,8 @@ const rechargeBody = z.object({
   customerName: z.string().max(200).optional(),
   idempotencyKey: z.string().min(8).max(120),
   tpin: z.string().optional(),
+  /** Session token from fetchbill — required by some utility operators (e.g. PGVCL) as value2 */
+  billSession: z.string().optional(),
 });
 
 router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -167,7 +170,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
     res.status(400).json({ error: "Invalid recharge request", details: parsed.error.format() });
     return;
   }
-  const { type, operatorCode, number, amountPaise, circleCode, customerName, idempotencyKey, tpin } = parsed.data;
+  const { type, operatorCode, number, amountPaise, circleCode, customerName, idempotencyKey, tpin, billSession } = parsed.data;
 
   // Idempotency: if a recharge with this key already exists, return it.
   const [existing] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.userId, userId), eq(rechargesTable.idempotencyKey, idempotencyKey)));
@@ -305,7 +308,9 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   // Hit A1Topup
   // A1Topup requires `circlecode` for mobile recharges — default to Gujarat (12)
   const effectiveCircle = type === "mobile" ? (circleCode || "12") : circleCode;
-  // A1Topup bill/utility payments require consumer number in `value1` (not just `number`)
+  // A1Topup bill/utility payments require consumer number in `value1` (not just `number`).
+  // Some operators (e.g. PGVCL electricity) also require the fetchbill session token as `value2`.
+  // Without value2 these operators return "Paramenter is missing".
   const isBillType = type === "bill";
   let a1: A1Response;
   try {
@@ -316,6 +321,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       amountRupees: amountPaise / 100,
       circleCode: effectiveCircle,
       value1: isBillType ? acct : undefined,
+      value2: isBillType && billSession ? billSession : undefined,
     });
   } catch (err: any) {
     // Network/parse error — keep status processing, schedule background reconcile via /status endpoint.

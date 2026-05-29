@@ -217,6 +217,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
       circleCode: isMobile ? circleCode || undefined : undefined,
       customerName: billInfo?.consumerName ?? undefined,
       tpin: params.tpin, idempotencyKey,
+      billSession: billInfo?.session ?? undefined,
     }),
     onSuccess: (rec) => {
       qc.invalidateQueries({ queryKey: ["wallet"] });

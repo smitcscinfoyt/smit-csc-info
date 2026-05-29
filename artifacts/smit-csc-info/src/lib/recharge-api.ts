@@ -285,6 +285,8 @@ function rawToRecharge(r: any): RechargeRecord {
 export async function initRecharge(p: {
   type: RechargeType; operatorCode: string; number: string; amount: number;
   circleCode?: string; customerName?: string; tpin?: string; idempotencyKey: string;
+  /** Session token from fetchBill (bill-info) — required by some utility operators (e.g. PGVCL) */
+  billSession?: string | null;
 }): Promise<RechargeRecord> {
   const r = await apiFetch<any>("/api/recharge", {
     method: "POST",
@@ -297,6 +299,7 @@ export async function initRecharge(p: {
       customerName: p.customerName,
       tpin: p.tpin,
       idempotencyKey: p.idempotencyKey,
+      billSession: p.billSession ?? undefined,
     }),
   });
   return rawToRecharge(r);
@@ -308,6 +311,8 @@ export interface BillInfoResult {
   dueAmount: number | null;
   dueDate: string | null;
   billNumber: string | null;
+  /** Session token from A1Topup fetchbill — must be sent as billSession on payment */
+  session: string | null;
 }
 
 export async function fetchBillInfo(operatorCode: string, consumerNumber: string): Promise<BillInfoResult> {

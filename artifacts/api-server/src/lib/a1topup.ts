@@ -156,6 +156,8 @@ export interface BillInfo {
   dueAmount?: number;
   dueDate?: string;
   billNumber?: string;
+  /** Session token returned by A1Topup fetchbill — must be passed as value2 on the actual payment call */
+  session?: string;
   raw: Record<string, unknown>;
   found: boolean;
 }
@@ -185,6 +187,14 @@ export async function fetchBill(p: {
   );
   const dueDate = pick<string>(raw, "due_date", "duedate", "bill_date");
   const billNo = pick<string>(raw, "bill_number", "billno", "bill_no");
+  // A1Topup returns a session token for operators that require it (e.g. PGVCL electricity).
+  // This session MUST be passed as value2 on the actual payment call or the API
+  // returns "Paramenter is missing".
+  const session = pick<string>(raw,
+    "session", "SESSION", "sessionid", "session_id",
+    "sessionkey", "session_key", "sessiontoken", "session_token",
+    "token", "TOKEN", "key", "KEY",
+  );
 
   const statusCode = String(pick(raw, "status", "STATUS") ?? "");
   const msg = String(pick(raw, "message", "msg") ?? "").toLowerCase();
@@ -199,6 +209,7 @@ export async function fetchBill(p: {
     dueAmount: dueRaw !== undefined ? Number(dueRaw) : undefined,
     dueDate: dueDate ? String(dueDate) : undefined,
     billNumber: billNo ? String(billNo) : undefined,
+    session: session ? String(session) : undefined,
     raw,
     found,
   };
