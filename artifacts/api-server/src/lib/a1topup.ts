@@ -165,15 +165,19 @@ export interface BillInfo {
 export async function fetchBill(p: {
   operatorCode: string;
   consumerNumber: string;
+  /** Some operators (e.g. PGVCL, MGVCL) need value1=consumerNumber in fetchBill too */
+  value1?: string;
 }): Promise<BillInfo> {
   if (!isA1TopupConfigured()) throw new Error("A1Topup credentials not configured");
-  const raw = await callApi("/recharge/fetchbill", {
+  const fetchParams: Record<string, string> = {
     username: username(),
     pwd: pwd(),
     operatorcode: p.operatorCode,
     number: p.consumerNumber,
     format: "json",
-  });
+  };
+  if (p.value1) fetchParams.value1 = p.value1;
+  const raw = await callApi("/recharge/fetchbill", fetchParams);
 
   const name = pick<string>(raw,
     "consumer_name", "consumername", "customername", "customer_name",
@@ -244,11 +248,23 @@ export async function fetchBill(p: {
   // negative phrases like "Bill Not Found" / "Consumer Not Found", causing
   // a false-positive that hides the missing session and leads to
   // "Paramenter is missing" from A1Topup's payment API.
+  //
+  // statusCode "1"/"200" also guards against negative messages: A1Topup may
+  // return {"status":"1","message":"Invalid Consumer Number"} which must NOT
+  // be treated as found=true.
+  const negativeMsg =
+    msg.includes("not found") ||
+    msg.includes("invalid") ||
+    msg.includes("incorrect") ||
+    msg.includes("does not exist") ||
+    msg.includes("no record") ||
+    msg.includes("failed") ||
+    msg.includes("error");
   const found =
     !!session ||
     !!name ||
-    statusCode === "1" || statusCode === "200" ||
-    msg.includes("success") ||
+    ((statusCode === "1" || statusCode === "200") && !negativeMsg) ||
+    (msg.includes("success") && !negativeMsg) ||
     msg === "found";
 
   return {

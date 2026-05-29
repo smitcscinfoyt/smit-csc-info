@@ -365,8 +365,27 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
   if (type === 'bill' && ELECTRICITY_OPS.has(operatorCode) && isA1TopupConfigured()) {
     try {
-      const fb = await fetchBill({ operatorCode, consumerNumber: acct });
-      if (fb.session) {
+      // Retry up to 3 times — A1Topup fetchBill can be intermittent.
+      // We also pass value1=acct because some Gujarat operators (PGVCL, MGVCL,
+      // DGVCL, UGVCL) require the consumer number in both `number` and `value1`.
+      let fb: Awaited<ReturnType<typeof fetchBill>> | null = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          fb = await fetchBill({ operatorCode, consumerNumber: acct, value1: acct });
+          req.log.info({ op: operatorCode, attempt, found: fb.found, hasSession: !!fb.session, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill attempt');
+          if (fb.session || fb.found) break; // Got a useful response — stop retrying
+          if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
+        } catch (err: any) {
+          req.log.warn({ err: err?.message, op: operatorCode, attempt }, '[recharge] freshFetchBill threw');
+          if (attempt === 3) fb = null;
+          else await new Promise(r => setTimeout(r, 1500 * attempt));
+        }
+      }
+
+      if (!fb) {
+        // All attempts threw — network error; proceed with existing session if any
+        req.log.warn({ op: operatorCode }, '[recharge] freshFetchBill: all attempts failed — proceeding with existing session');
+      } else if (fb.session) {
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
       } else if (!fb.found) {
@@ -375,7 +394,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         // require a fetchBill session as value2 — without it A1Topup returns
         // "Paramenter is missing" and immediately refunds. Block here BEFORE
         // any wallet debit to protect the user's balance.
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: consumer not found — blocking payment to prevent Paramenter-is-missing refund');
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw), raw: fb.raw }, '[recharge] freshFetchBill: consumer not found — blocking payment');
         await db.update(rechargesTable)
           .set({ status: "failed", errorReason: `Consumer number ${acct} not found in A1Topup for ${op.name}. Please verify the consumer number is correct.`, updatedAt: new Date(), completedAt: new Date() })
           .where(eq(rechargesTable.id, rechargeRow.id));
@@ -385,7 +404,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
       }
     } catch (err: any) {
-      req.log.warn({ err: err?.message, op: operatorCode }, '[recharge] freshFetchBill threw — proceeding with existing session');
+      req.log.warn({ err: err?.message, op: operatorCode }, '[recharge] freshFetchBill outer error — proceeding with existing session');
     }
   }
 
