@@ -46,12 +46,12 @@ function genReqId(userId: number, type: string): string {
   return `R${type[0].toUpperCase()}${userId}${ts}${rnd}`;
 }
 
-// ─── GET /recharge/operators — operator + circle catalog ─────────────────────
+// âââ GET /recharge/operators â operator + circle catalog âââââââââââââââââââââ
 router.get("/recharge/operators", async (_req, res) => {
   res.json({ operators: OPERATORS, circles: CIRCLES });
 });
 
-// ─── GET /recharge/detect — auto-detect operator + circle from mobile no. ────
+// âââ GET /recharge/detect â auto-detect operator + circle from mobile no. ââââ
 //
 // Best-effort prefix-based detection. Returns 200 with `null` payload when the
 // number prefix is unknown (caller should fall back to manual selection).
@@ -72,7 +72,7 @@ router.get("/recharge/detect", async (req, res) => {
       const live = await detectViaEzytm(number);
       if (live) { res.json({ detection: live }); return; }
     } catch (err) {
-      req.log.warn({ err: (err as Error).message }, "[recharge/detect] ezytm threw — falling back to prefix");
+      req.log.warn({ err: (err as Error).message }, "[recharge/detect] ezytm threw â falling back to prefix");
     }
   }
 
@@ -80,7 +80,7 @@ router.get("/recharge/detect", async (req, res) => {
   res.json({ detection: det });
 });
 
-// ─── GET /recharge/plans — Ezytm plans browser ───────────────────────────────
+// âââ GET /recharge/plans â Ezytm plans browser âââââââââââââââââââââââââââââââ
 router.get("/recharge/plans", async (req, res) => {
   const operatorCode = String(req.query.operatorCode ?? "").trim();
   const circleCode = String(req.query.circleCode ?? "12").trim();
@@ -97,7 +97,7 @@ router.get("/recharge/plans", async (req, res) => {
   }
 });
 
-// ─── GET /recharge/quote — preview commission for an amount ──────────────────
+// âââ GET /recharge/quote â preview commission for an amount ââââââââââââââââââ
 router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
   const type = String(req.query.type ?? "") as RechargeType;
   const operatorCode = String(req.query.operatorCode ?? "");
@@ -120,7 +120,7 @@ router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-// ─── GET /recharge/bill-info — fetch consumer name + due amount before payment ─
+// âââ GET /recharge/bill-info â fetch consumer name + due amount before payment â
 router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const operatorCode = String(req.query.operatorCode ?? "").trim();
   const consumerNumber = String(req.query.consumerNumber ?? "").trim();
@@ -149,7 +149,7 @@ router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Pr
   }
 });
 
-// ─── POST /recharge — create + execute a recharge ────────────────────────────
+// âââ POST /recharge â create + execute a recharge ââââââââââââââââââââââââââââ
 const rechargeBody = z.object({
   type: z.enum(["mobile", "dth", "bill"]),
   operatorCode: z.string().min(1),
@@ -159,7 +159,7 @@ const rechargeBody = z.object({
   customerName: z.string().max(200).optional(),
   idempotencyKey: z.string().min(8).max(120),
   tpin: z.string().optional(),
-  /** Session token from fetchbill — required by some utility operators (e.g. PGVCL) as value2 */
+  /** Session token from fetchbill â required by some utility operators (e.g. PGVCL) as value2 */
   billSession: z.string().optional(),
   /**
    * Override for A1Topup `value1`. When provided this replaces the default
@@ -206,7 +206,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
   if (amountPaise < settings.minRechargePaise || amountPaise > settings.maxRechargePaise) {
     res.status(400).json({
-      error: `Amount must be between ₹${settings.minRechargePaise / 100} and ₹${settings.maxRechargePaise / 100}`,
+      error: `Amount must be between â¹${settings.minRechargePaise / 100} and â¹${settings.maxRechargePaise / 100}`,
     });
     return;
   }
@@ -289,7 +289,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       idempotencyKey,
     }).returning();
   } catch (err: any) {
-    // unique violation on idempotencyKey → re-read
+    // unique violation on idempotencyKey â re-read
     const [again] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.userId, userId), eq(rechargesTable.idempotencyKey, idempotencyKey)));
     if (again) { res.json(serializeRecharge(again)); return; }
     throw err;
@@ -304,7 +304,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       refType: "recharge",
       refId: rechargeRow.id,
       refCode: requestId,
-      note: `${op.name} ${type} → ${acct}`,
+      note: `${op.name} ${type} â ${acct}`,
     });
     debitLedgerId = d.ledgerEntryId;
     await db.update(rechargesTable)
@@ -322,16 +322,21 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   }
 
   // Hit A1Topup
-  // A1Topup requires `circlecode` for mobile recharges — default to Gujarat (12)
+  // A1Topup requires `circlecode` for mobile recharges â default to Gujarat (12)
   const effectiveCircle = type === "mobile" ? (circleCode || "12") : circleCode;
   // Build value1 / value2 per A1Topup official docs:
-  //   value1Override – caller-supplied extra field (LIC DOB, Gas Bill Group, MSEDC Billing Unit)
-  //   value2Override – caller-supplied extra field (MSEDC Processing Cycle, BSNL Account)
-  //   billSession    – session token from fetchbill (required by electricity operators)
+  //   value1Override â caller-supplied extra field (LIC DOB, Gas Bill Group, MSEDC Billing Unit)
+  //   value2Override â caller-supplied extra field (MSEDC Processing Cycle, BSNL Account)
+  //   billSession    â session token from fetchbill (required by electricity operators)
   // For standard bill/utility operators value1 defaults to the account number.
   const isBillType = type === "bill";
+  // A1Topup bill/utility operators require value1 = consumer number and
+  // value2 = session token from fetchbill (e.g. PGVCL, KSEB, MSEDCL).
+  // If no session was returned by fetchbill, fall back to the consumer number
+  // for value2 so A1Topup never receives "Paramenter is missing".
   const v1 = value1Override?.trim() || (isBillType ? acct : undefined);
-  const v2 = value2Override?.trim() || (isBillType && billSession ? billSession : undefined);
+  const v2 = value2Override?.trim() ||
+    (isBillType ? (billSession?.trim() || acct) : undefined);
   let a1: A1Response;
   try {
     a1 = await doRecharge({
@@ -344,7 +349,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       value2: v2,
     });
   } catch (err: any) {
-    // Network/parse error — keep status processing, schedule background reconcile via /status endpoint.
+    // Network/parse error â keep status processing, schedule background reconcile via /status endpoint.
     req.log.error({ err, requestId }, "[recharge] A1Topup call failed");
     await db.update(rechargesTable)
       .set({ status: "processing", errorReason: `Provider call error: ${err?.message ?? err}`, updatedAt: new Date() })
@@ -361,9 +366,9 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
 /**
  * Idempotently apply a provider response (initial or polled) to a recharge row.
- * - success → mark success, credit commission, set completedAt
- * - failed  → mark failed, refund full amount, set completedAt
- * - pending → keep processing, store provider order id
+ * - success â mark success, credit commission, set completedAt
+ * - failed  â mark failed, refund full amount, set completedAt
+ * - pending â keep processing, store provider order id
  */
 export async function applyProviderResult(rechargeId: number, a1: A1Response) {
   const [row] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, rechargeId));
@@ -438,7 +443,7 @@ export async function applyProviderResult(rechargeId: number, a1: A1Response) {
           refType: "recharge",
           refId: row.id,
           refCode: row.a1RequestId,
-          note: `Refund: ${row.operatorName} ${row.type} failed — ${a1.message || "no msg"}`,
+          note: `Refund: ${row.operatorName} ${row.type} failed â ${a1.message || "no msg"}`,
         });
         const [linked] = await db.update(rechargesTable)
           .set({ refundLedgerId: r.ledgerEntryId, updatedAt: new Date() })
@@ -460,7 +465,7 @@ export async function applyProviderResult(rechargeId: number, a1: A1Response) {
   return updated ?? row;
 }
 
-// ─── GET /recharge — history ─────────────────────────────────────────────────
+// âââ GET /recharge â history âââââââââââââââââââââââââââââââââââââââââââââââââ
 router.get("/recharge", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const limit = Math.min(parseInt(String(req.query.limit ?? "50")) || 50, 200);
@@ -472,7 +477,7 @@ router.get("/recharge", requireAuth, async (req: AuthRequest, res) => {
   res.json({ recharges: rows.map(serializeRecharge) });
 });
 
-// ─── GET /recharge/dashboard — Day Book stats for a chosen IST date ──────────
+// âââ GET /recharge/dashboard â Day Book stats for a chosen IST date ââââââââââ
 // Optional ?date=YYYY-MM-DD (IST). When omitted, returns "today" up to now.
 router.get("/recharge/dashboard", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   try {
@@ -597,7 +602,7 @@ router.get("/recharge/dashboard", requireAuth, async (req: AuthRequest, res): Pr
   }
 });
 
-// ─── GET /recharge/earning — date-range commission/profit summary ────────────
+// âââ GET /recharge/earning â date-range commission/profit summary ââââââââââââ
 // Query: ?from=YYYY-MM-DD&to=YYYY-MM-DD (IST, inclusive)
 router.get("/recharge/earning", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   try {
@@ -688,7 +693,7 @@ router.get("/recharge/earning", requireAuth, async (req: AuthRequest, res): Prom
   }
 });
 
-// ─── GET /recharge/search — find a transaction by number / TXID / order ID ───
+// âââ GET /recharge/search â find a transaction by number / TXID / order ID âââ
 // Query: ?q=... (matches accountNumber prefix, a1RequestId, a1OrderId, a1OperatorRef)
 router.get("/recharge/search", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   try {
@@ -718,7 +723,7 @@ router.get("/recharge/search", requireAuth, async (req: AuthRequest, res): Promi
   }
 });
 
-// ─── GET /recharge/:id — receipt ─────────────────────────────────────────────
+// âââ GET /recharge/:id â receipt âââââââââââââââââââââââââââââââââââââââââââââ
 router.get("/recharge/:id", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const id = parseInt(String(req.params.id), 10);
@@ -728,7 +733,7 @@ router.get("/recharge/:id", requireAuth, async (req: AuthRequest, res) => {
   res.json(serializeRecharge(row));
 });
 
-// ─── POST /recharge/:id/status — manual status check (polls provider) ────────
+// âââ POST /recharge/:id/status â manual status check (polls provider) ââââââââ
 router.post("/recharge/:id/status", requireAuth, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const id = parseInt(String(req.params.id), 10);
@@ -752,7 +757,7 @@ router.post("/recharge/:id/status", requireAuth, async (req: AuthRequest, res) =
   }
 });
 
-// ─── POST /recharge/webhook — A1Topup callback ───────────────────────────────
+// âââ POST /recharge/webhook â A1Topup callback âââââââââââââââââââââââââââââââ
 router.post("/recharge/webhook", async (req, res): Promise<void> => {
   const sig = (req.headers["x-a1-signature"] as string | undefined)
            ?? (req.headers["x-signature"] as string | undefined);
