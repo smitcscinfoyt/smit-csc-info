@@ -172,7 +172,6 @@ export async function fetchBill(p: {
     pwd: pwd(),
     operatorcode: p.operatorCode,
     number: p.consumerNumber,
-    value1: p.consumerNumber,
     format: "json",
   });
 
@@ -187,27 +186,63 @@ export async function fetchBill(p: {
   );
   const dueDate = pick<string>(raw, "due_date", "duedate", "bill_date");
   const billNo = pick<string>(raw, "bill_number", "billno", "bill_no");
+
   // A1Topup returns a session token for operators that require it (e.g. PGVCL electricity).
   // This session MUST be passed as value2 on the actual payment call or the API
   // returns "Paramenter is missing".
-  const session = pick<string>(raw,
+  // We check a broad set of field names since different operators use different keys.
+  let session = pick<string>(raw,
     "session", "SESSION", "sessionid", "session_id",
     "sessionkey", "session_key", "sessiontoken", "session_token",
     "token", "TOKEN", "key", "KEY",
+    "fetchbilldata", "fetchbill_data", "sessionData", "session_data",
+    "authtoken", "auth_token", "txtoken", "tx_token",
+    "hash", "checksum", "billtoken", "bill_token",
   );
+
+  // Fallback: scan ALL string values in the response for a session-like token.
+  // Some A1Topup operators (e.g. PGVCL) return the session under a non-standard key.
+  if (!session) {
+    const skipKeys = new Set([
+      "status", "message", "msg", "consumer_name", "consumername",
+      "customername", "name", "due_date", "duedate", "bill_date",
+      "bill_number", "billno", "operatorcode", "operatorname",
+    ]);
+    for (const [k, v] of Object.entries(raw)) {
+      if (typeof v === "string" && v.length >= 8 && !skipKeys.has(k.toLowerCase())) {
+        // Accept values that look like a token: alphanumeric+symbols, not purely numeric, not a date
+        if (/^[a-zA-Z0-9+/=_\-:.]+$/.test(v) && !/^\d+$/.test(v) && !/^\d{2}[\/\-]\d{2}/.test(v)) {
+          session = v;
+          logger.info({ key: k, val: v.slice(0, 20) }, "[A1Topup] fetchbill: auto-detected session from field");
+          break;
+        }
+      }
+    }
+  }
+
+  // Also check nested data/result object (some operators wrap response)
+  if (!session) {
+    const nested = (raw.data ?? raw.result ?? raw.response) as Record<string, unknown> | null | undefined;
+    if (nested && typeof nested === "object") {
+      session = pick<string>(nested,
+        "session", "SESSION", "sessionid", "session_id",
+        "sessionkey", "session_key", "token", "TOKEN", "key",
+      );
+    }
+  }
 
   const statusCode = String(pick(raw, "status", "STATUS") ?? "");
   const msg = String(pick(raw, "message", "msg") ?? "").toLowerCase();
   // If A1Topup returned a session token the consumer exists — some operators
-    // (e.g. PGVCL) return non-standard status/message but always include a
-    // session when the consumer number is valid. Checking !!session first
-    // prevents false "not found" that would block valid bill payments.
-    const found =
-      !!session ||
-      !!name ||
-      statusCode === "1" || statusCode === "200" ||
-      msg.includes("success") ||
-      msg.includes("found");
+  // (e.g. PGVCL) return non-standard status/message but always include a
+  // session when the consumer number is valid. Checking !!session first
+  // prevents false "not found" that would block valid bill payments.
+  const found =
+    !!session ||
+    !!name ||
+    statusCode === "1" || statusCode === "200" ||
+    msg.includes("success") ||
+    msg.includes("found");
 
   return {
     consumerName: name,
