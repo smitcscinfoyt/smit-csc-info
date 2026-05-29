@@ -65,9 +65,9 @@ interface MetaEntry {
   numLen: number;
   /** Backend recharge type (mobile/dth/bill) */
   backendType: RechargeType;
-  /** Min recharge amount (ÃÂ¢ÃÂÃÂ¹) */
+  /** Min recharge amount (ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹) */
   minAmount: number;
-  /** Max recharge amount (ÃÂ¢ÃÂÃÂ¹) */
+  /** Max recharge amount (ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹) */
   maxAmount: number;
 }
 
@@ -102,27 +102,31 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [showTpin, setShowTpin] = useState(false);
   const [idempotencyKey] = useState(() => `${effCategory}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Extra fields required by some operators (value1Override / value2Override) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
-  // Insurance: Date of Birth (DD-MM-YYYY) ÃÂ¢ÃÂÃÂ value1
-  // Mahanagar Gas (MG): Bill Group Number ÃÂ¢ÃÂÃÂ value1
-  // MSEDC Maharashtra electricity: Billing Unit ÃÂ¢ÃÂÃÂ value1, Processing Cycle ÃÂ¢ÃÂÃÂ value2
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Extra fields required by some operators (value1Override / value2Override) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
+  // Insurance: Date of Birth (DD-MM-YYYY) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ value1
+  // Mahanagar Gas (MG): Bill Group Number ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ value1
+  // MSEDC Maharashtra electricity: Billing Unit ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ value1, Processing Cycle ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ value2
   const [extraValue1, setExtraValue1] = useState("");
   const [extraValue2, setExtraValue2] = useState("");
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Bill info (consumer name + due amount) for utility categories ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Bill info (consumer name + due amount) for utility categories ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   const isBillCategory = ["electricity", "gas", "postpaid", "insurance", "fastag"].includes(effCategory);
   const [billInfo, setBillInfo] = useState<BillInfoResult | null>(null);
   const [billInfoLoading, setBillInfoLoading] = useState(false);
   const [billFetchError, setBillFetchError] = useState(false);
   // Block submit for bill categories when consumer verification fails or is in progress.
   // Declared AFTER useState hooks to avoid temporal dead zone (ReferenceError).
-  const billFetchBlocking =
-    isBillCategory &&
-    !!operatorCode &&
-    number.length >= 4 &&
-    (billInfoLoading || !billInfo || billInfo.found === false);
+  // Block only when consumer is truly not found (no session returned).
+    // Some operators (e.g. PGVCL) may return non-standard responses where
+    // "found" is misdetected, but a session token IS present — that means the
+    // consumer is valid and we must allow payment.
+    const billFetchBlocking =
+      isBillCategory &&
+      !!operatorCode &&
+      number.length >= 4 &&
+      (billInfoLoading || !billInfo || (billInfo.found === false && !billInfo.session));
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Operator-specific field requirements ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Operator-specific field requirements ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   // Based on A1Topup official API docs:
   //  - Insurance (all): value1 = DOB in DD-MM-YYYY
   //  - Mahanagar Gas (MG): value1 = Bill Group Number
@@ -149,18 +153,18 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
         ? "Billing Unit code"
         : "";
   const extraValue1Hint = needsDob
-    ? "Required by LIC/Insurance ÃÂ¢ÃÂÃÂ enter in DD-MM-YYYY format"
+    ? "Required by LIC/Insurance ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ enter in DD-MM-YYYY format"
     : needsBillGrp
-      ? "Required for Mahanagar Gas ÃÂ¢ÃÂÃÂ found on your bill"
+      ? "Required for Mahanagar Gas ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ found on your bill"
       : needsMsedcV1
-        ? "Required for MSEDC ÃÂ¢ÃÂÃÂ enter Billing Unit from your bill"
+        ? "Required for MSEDC ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ enter Billing Unit from your bill"
         : "";
 
   // Reset extra fields when operator/category changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setExtraValue1(""); setExtraValue2(""); }, [operatorCode, effCategory]);
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Draft autosave (per service category) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Draft autosave (per service category) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   const DRAFT_KEY = `recharge-form:${effCategory}`;
   useEffect(() => {
     const d = loadDraft<{ number: string; amount: string; operatorCode: string; circleCode: string }>(DRAFT_KEY);
@@ -177,7 +181,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   }, [effCategory]);
   useDraftAutosave(DRAFT_KEY, { number, amount, operatorCode, circleCode });
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Auto-detect operator + circle from mobile prefix ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Auto-detect operator + circle from mobile prefix ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   const [detection, setDetection] = useState<OperatorDetection | null>(null);
   const [detecting, setDetecting] = useState(false);
   const userTouchedOp = useRef(false);
@@ -219,7 +223,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     };
   }, [number, isMobile, effCategory]);
 
-  // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Auto-fetch bill info when consumer number + operator are ready ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+  // ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Auto-fetch bill info when consumer number + operator are ready ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
   const fetchBillData = async () => {
       setBillFetchError(false);
       if (!isBillCategory || !operatorCode || number.length < 4) { setBillInfo(null); return; }
@@ -308,8 +312,8 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const handleSubmit = () => {
     if (!operatorCode) { toast({ variant: "destructive", title: "Select operator" }); return; }
     if (!number || number.length < minNumLen) { toast({ variant: "destructive", title: "Enter a valid number" }); return; }
-    if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum ÃÂ¢ÃÂÃÂ¹${meta.minAmount}` }); return; }
-    if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum ÃÂ¢ÃÂÃÂ¹${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
+    if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹${meta.minAmount}` }); return; }
+    if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
     if (insufficient) { toast({ variant: "destructive", title: "Insufficient wallet balance", description: "Add money" }); return; }
     // Validate required extra fields
     if (showExtraValue1 && !extraValue1.trim()) {
@@ -324,7 +328,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
       }
     }
     if (showExtraValue2 && !extraValue2.trim()) {
-      toast({ variant: "destructive", title: "Enter Processing Cycle", description: "Required for MSEDC ÃÂ¢ÃÂÃÂ found on your electricity bill" });
+      toast({ variant: "destructive", title: "Enter Processing Cycle", description: "Required for MSEDC ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ found on your electricity bill" });
       return;
     }
     if (requiresTpin) {
@@ -346,13 +350,13 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             <meta.icon className="h-5 w-5" />{titleOverride ?? meta.title}
           </div>
           <div className="text-xs sm:text-sm flex items-center gap-1.5 bg-white/15 px-2.5 py-1 rounded-full">
-            <Wallet className="h-3.5 w-3.5" />{wallet ? formatINR(wallet.balance) : "ÃÂ¢ÃÂÃÂ"}
+            <Wallet className="h-3.5 w-3.5" />{wallet ? formatINR(wallet.balance) : "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"}
           </div>
         </div>
       ) : (
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><meta.icon className="h-5 w-5 text-primary" />{titleOverride ?? meta.title}</CardTitle>
-          <CardDescription className="flex items-center gap-2"><Wallet className="h-4 w-4" />Balance: <span className="font-semibold">{wallet ? formatINR(wallet.balance) : "ÃÂ¢ÃÂÃÂ"}</span></CardDescription>
+          <CardDescription className="flex items-center gap-2"><Wallet className="h-4 w-4" />Balance: <span className="font-semibold">{wallet ? formatINR(wallet.balance) : "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"}</span></CardDescription>
         </CardHeader>
       )}
           <CardContent className="space-y-4">
@@ -375,12 +379,12 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                 className="text-base"
                 data-testid="input-number"
               />
-              {/* Bill info ÃÂ¢ÃÂÃÂ consumer name + due amount for utility bills */}
+              {/* Bill info ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ consumer name + due amount for utility bills */}
               {isBillCategory && number.length >= 4 && operatorCode && (
                 <div className="mt-1.5 text-xs min-h-[18px]" data-testid="bill-info-status">
                   {billInfoLoading ? (
                     <span className="text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching bill detailsÃÂ¢ÃÂÃÂ¦
+                      <Loader2 className="h-3 w-3 animate-spin" /> Fetching bill detailsÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¦
                     </span>
                   ) : billInfo?.consumerName ? (
                     <span className="text-green-700 flex items-center gap-1.5 font-medium">
@@ -388,7 +392,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                       {billInfo.consumerName}
                       {billInfo.dueAmount != null && billInfo.dueAmount > 0 && (
                         <span className="text-muted-foreground font-normal">
-                          ÃÂÃÂ· Due: ÃÂ¢ÃÂÃÂ¹{billInfo.dueAmount.toFixed(2)}
+                          ÃÂÃÂÃÂÃÂ· Due: ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹{billInfo.dueAmount.toFixed(2)}
                         </span>
                       )}
                     </span>
@@ -407,13 +411,13 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                 <div className="mt-1.5 text-xs flex items-center gap-1.5 min-h-[18px]" data-testid="auto-detect-status">
                   {detecting ? (
                     <span className="text-muted-foreground flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> Detecting operatorÃÂ¢ÃÂÃÂ¦
+                      <Loader2 className="h-3 w-3 animate-spin" /> Detecting operatorÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¦
                     </span>
                   ) : detection ? (
                     <span className="text-green-700 flex items-center gap-1.5 font-medium flex-wrap">
                       <Sparkles className="h-3.5 w-3.5" />
                       Auto-detected: <span className="font-semibold">{detection.operatorName}</span>
-                      {isMobile && <> ÃÂÃÂ· <span>{detection.circleName}</span></>}
+                      {isMobile && <> ÃÂÃÂÃÂÃÂ· <span>{detection.circleName}</span></>}
                       {detection.source === "ezytm" ? (
                         <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
                           MNP-aware
@@ -452,7 +456,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
               </Select>
             </div>
 
-            {/* Extra required fields ÃÂ¢ÃÂÃÂ shown per operator/category */}
+            {/* Extra required fields ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ shown per operator/category */}
             {showExtraValue1 && (
               <div>
                 <Label htmlFor="extra-v1">
@@ -489,16 +493,16 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                   data-testid="input-extra-v2"
                 />
                 <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                  <Info className="h-3 w-3 shrink-0" />Required for MSEDC Maharashtra ÃÂ¢ÃÂÃÂ found on your electricity bill
+                  <Info className="h-3 w-3 shrink-0" />Required for MSEDC Maharashtra ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ found on your electricity bill
                 </p>
               </div>
             )}
 
             <div>
-              <Label htmlFor="amt">Amount (ÃÂ¢ÃÂÃÂ¹)</Label>
+              <Label htmlFor="amt">Amount (ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹)</Label>
               <Input id="amt" type="number" inputMode="numeric" min={meta.minAmount} max={meta.maxAmount} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="299" className="text-lg font-semibold" data-testid="input-amount" />
               <div className="mt-2 flex flex-wrap gap-2">
-                {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>ÃÂ¢ÃÂÃÂ¹{a}</Button>)}
+                {QUICK.map((a) => <Button key={a} type="button" variant="outline" size="sm" onClick={() => setAmount(String(a))}>ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹{a}</Button>)}
                            </div>
             </div>
 
@@ -529,7 +533,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
             {requiresTpin && !tpinStatus?.hasPin && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>T-PIN required for ÃÂ¢ÃÂÃÂ¹500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
+                <AlertDescription>T-PIN required for ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
               </Alert>
             )}
 
@@ -578,7 +582,7 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   );
 }
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Plan Browser (Ezytm) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+// ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ Plan Browser (Ezytm) ÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂ
 function PlanBrowser({ operatorCode, circleCode, onPick }: {
   operatorCode: string;
   circleCode: string;
@@ -609,13 +613,13 @@ function PlanBrowser({ operatorCode, circleCode, onPick }: {
         <span className="flex items-center gap-1.5">
           <Sparkles className="h-4 w-4" /> Browse Plans
         </span>
-        <span className="text-xs">{open ? "Hide ÃÂ¢ÃÂÃÂ²" : "Show ÃÂ¢ÃÂÃÂ¼"}</span>
+        <span className="text-xs">{open ? "Hide ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ²" : "Show ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¼"}</span>
       </button>
       {open && (
         <div className="bg-white">
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading plansÃÂ¢ÃÂÃÂ¦
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading plansÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¦
             </div>
           ) : cats.length === 0 ? (
             <div className="p-4 text-center text-sm text-muted-foreground">No plans available</div>
@@ -647,12 +651,12 @@ function PlanBrowser({ operatorCode, circleCode, onPick }: {
                     data-testid={`plan-${p.rs}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs text-gray-600 line-clamp-2">{p.desc || "ÃÂ¢ÃÂÃÂ"}</div>
+                      <div className="text-xs text-gray-600 line-clamp-2">{p.desc || "ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ"}</div>
                       {p.validity && (
                         <div className="text-[11px] text-indigo-700 mt-0.5">Validity: {p.validity}</div>
                       )}
                     </div>
-                    <div className="font-bold text-base text-indigo-700 shrink-0">ÃÂ¢ÃÂÃÂ¹{p.rs}</div>
+                    <div className="font-bold text-base text-indigo-700 shrink-0">ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ¹{p.rs}</div>
                   </button>
                 ))}
               </div>
