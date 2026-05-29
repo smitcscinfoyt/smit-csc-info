@@ -370,21 +370,12 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
       } else if (!fb.found) {
-        // Consumer genuinely not verifiable — block BEFORE debiting wallet
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: consumer not found — aborting payment');
-        await db.update(rechargesTable)
-          .set({
-            status: 'failed',
-            errorReason: 'Consumer not found — could not verify with operator',
-            updatedAt: new Date(),
-            completedAt: new Date(),
-          })
-          .where(eq(rechargesTable.id, rechargeRow.id));
-        res.status(422).json({
-          error: 'Consumer not found. Please double-check the consumer/account number and try again.',
-          code: 'CONSUMER_NOT_FOUND',
-        });
-        return;
+        // A1Topup's electricity fetchBill (especially PGVCL) is unreliable —
+        // it often returns not-found even for valid consumer numbers. We log
+        // the miss but still proceed so the user can attempt the payment.
+        // If A1Topup then returns 'Paramenter is missing', the transaction
+        // status will show as failed and the wallet will be refunded.
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: consumer not found in A1Topup — proceeding without session (unreliable fetchBill)');
       } else {
         // found:true but no session — operator does not need it; proceed normally
         req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
