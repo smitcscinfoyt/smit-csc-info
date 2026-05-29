@@ -52,7 +52,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/", label: t.nav.home },
     { href: "/tools", label: t.nav.tools },
-    { href: "/recharge", label: "Recharge" },
+    { href: user ? "/recharge" : "/login", label: "Recharge" },
     { href: "/content", label: (t.nav as any).content ?? "Content" },
     { href: "/documents", label: t.nav.documents },
   ];

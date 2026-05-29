@@ -12,10 +12,18 @@ export class ApiError extends Error {
 function friendlyMessage(status: number, serverMsg?: string): string {
   // Prefer the server-provided message when it's already user-friendly
   // (i.e. doesn't look like a raw status code or stack trace).
-  if (serverMsg && !/^HTTP\s*\d+/i.test(serverMsg) && !/\bFetch\b/i.test(serverMsg)) {
+  if (
+    serverMsg &&
+    serverMsg.length < 200 &&
+    !/^HTTP\s*\d+/i.test(serverMsg) &&
+    !/\bFetch\b/i.test(serverMsg) &&
+    !/\bError\b.*at\s+\w/i.test(serverMsg)
+  ) {
     return serverMsg;
   }
-  if (status >= 500) return "Something went wrong. Please try again later.";
+  if (status === 0) return "No internet connection. Please check your network and try again.";
+  if (status >= 500) return "Something went wrong on our end. Please try again later.";
+  if (status === 429) return "Too many requests. Please slow down and try again in a moment.";
   if (status === 404) return "We couldn't find what you were looking for.";
   if (status === 403) return "You don't have permission to do that.";
   if (status === 401) return "Please sign in to continue.";

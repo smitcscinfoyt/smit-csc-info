@@ -55,6 +55,25 @@ export default function Register() {
   const [showPassword, setShowPassword]   = useState(false);
   const [step, setStep]                   = useState<"form" | "verify">("form");
   const [verifyMsg, setVerifyMsg]         = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSent, setResendSent]       = useState(false);
+
+  const handleResendVerification = async () => {
+    if (!verifyMsg) return;
+    setResendLoading(true);
+    try {
+      await apiFetch("/api/auth/resend-verification", {
+        method: "POST",
+        body: JSON.stringify({ email: verifyMsg }),
+      });
+      setResendSent(true);
+      toast({ title: "Verification email sent!", description: "Check your inbox for the activation link." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to resend", description: "Please try again in a moment." });
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -82,11 +101,10 @@ export default function Register() {
 
   // Handle Facebook redirect result when page loads after redirect
   useEffect(() => {
-    setSocialLoading("facebook");
     getRedirectResult(auth)
       .then(async (result) => {
         if (!result) return;
-        console.log("[Firebase] Register redirect result:", result.providerId);
+        setSocialLoading("facebook");
         const idToken = await result.user.getIdToken();
         const res = await exchangeFirebaseToken(idToken);
         login(res.token, res.user as any);
@@ -95,8 +113,6 @@ export default function Register() {
       })
       .catch((err: any) => {
         if (!err) return;
-        console.error("[Firebase] Register redirect error code:", err.code);
-        console.error("[Firebase] Register redirect error message:", err.message);
         const msg = err?.code === "auth/account-exists-with-different-credential"
           ? "An account already exists with this email. Try email/password login."
           : err?.message ?? "Facebook sign-up failed. Please try again.";
@@ -149,7 +165,20 @@ export default function Register() {
               <p className="text-gray-500 mb-4">
                 We've sent a verification link to <strong>{verifyMsg}</strong>. Check your inbox and click the link to activate your account.
               </p>
-              <p className="text-xs text-gray-400 mb-6">Didn't get it? Check your spam folder.</p>
+              <p className="text-xs text-gray-400 mb-4">Didn't get it? Check your spam folder or resend below.</p>
+              {resendSent ? (
+                <p className="text-sm text-green-600 font-medium mb-4">✓ Verification email sent! Check your inbox.</p>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="w-full mb-3 border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                  onClick={handleResendVerification}
+                  disabled={resendLoading}
+                  data-testid="resend-verification"
+                >
+                  {resendLoading ? <span className="flex items-center gap-2"><Spinner /> Sending…</span> : "Resend verification email"}
+                </Button>
+              )}
               <Button
                 className="w-full bg-gradient-to-r from-indigo-600 to-violet-700 hover:from-indigo-700 hover:to-violet-800 text-white border-0"
                 onClick={() => setLocation("/")}

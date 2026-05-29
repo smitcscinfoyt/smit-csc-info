@@ -62,11 +62,22 @@ export default function Home() {
     { icon: CheckCircle2, label: t.home.trustBadge4, color: "text-blue-600 bg-blue-50" },
   ];
 
+  const { data: platformStats } = useQuery<{ members: number; transactions: number; states: number; priceFrom: number }>({
+    queryKey: ["platform-stats"],
+    queryFn: () => apiFetch<{ members: number; transactions: number; states: number; priceFrom: number }>("/api/stats"),
+    staleTime: 5 * 60_000,
+  });
+
+  function formatCount(n: number): string {
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K+`;
+    return `${n}+`;
+  }
+
   const stats = [
-    { value: "500+", label: t.home.statLabel1 },
-    { value: "10K+", label: t.home.statLabel2 },
-    { value: "33", label: t.home.statLabel3 },
-    { value: "₹299", label: t.home.statLabel4 },
+    { value: platformStats ? formatCount(platformStats.members) : "500+", label: t.home.statLabel1 },
+    { value: platformStats ? formatCount(platformStats.transactions) : "10K+", label: t.home.statLabel2 },
+    { value: platformStats ? String(platformStats.states) : "33", label: t.home.statLabel3 },
+    { value: platformStats ? `₹${platformStats.priceFrom}` : "₹299", label: t.home.statLabel4 },
   ];
 
   return (

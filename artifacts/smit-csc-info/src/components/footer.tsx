@@ -88,7 +88,9 @@ export function Footer() {
                 <Youtube className="h-4 w-4 text-white" />
               </motion.a>
               <motion.a
-                href="/contact"
+                href="https://wa.me/917874080686"
+                target="_blank"
+                rel="noopener noreferrer"
                 whileHover={{ scale: 1.12, y: -2 }}
                 whileTap={{ scale: 0.94 }}
                 transition={{ type: "spring", stiffness: 400, damping: 18 }}
@@ -98,7 +100,7 @@ export function Footer() {
                 <MessageCircle className="h-4 w-4 text-white" />
               </motion.a>
               <motion.a
-                href="/contact"
+                href="mailto:smitcscinfoyt@gmail.com"
                 whileHover={{ scale: 1.12, y: -2 }}
                 whileTap={{ scale: 0.94 }}
                 transition={{ type: "spring", stiffness: 400, damping: 18 }}

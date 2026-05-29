@@ -31,6 +31,7 @@ import couponsRouter from "./coupons";
 import liveDataRouter from "./live-data";
 import newsRouter from "./news";
 import sahayakRouter from "./sahayak";
+import statsRouter from "./stats";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(couponsRouter);
 router.use(liveDataRouter);
 router.use(newsRouter);
 router.use(sahayakRouter);
+router.use(statsRouter);
 
 export default router;

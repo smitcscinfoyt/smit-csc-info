@@ -48,6 +48,7 @@ function useNavItems(): NavItem[] {
     { href: "/", label: sb.home ?? "Home", icon: Home },
     { href: "/premium-dashboard", label: sb.premium ?? "Premium", icon: Sparkles, premium: true },
     { href: "/recharge", label: sb.recharge ?? "Recharge", icon: Smartphone },
+    { href: "/wallet", label: sb.wallet ?? "Wallet", icon: Wallet },
     { href: "/tools", label: sb.tools ?? "All Tools", icon: Wrench },
     { href: "/content", label: sb.content ?? "Content", icon: BookOpen },
     { href: "/documents", label: sb.documents ?? "Documents", icon: FolderOpen },
