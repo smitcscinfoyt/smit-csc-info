@@ -103,6 +103,22 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [showTpin, setShowTpin] = useState(false);
   const [idempotencyKey] = useState(() => `${effCategory}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
 
+  // Pre-fill from retry params — set by "Retry — Same Details" on the receipt page.
+  // URL: /recharge/<type>?retry=1&op=PGVCL&num=35211005414&amt=10
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('retry') !== '1') return;
+    const op  = params.get('op')  ?? '';
+    const num = params.get('num') ?? '';
+    const amt = params.get('amt') ?? '';
+    if (op)  setOperatorCodeRaw(op);
+    if (num) setNumber(num);
+    if (amt) setAmount(amt);
+    // Clean URL bar so refresh doesn't re-apply
+    window.history.replaceState({}, '', window.location.pathname);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- Extra fields required by some operators (value1Override / value2Override) ---
   // Insurance: Date of Birth (DD-MM-YYYY) - value1
   // Mahanagar Gas (MG): Bill Group Number - value1
