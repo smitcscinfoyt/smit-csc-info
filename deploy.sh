@@ -104,17 +104,31 @@
   $COMPOSE rm -sf migrate 2>/dev/null || true
   sleep 1
 
-  # 3. Brute-force remove by exact container name (handles project-prefix variants)
+  # 3. Brute-force remove by both possible names (old auto-name + new explicit container_name)
+  docker rm -f smit_csc_migrate 2>/dev/null || true
   docker rm -f smit-csc-info-migrate-1 2>/dev/null || true
 
-  # 4. Sweep any container whose name contains "migrate" (catches old prefix names)
+  # 4. Sweep any container whose name contains "migrate" (catches renamed variants)
   for cid in $(docker ps -a --filter "name=migrate" --format "{{.ID}}" 2>/dev/null); do
       docker stop "$cid" 2>/dev/null || true
       docker rm -f "$cid" 2>/dev/null || true
   done
 
-  # 5. Wait for Docker daemon to finish all removals before compose up
-  sleep 3
+  # 5. Verification loop: wait until container is truly gone (up to 30s)
+  waited=0
+  while docker inspect smit_csc_migrate >/dev/null 2>&1 || docker inspect smit-csc-info-migrate-1 >/dev/null 2>&1; do
+      if [ $waited -ge 30 ]; then
+          echo "[WARN] Migrate container still present after 30s, forcing removal"
+          docker kill smit_csc_migrate 2>/dev/null || true
+          docker kill smit-csc-info-migrate-1 2>/dev/null || true
+          docker rm -f smit_csc_migrate 2>/dev/null || true
+          docker rm -f smit-csc-info-migrate-1 2>/dev/null || true
+          break
+      fi
+      echo "[WARN] Waiting for migrate container removal... ${waited}s"
+      sleep 2
+      waited=$((waited + 2))
+  done
 
   log "Starting containers..."
   $COMPOSE up -d --remove-orphans
