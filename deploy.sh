@@ -96,15 +96,20 @@ log "Build successful."
 # Also remove any stale containers with old project-prefix names
 # (e.g. b3428d0d25c9_smit-csc-info-migrate-1) that docker compose rm misses.
 log "Removing stale migrate container (if any)..."
-$COMPOSE rm -f migrate 2>/dev/null || true
-docker ps -a --filter "name=migrate" --format "{{.Names}}" | xargs -r docker rm -f 2>/dev/null || true
+  # Stop first so Docker can remove cleanly, preventing "already in progress" race
+  $COMPOSE stop migrate 2>/dev/null || true
+  sleep 2
+  $COMPOSE rm -sf migrate 2>/dev/null || true
+  # Wait for in-progress removals to fully complete before starting new containers
+  sleep 3
+  # Remove any leftover containers matching "migrate" (old project-prefix names)
+  for cid in $(docker ps -a --filter "name=migrate" --format "{{.ID}}" 2>/dev/null); do
+      docker stop "$cid" 2>/dev/null || true
+      docker rm -f "$cid" 2>/dev/null || true
+  done
+  sleep 1
 
-# =====================================
-# START NEW CONTAINERS ONLY AFTER SUCCESS
-# =====================================
-log "Starting updated containers..."
-
-$COMPOSE up -d --remove-orphans
+  $COMPOSE up -d --remove-orphans
 
 # =====================================
 # OPTIONAL HEALTH CHECK
@@ -127,4 +132,4 @@ docker image prune -f || true
 log "Running containers:"
 docker ps
 
-log "Deployment completed successfully 🚀"
+log "Deployment completed successfully ð"
