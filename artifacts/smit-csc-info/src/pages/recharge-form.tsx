@@ -121,9 +121,13 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   // they often return found:false for valid consumers, so we never hard-block
   // electricity; we just warn. Network errors never block (show retry instead).
   const isElectricity = effCategory === "electricity";
+  // Block payment when fetchBill says consumer not found AND no session.
+  // This applies to ALL bill categories including electricity (e.g. PGVCL).
+  // A1Topup electricity operators REQUIRE the fetchbill session as value2 —
+  // submitting without it causes 'Paramenter is missing' and auto-refund.
+  // Exception: if fetchBill itself errored (network issue), don't block.
   const billFetchBlocking =
     isBillCategory &&
-    !isElectricity &&
     !!operatorCode &&
     number.length >= 4 &&
     !billFetchError &&
@@ -407,15 +411,9 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
                       </button>
                     </span>
                   ) : billInfo && !billInfo.found ? (
-                    isElectricity ? (
-                      <span className="text-amber-700 flex items-center gap-1.5 text-xs font-medium">
-                        <AlertCircle className="h-3 w-3" /> Could not verify consumer. Double-check the number before paying.
-                      </span>
-                    ) : (
-                      <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
-                        <AlertCircle className="h-3 w-3" /> Consumer not found. Check the number. Payment is blocked.
-                      </span>
-                    )
+                    <span className="text-red-600 flex items-center gap-1.5 text-xs font-medium">
+                      <AlertCircle className="h-3 w-3" /> Consumer not found. Please verify the number — payment is blocked.
+                    </span>
                   ) : null}
                 </div>
               )}

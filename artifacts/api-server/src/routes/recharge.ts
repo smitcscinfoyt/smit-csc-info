@@ -340,6 +340,60 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
     throw err;
   }
 
+  // ── Fresh fetchBill for electricity operators ─────────────────────────────
+  // A1Topup requires the session token from /recharge/fetchbill as `value2`
+  // on the actual recharge call for Gujarat and other electricity operators
+  // (PGVCL, MGVCL, DGVCL, UGVCL, etc.).  When this session is missing A1Topup
+  // returns "Paramenter is missing" and immediately refunds the transaction.
+  //
+  // Strategy: always do a FRESH fetchBill call right here (before debiting
+  // the wallet) so the session is never stale and the consumer number is
+  // validated against the operator one final time.
+  //   - Session found     -> use it as value2; proceed to debit + recharge.
+  //   - No session + not found -> fail-fast, mark row failed, return 422.
+  //     No wallet debit occurs — user keeps their money.
+  //   - fetchBill network error -> log and proceed with whatever session the
+  //     frontend already captured (don't hard-block on transient failures).
+  const ELECTRICITY_OPS = new Set([
+    'PGVCL', 'MGVCL', 'DGVCL', 'UGVCL',
+    'TORRENTAHM', 'TORRENTSUR', 'TORRENTSHI', 'TORRENTBHI', 'TORRENTDAH',
+    'BSES', 'BSESY', 'TPD', 'TPDM', 'BEST', 'BMESTU', 'NP',
+    'HESCOM', 'BESCOM', 'KSEB', 'UPPCLU', 'UPPCLR',
+    'WBSEDCL', 'TNEB', 'MSEDC', 'SNDL', 'AJV', 'JVV', 'JDVV',
+  ]);
+  let resolvedBillSession: string | undefined = billSession?.trim() || undefined;
+
+  if (type === 'bill' && ELECTRICITY_OPS.has(operatorCode) && isA1TopupConfigured()) {
+    try {
+      const fb = await fetchBill({ operatorCode, consumerNumber: acct });
+      if (fb.session) {
+        resolvedBillSession = fb.session;
+        req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
+      } else if (!fb.found) {
+        // Consumer genuinely not verifiable — block BEFORE debiting wallet
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: consumer not found — aborting payment');
+        await db.update(rechargesTable)
+          .set({
+            status: 'failed',
+            errorReason: 'Consumer not found — could not verify with operator',
+            updatedAt: new Date(),
+            completedAt: new Date(),
+          })
+          .where(eq(rechargesTable.id, rechargeRow.id));
+        res.status(422).json({
+          error: 'Consumer not found. Please double-check the consumer/account number and try again.',
+          code: 'CONSUMER_NOT_FOUND',
+        });
+        return;
+      } else {
+        // found:true but no session — operator does not need it; proceed normally
+        req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
+      }
+    } catch (err: any) {
+      req.log.warn({ err: err?.message, op: operatorCode }, '[recharge] freshFetchBill threw — proceeding with existing session');
+    }
+  }
+
   // Atomic debit (full amount; commission credited back on success)
   let debitLedgerId: number;
   try {
@@ -385,7 +439,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
     // causes A1Topup to return "Paramenter is missing". If no session is available
     // the transaction must be blocked at the frontend before reaching here.
     const v2 = value2Override?.trim() ||
-      (isBillType ? (billSession?.trim() || undefined) : undefined);
+      (isBillType ? (resolvedBillSession || undefined) : undefined);
   let a1: A1Response;
   try {
     a1 = await doRecharge({
