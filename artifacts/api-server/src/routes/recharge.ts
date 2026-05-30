@@ -46,12 +46,12 @@ function genReqId(userId: number, type: string): string {
   return `R${type[0].toUpperCase()}${userId}${ts}${rnd}`;
 }
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/operators Ã¢ÂÂ operator + circle catalog Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// -- GET /recharge/operators -- operator + circle catalog --
 router.get("/recharge/operators", async (_req, res) => {
   res.json({ operators: OPERATORS, circles: CIRCLES });
 });
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/detect Ã¢ÂÂ auto-detect operator + circle from mobile no. Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// -- GET /recharge/detect -- auto-detect operator + circle from mobile no. --
 //
 // Best-effort prefix-based detection. Returns 200 with `null` payload when the
 // number prefix is unknown (caller should fall back to manual selection).
@@ -72,7 +72,7 @@ router.get("/recharge/detect", async (req, res) => {
       const live = await detectViaEzytm(number);
       if (live) { res.json({ detection: live }); return; }
     } catch (err) {
-      req.log.warn({ err: (err as Error).message }, "[recharge/detect] ezytm threw Ã¢ÂÂ falling back to prefix");
+      req.log.warn({ err: (err as Error).message }, "[recharge/detect] ezytm threw -- falling back to prefix");
     }
   }
 
@@ -80,7 +80,7 @@ router.get("/recharge/detect", async (req, res) => {
   res.json({ detection: det });
 });
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/plans Ã¢ÂÂ Ezytm plans browser Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// -- GET /recharge/plans -- Ezytm plans browser --
 router.get("/recharge/plans", async (req, res) => {
   const operatorCode = String(req.query.operatorCode ?? "").trim();
   const circleCode = String(req.query.circleCode ?? "12").trim();
@@ -97,7 +97,7 @@ router.get("/recharge/plans", async (req, res) => {
   }
 });
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/quote Ã¢ÂÂ preview commission for an amount Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// -- GET /recharge/quote -- preview commission for an amount --
 router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
   const type = String(req.query.type ?? "") as RechargeType;
   const operatorCode = String(req.query.operatorCode ?? "");
@@ -120,7 +120,7 @@ router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/bill-info Ã¢ÂÂ fetch consumer name + due amount before payment Ã¢ÂÂ
+// -- GET /recharge/bill-info -- fetch consumer name + due amount before payment --
 router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const operatorCode = String(req.query.operatorCode ?? "").trim();
   const consumerNumber = String(req.query.consumerNumber ?? "").trim();
@@ -180,7 +180,7 @@ router.get("/recharge/debug-fetchbill", requireAuth, async (req: AuthRequest, re
       billNumber: info.billNumber ?? null,
       session: info.session ?? null,
       sessionCaptured: !!info.session,
-      // Full raw A1Topup response — every field returned by the operator
+      // Full raw A1Topup response -- every field returned by the operator
       rawResponse: info.raw,
       rawKeys: Object.keys(info.raw),
       // All string values long enough to be a session token
@@ -194,7 +194,7 @@ router.get("/recharge/debug-fetchbill", requireAuth, async (req: AuthRequest, re
 });
 
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /recharge Ã¢ÂÂ create + execute a recharge Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// -- POST /recharge -- create + execute a recharge --
 const rechargeBody = z.object({
   type: z.enum(["mobile", "dth", "bill"]),
   operatorCode: z.string().min(1),
@@ -204,7 +204,7 @@ const rechargeBody = z.object({
   customerName: z.string().max(200).optional(),
   idempotencyKey: z.string().min(8).max(120),
   tpin: z.string().optional(),
-  /** Session token from fetchbill Ã¢ÂÂ required by some utility operators (e.g. PGVCL) as value2 */
+  /** Session token from fetchbill -- required by some utility operators (e.g. PGVCL) as value2 */
   billSession: z.string().optional(),
   /**
    * Override for A1Topup `value1`. When provided this replaces the default
@@ -251,7 +251,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
   if (amountPaise < settings.minRechargePaise || amountPaise > settings.maxRechargePaise) {
     res.status(400).json({
-      error: `Amount must be between Ã¢ÂÂ¹${settings.minRechargePaise / 100} and Ã¢ÂÂ¹${settings.maxRechargePaise / 100}`,
+      error: `Amount must be between --${settings.minRechargePaise / 100} and --${settings.maxRechargePaise / 100}`,
     });
     return;
   }
@@ -334,13 +334,13 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       idempotencyKey,
     }).returning();
   } catch (err: any) {
-    // unique violation on idempotencyKey Ã¢ÂÂ re-read
+    // unique violation on idempotencyKey -- re-read
     const [again] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.userId, userId), eq(rechargesTable.idempotencyKey, idempotencyKey)));
     if (again) { res.json(serializeRecharge(again)); return; }
     throw err;
   }
 
-  // ── Fresh fetchBill for electricity operators ─────────────────────────────
+  // --- Fresh fetchBill for electricity operators ---
   // A1Topup requires the session token from /recharge/fetchbill as `value2`
   // on the actual recharge call for Gujarat and other electricity operators
   // (PGVCL, MGVCL, DGVCL, UGVCL, etc.).  When this session is missing A1Topup
@@ -351,7 +351,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   // validated against the operator one final time.
   //   - Session found     -> use it as value2; proceed to debit + recharge.
   //   - No session + not found -> fail-fast, mark row failed, return 422.
-  //     No wallet debit occurs — user keeps their money.
+  //     No wallet debit occurs -- user keeps their money.
   //   - fetchBill network error -> log and proceed with whatever session the
   //     frontend already captured (don't hard-block on transient failures).
   const ELECTRICITY_OPS = new Set([
@@ -365,7 +365,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
   if (type === 'bill' && ELECTRICITY_OPS.has(operatorCode) && isA1TopupConfigured()) {
     try {
-      // Retry up to 3 times — A1Topup fetchBill can be intermittent.
+      // Retry up to 3 times -- A1Topup fetchBill can be intermittent.
       // We also pass value1=acct because some Gujarat operators (PGVCL, MGVCL,
       // DGVCL, UGVCL) require the consumer number in both `number` and `value1`.
       let fb: Awaited<ReturnType<typeof fetchBill>> | null = null;
@@ -373,7 +373,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         try {
           fb = await fetchBill({ operatorCode, consumerNumber: acct, value1: acct });
           req.log.info({ op: operatorCode, attempt, found: fb.found, hasSession: !!fb.session, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill attempt');
-          if (fb.session || fb.found) break; // Got a useful response — stop retrying
+          if (fb.session || fb.found) break; // Got a useful response -- stop retrying
           if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
         } catch (err: any) {
           req.log.warn({ err: err?.message, op: operatorCode, attempt }, '[recharge] freshFetchBill threw');
@@ -383,8 +383,8 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       }
 
       if (!fb) {
-        // All attempts threw — network error; proceed with existing session if any
-        req.log.warn({ op: operatorCode }, '[recharge] freshFetchBill: all attempts failed — proceeding with existing session');
+        // All attempts threw -- network error; proceed with existing session if any
+        req.log.warn({ op: operatorCode }, '[recharge] freshFetchBill: all attempts failed -- proceeding with existing session');
       } else if (fb.session) {
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
@@ -392,10 +392,10 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         // fetchBill returned "not found" after all retries.
         // For electricity operators A1Topup requires the session token (value2)
         // from fetchBill. Without it, A1Topup returns "Paramenter is missing"
-        // and immediately refunds — confusing for operators.
+        // and immediately refunds -- confusing for operators.
         // Fail-fast here (before wallet debit) with a clear error instead.
         if (ELECTRICITY_OPS.has(operatorCode)) {
-          req.log.warn({ op: operatorCode, acct }, '[recharge] freshFetchBill: no session after retries — blocking electricity recharge');
+          req.log.warn({ op: operatorCode, acct }, '[recharge] freshFetchBill: no session after retries -- blocking electricity recharge');
           await db.update(rechargesTable)
             .set({ status: 'failed', errorReason: 'Consumer number could not be verified by the electricity provider. Please double-check the number and try again.', updatedAt: new Date(), completedAt: new Date() })
             .where(eq(rechargesTable.id, rechargeRow.id));
@@ -403,9 +403,31 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
           return;
         }
         // Non-electricity operators: session not required, proceed normally.
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found — proceeding without session');
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found -- proceeding without session');
       } else {
-        // found:true but no session — operator does not need it; proceed normally
-        req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
+        // found:true but no session -- operator does not need it; proceed normally
+        req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session -- proceeding without value2');
       }
-    } catch (err: a
+    } catch (err: any) {
+      req.log.warn({ err: err?.message, op: operatorCode }, '[recharge] freshFetchBill outer error -- proceeding with existing session');
+    }
+  }
+
+  // Atomic debit (full amount; commission credited back on success)
+  let debitLedgerId: number;
+  try {
+    const d = await debitWallet(userId, {
+      type: "recharge_debit",
+      amountPaise,
+      refType: "recharge",
+      refId: rechargeRow.id,
+      refCode: requestId,
+      note: `${op.name} ${type} -- ${acct}`,
+    });
+    debitLedgerId = d.ledgerEntryId;
+    await db.update(rechargesTable)
+      .set({ status: "processing", debitLedgerId, updatedAt: new Date() })
+      .where(eq(rechargesTable.id, rechargeRow.id));
+  } catch (err: any) {
+    await db.update(rechargesTable)
+      .set({ 
