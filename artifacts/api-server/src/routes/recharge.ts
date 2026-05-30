@@ -340,20 +340,20 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
     throw err;
   }
 
-  // ── Fresh fetchBill for electricity operators ─────────────────────────────
-  // A1Topup requires the session token from /recharge/fetchbill as `value2`
-  // on the actual recharge call for Gujarat and other electricity operators
-  // (PGVCL, MGVCL, DGVCL, UGVCL, etc.).  When this session is missing A1Topup
-  // returns "Paramenter is missing" and immediately refunds the transaction.
+  // ── Fresh fetchBill for bill/utility operators ────────────────────────────
+  // Always do a FRESH fetchBill call right before debiting so we can capture
+  // the latest session token (value2) required by some utility operators
+  // (e.g. PGVCL, KSEB).
   //
-  // Strategy: always do a FRESH fetchBill call right here (before debiting
-  // the wallet) so the session is never stale and the consumer number is
-  // validated against the operator one final time.
-  //   - Session found     -> use it as value2; proceed to debit + recharge.
-  //   - No session + not found -> fail-fast, mark row failed, return 422.
-  //     No wallet debit occurs — user keeps their money.
-  //   - fetchBill network error -> log and proceed with whatever session the
-  //     frontend already captured (don't hard-block on transient failures).
+  // Strategy:
+  //   - Session found  → use it as value2; proceed to debit + recharge.
+  //   - No session     → proceed anyway; A1Topup will either process the
+  //                      payment or return a failed status (with auto-refund).
+  //                      NOTE: "Paramenter is missing" was previously caused
+  //                      by missing circlecode (now always sent as "0"), so
+  //                      missing value2 alone should no longer hard-fail.
+  //   - Network error  → log and proceed with whatever session the frontend
+  //                      already captured (don't block on transient failures).
   const ELECTRICITY_OPS = new Set([
     'PGVCL', 'MGVCL', 'DGVCL', 'UGVCL',
     'TORRENTAHM', 'TORRENTSUR', 'TORRENTSHI', 'TORRENTBHI', 'TORRENTDAH',
@@ -366,7 +366,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   if (type === 'bill' && ELECTRICITY_OPS.has(operatorCode) && isA1TopupConfigured()) {
     try {
       // Retry up to 3 times — A1Topup fetchBill can be intermittent.
-      // We also pass value1=acct because some Gujarat operators (PGVCL, MGVCL,
+      // Pass value1=acct because some Gujarat operators (PGVCL, MGVCL,
       // DGVCL, UGVCL) require the consumer number in both `number` and `value1`.
       let fb: Awaited<ReturnType<typeof fetchBill>> | null = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
@@ -389,21 +389,10 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
       } else if (!fb.found) {
-        // fetchBill returned "not found" after all retries.
-        // For electricity operators A1Topup requires the session token (value2)
-        // from fetchBill. Without it, A1Topup returns "Paramenter is missing"
-        // and immediately refunds — confusing for operators.
-        // Fail-fast here (before wallet debit) with a clear error instead.
-        if (ELECTRICITY_OPS.has(operatorCode)) {
-          req.log.warn({ op: operatorCode, acct }, '[recharge] freshFetchBill: no session after retries — blocking electricity recharge');
-          await db.update(rechargesTable)
-            .set({ status: 'failed', errorReason: 'Consumer number could not be verified by the electricity provider. Please double-check the number and try again.', updatedAt: new Date(), completedAt: new Date() })
-            .where(eq(rechargesTable.id, rechargeRow.id));
-          res.status(422).json({ error: 'Consumer number could not be verified. Please check the number and try again.', code: 'CONSUMER_NOT_FOUND' });
-          return;
-        }
-        // Non-electricity operators: session not required, proceed normally.
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found — proceeding without session');
+        // fetchBill returned no session / not found — proceed anyway.
+        // circlecode=0 is now always sent so "Paramenter is missing" should not
+        // occur. If A1Topup rejects the payment it will auto-refund the amount.
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: no session — proceeding without value2');
       } else {
         // found:true but no session — operator does not need it; proceed normally
         req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
