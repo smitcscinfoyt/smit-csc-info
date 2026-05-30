@@ -141,7 +141,9 @@ export async function doRecharge(args: RechargeArgs): Promise<A1Response> {
     orderid: args.requestId,
     format: "json",
   };
-  if (args.circleCode) params.circlecode = args.circleCode;
+  // A1Topup requires circlecode in ALL API calls. Send "0" when not provided
+  // (required for DTH, electricity, gas, and all non-mobile types).
+  params.circlecode = args.circleCode || "0";
   if (args.value1) params.value1 = args.value1;
   if (args.value2) params.value2 = args.value2;
   const raw = await callApi("/recharge/api", params);
@@ -174,6 +176,7 @@ export async function fetchBill(p: {
     pwd: pwd(),
     operatorcode: p.operatorCode,
     number: p.consumerNumber,
+    circlecode: "0",
     format: "json",
   };
   if (p.value1) fetchParams.value1 = p.value1;

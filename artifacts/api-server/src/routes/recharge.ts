@@ -46,12 +46,12 @@ function genReqId(userId: number, type: string): string {
   return `R${type[0].toUpperCase()}${userId}${ts}${rnd}`;
 }
 
-// -- GET /recharge/operators -- operator + circle catalog --
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/operators Ã¢ÂÂ operator + circle catalog Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get("/recharge/operators", async (_req, res) => {
   res.json({ operators: OPERATORS, circles: CIRCLES });
 });
 
-// -- GET /recharge/detect -- auto-detect operator + circle from mobile no. --
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/detect Ã¢ÂÂ auto-detect operator + circle from mobile no. Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 //
 // Best-effort prefix-based detection. Returns 200 with `null` payload when the
 // number prefix is unknown (caller should fall back to manual selection).
@@ -72,7 +72,7 @@ router.get("/recharge/detect", async (req, res) => {
       const live = await detectViaEzytm(number);
       if (live) { res.json({ detection: live }); return; }
     } catch (err) {
-      req.log.warn({ err: (err as Error).message }, "[recharge/detect] ezytm threw -- falling back to prefix");
+      req.log.warn({ err: (err as Error).message }, "[recharge/detect] ezytm threw Ã¢ÂÂ falling back to prefix");
     }
   }
 
@@ -80,7 +80,7 @@ router.get("/recharge/detect", async (req, res) => {
   res.json({ detection: det });
 });
 
-// -- GET /recharge/plans -- Ezytm plans browser --
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/plans Ã¢ÂÂ Ezytm plans browser Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get("/recharge/plans", async (req, res) => {
   const operatorCode = String(req.query.operatorCode ?? "").trim();
   const circleCode = String(req.query.circleCode ?? "12").trim();
@@ -97,7 +97,7 @@ router.get("/recharge/plans", async (req, res) => {
   }
 });
 
-// -- GET /recharge/quote -- preview commission for an amount --
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/quote Ã¢ÂÂ preview commission for an amount Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
   const type = String(req.query.type ?? "") as RechargeType;
   const operatorCode = String(req.query.operatorCode ?? "");
@@ -120,7 +120,7 @@ router.get("/recharge/quote", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-// -- GET /recharge/bill-info -- fetch consumer name + due amount before payment --
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/bill-info Ã¢ÂÂ fetch consumer name + due amount before payment Ã¢ÂÂ
 router.get("/recharge/bill-info", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const operatorCode = String(req.query.operatorCode ?? "").trim();
   const consumerNumber = String(req.query.consumerNumber ?? "").trim();
@@ -180,7 +180,7 @@ router.get("/recharge/debug-fetchbill", requireAuth, async (req: AuthRequest, re
       billNumber: info.billNumber ?? null,
       session: info.session ?? null,
       sessionCaptured: !!info.session,
-      // Full raw A1Topup response -- every field returned by the operator
+      // Full raw A1Topup response — every field returned by the operator
       rawResponse: info.raw,
       rawKeys: Object.keys(info.raw),
       // All string values long enough to be a session token
@@ -194,7 +194,7 @@ router.get("/recharge/debug-fetchbill", requireAuth, async (req: AuthRequest, re
 });
 
 
-// -- POST /recharge -- create + execute a recharge --
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /recharge Ã¢ÂÂ create + execute a recharge Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 const rechargeBody = z.object({
   type: z.enum(["mobile", "dth", "bill"]),
   operatorCode: z.string().min(1),
@@ -204,7 +204,7 @@ const rechargeBody = z.object({
   customerName: z.string().max(200).optional(),
   idempotencyKey: z.string().min(8).max(120),
   tpin: z.string().optional(),
-  /** Session token from fetchbill -- required by some utility operators (e.g. PGVCL) as value2 */
+  /** Session token from fetchbill Ã¢ÂÂ required by some utility operators (e.g. PGVCL) as value2 */
   billSession: z.string().optional(),
   /**
    * Override for A1Topup `value1`. When provided this replaces the default
@@ -251,7 +251,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
   if (amountPaise < settings.minRechargePaise || amountPaise > settings.maxRechargePaise) {
     res.status(400).json({
-      error: `Amount must be between --${settings.minRechargePaise / 100} and --${settings.maxRechargePaise / 100}`,
+      error: `Amount must be between Ã¢ÂÂ¹${settings.minRechargePaise / 100} and Ã¢ÂÂ¹${settings.maxRechargePaise / 100}`,
     });
     return;
   }
@@ -334,13 +334,13 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       idempotencyKey,
     }).returning();
   } catch (err: any) {
-    // unique violation on idempotencyKey -- re-read
+    // unique violation on idempotencyKey Ã¢ÂÂ re-read
     const [again] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.userId, userId), eq(rechargesTable.idempotencyKey, idempotencyKey)));
     if (again) { res.json(serializeRecharge(again)); return; }
     throw err;
   }
 
-  // --- Fresh fetchBill for electricity operators ---
+  // ── Fresh fetchBill for electricity operators ─────────────────────────────
   // A1Topup requires the session token from /recharge/fetchbill as `value2`
   // on the actual recharge call for Gujarat and other electricity operators
   // (PGVCL, MGVCL, DGVCL, UGVCL, etc.).  When this session is missing A1Topup
@@ -351,7 +351,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   // validated against the operator one final time.
   //   - Session found     -> use it as value2; proceed to debit + recharge.
   //   - No session + not found -> fail-fast, mark row failed, return 422.
-  //     No wallet debit occurs -- user keeps their money.
+  //     No wallet debit occurs — user keeps their money.
   //   - fetchBill network error -> log and proceed with whatever session the
   //     frontend already captured (don't hard-block on transient failures).
   const ELECTRICITY_OPS = new Set([
@@ -365,7 +365,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
 
   if (type === 'bill' && ELECTRICITY_OPS.has(operatorCode) && isA1TopupConfigured()) {
     try {
-      // Retry up to 3 times -- A1Topup fetchBill can be intermittent.
+      // Retry up to 3 times — A1Topup fetchBill can be intermittent.
       // We also pass value1=acct because some Gujarat operators (PGVCL, MGVCL,
       // DGVCL, UGVCL) require the consumer number in both `number` and `value1`.
       let fb: Awaited<ReturnType<typeof fetchBill>> | null = null;
@@ -373,7 +373,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         try {
           fb = await fetchBill({ operatorCode, consumerNumber: acct, value1: acct });
           req.log.info({ op: operatorCode, attempt, found: fb.found, hasSession: !!fb.session, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill attempt');
-          if (fb.session || fb.found) break; // Got a useful response -- stop retrying
+          if (fb.session || fb.found) break; // Got a useful response — stop retrying
           if (attempt < 3) await new Promise(r => setTimeout(r, 1500 * attempt));
         } catch (err: any) {
           req.log.warn({ err: err?.message, op: operatorCode, attempt }, '[recharge] freshFetchBill threw');
@@ -383,8 +383,8 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       }
 
       if (!fb) {
-        // All attempts threw -- network error; proceed with existing session if any
-        req.log.warn({ op: operatorCode }, '[recharge] freshFetchBill: all attempts failed -- proceeding with existing session');
+        // All attempts threw — network error; proceed with existing session if any
+        req.log.warn({ op: operatorCode }, '[recharge] freshFetchBill: all attempts failed — proceeding with existing session');
       } else if (fb.session) {
         resolvedBillSession = fb.session;
         req.log.info({ op: operatorCode, sessionLen: fb.session.length }, '[recharge] freshFetchBill: session captured OK');
@@ -392,10 +392,10 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
         // fetchBill returned "not found" after all retries.
         // For electricity operators A1Topup requires the session token (value2)
         // from fetchBill. Without it, A1Topup returns "Paramenter is missing"
-        // and immediately refunds -- confusing for operators.
+        // and immediately refunds — confusing for operators.
         // Fail-fast here (before wallet debit) with a clear error instead.
         if (ELECTRICITY_OPS.has(operatorCode)) {
-          req.log.warn({ op: operatorCode, acct }, '[recharge] freshFetchBill: no session after retries -- blocking electricity recharge');
+          req.log.warn({ op: operatorCode, acct }, '[recharge] freshFetchBill: no session after retries — blocking electricity recharge');
           await db.update(rechargesTable)
             .set({ status: 'failed', errorReason: 'Consumer number could not be verified by the electricity provider. Please double-check the number and try again.', updatedAt: new Date(), completedAt: new Date() })
             .where(eq(rechargesTable.id, rechargeRow.id));
@@ -403,13 +403,13 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
           return;
         }
         // Non-electricity operators: session not required, proceed normally.
-        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found -- proceeding without session');
+        req.log.warn({ op: operatorCode, acct, rawKeys: Object.keys(fb.raw) }, '[recharge] freshFetchBill: not found — proceeding without session');
       } else {
-        // found:true but no session -- operator does not need it; proceed normally
-        req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session -- proceeding without value2');
+        // found:true but no session — operator does not need it; proceed normally
+        req.log.info({ op: operatorCode }, '[recharge] freshFetchBill: found but no session — proceeding without value2');
       }
     } catch (err: any) {
-      req.log.warn({ err: err?.message, op: operatorCode }, '[recharge] freshFetchBill outer error -- proceeding with existing session');
+      req.log.warn({ err: err?.message, op: operatorCode }, '[recharge] freshFetchBill outer error — proceeding with existing session');
     }
   }
 
@@ -422,7 +422,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       refType: "recharge",
       refId: rechargeRow.id,
       refCode: requestId,
-      note: `${op.name} ${type} -- ${acct}`,
+      note: `${op.name} ${type} Ã¢ÂÂ ${acct}`,
     });
     debitLedgerId = d.ledgerEntryId;
     await db.update(rechargesTable)
@@ -430,4 +430,520 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
       .where(eq(rechargesTable.id, rechargeRow.id));
   } catch (err: any) {
     await db.update(rechargesTable)
-      .set({ 
+      .set({ status: "failed", errorReason: err?.message ?? "Debit failed", updatedAt: new Date(), completedAt: new Date() })
+      .where(eq(rechargesTable.id, rechargeRow.id));
+    if (err instanceof WalletError) {
+      res.status(402).json({ error: err.message, code: err.code });
+      return;
+    }
+    throw err;
+  }
+
+  // Hit A1Topup
+  // A1Topup requires `circlecode` for mobile recharges Ã¢ÂÂ default to Gujarat (12)
+  const effectiveCircle = type === "mobile" ? (circleCode || "12") : "0"; // A1Topup requires circlecode=0 for all non-mobile types (DTH, bill, etc.)
+  // Build value1 / value2 per A1Topup official docs:
+  //   value1Override Ã¢ÂÂ caller-supplied extra field (LIC DOB, Gas Bill Group, MSEDC Billing Unit)
+  //   value2Override Ã¢ÂÂ caller-supplied extra field (MSEDC Processing Cycle, BSNL Account)
+  //   billSession    Ã¢ÂÂ session token from fetchbill (required by electricity operators)
+  // For standard bill/utility operators value1 defaults to the account number.
+  const isBillType = type === "bill";
+  // A1Topup bill/utility operators require value1 = consumer number and
+  // value2 = session token from fetchbill (e.g. PGVCL, KSEB, MSEDCL).
+  // If no session was returned by fetchbill, fall back to the consumer number
+  // for value2 so A1Topup never receives "Paramenter is missing".
+  const v1 = value1Override?.trim() || (isBillType ? acct : undefined);
+  // NOTE: Do NOT fall back to acct for value2. Operators like PGVCL require the
+    // session token from fetchbill as value2. Passing the consumer number instead
+    // causes A1Topup to return "Paramenter is missing". If no session is available
+    // the transaction must be blocked at the frontend before reaching here.
+    const v2 = value2Override?.trim() ||
+      (isBillType ? (resolvedBillSession || undefined) : undefined);
+  let a1: A1Response;
+  try {
+    a1 = await doRecharge({
+      requestId,
+      operatorCode,
+      number: acct,
+      amountRupees: amountPaise / 100,
+      circleCode: effectiveCircle,
+      value1: v1,
+      value2: v2,
+    });
+  } catch (err: any) {
+    // Network/parse error Ã¢ÂÂ keep status processing, schedule background reconcile via /status endpoint.
+    req.log.error({ err, requestId }, "[recharge] A1Topup call failed");
+    await db.update(rechargesTable)
+      .set({ status: "processing", errorReason: `Provider call error: ${err?.message ?? err}`, updatedAt: new Date() })
+      .where(eq(rechargesTable.id, rechargeRow.id));
+    const [row] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, rechargeRow.id));
+    res.status(202).json(serializeRecharge(row!));
+    return;
+  }
+
+  // Apply A1 result
+  const finalRow = await applyProviderResult(rechargeRow.id, a1);
+  res.json(serializeRecharge(finalRow));
+});
+
+/**
+ * Idempotently apply a provider response (initial or polled) to a recharge row.
+ * - success Ã¢ÂÂ mark success, credit commission, set completedAt
+ * - failed  Ã¢ÂÂ mark failed, refund full amount, set completedAt
+ * - pending Ã¢ÂÂ keep processing, store provider order id
+ */
+export async function applyProviderResult(rechargeId: number, a1: A1Response) {
+  const [row] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, rechargeId));
+  if (!row) throw new Error(`Recharge ${rechargeId} not found`);
+  if (row.status === "success" || row.status === "failed" || row.status === "refunded") {
+    return row;
+  }
+
+  const baseUpdate = {
+    a1OrderId: a1.a1OrderId ?? row.a1OrderId,
+    a1OperatorRef: a1.operatorRef ?? row.a1OperatorRef,
+    a1ResponseCode: a1.rawStatusCode || row.a1ResponseCode,
+    responseRaw: a1.raw,
+    updatedAt: new Date(),
+  };
+
+  if (a1.status === "success") {
+    // CAS-FIRST to claim the transition exclusively. If we lose, somebody else owns it.
+    const [claimed] = await db.update(rechargesTable)
+      .set({ ...baseUpdate, status: "success", completedAt: new Date() })
+      .where(and(eq(rechargesTable.id, row.id), eq(rechargesTable.status, row.status)))
+      .returning();
+    if (!claimed) {
+      const [latest] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, row.id));
+      return latest ?? row;
+    }
+    // We own the transition. Credit commission, but if it throws, REVERT the CAS so a
+    // subsequent /status poll re-finalizes and credits exactly once. Without revert the
+    // row would be permanently "success" with no commission.
+    if (Number(row.commissionPaise) > 0) {
+      try {
+        const c = await creditWallet(row.userId, {
+          type: "commission",
+          amountPaise: Number(row.commissionPaise),
+          refType: "recharge",
+          refId: row.id,
+          refCode: row.a1RequestId,
+          note: `Commission: ${row.operatorName} ${row.type}`,
+        });
+               const [linked] = await db.update(rechargesTable)
+          .set({ commissionLedgerId: c.ledgerEntryId, updatedAt: new Date() })
+          .where(eq(rechargesTable.id, row.id))
+          .returning();
+        sendRechargeSuccessEmailSafe(row.userId, linked ?? claimed);
+        return linked ?? claimed;
+      } catch (e: any) {
+        await db.update(rechargesTable)
+          .set({ status: "processing", completedAt: null, errorReason: `Commission credit failed, will retry: ${e?.message ?? e}`, updatedAt: new Date() })
+          .where(and(eq(rechargesTable.id, row.id), eq(rechargesTable.status, "success")));
+        throw e;
+      }
+    }
+    sendRechargeSuccessEmailSafe(row.userId, claimed);
+    return claimed;
+  }
+  if (a1.status === "failed") {
+    // CAS-FIRST to claim the failed transition.
+    const [claimed] = await db.update(rechargesTable)
+      .set({ ...baseUpdate, status: "refunded", errorReason: a1.message || "Provider failure", completedAt: new Date() })
+      .where(and(eq(rechargesTable.id, row.id), eq(rechargesTable.status, row.status)))
+      .returning();
+    if (!claimed) {
+      const [latest] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, row.id));
+      return latest ?? row;
+    }
+    if (row.debitLedgerId) {
+      // Refund must succeed or we revert the CAS so retry can complete it (no user fund loss).
+      try {
+        const r = await creditWallet(row.userId, {
+          type: "recharge_refund",
+          amountPaise: Number(row.amountPaise),
+          refType: "recharge",
+          refId: row.id,
+          refCode: row.a1RequestId,
+          note: `Refund: ${row.operatorName} ${row.type} failed Ã¢ÂÂ ${a1.message || "no msg"}`,
+        });
+        const [linked] = await db.update(rechargesTable)
+          .set({ refundLedgerId: r.ledgerEntryId, updatedAt: new Date() })
+          .where(eq(rechargesTable.id, row.id))
+          .returning();
+        return linked ?? claimed;
+      } catch (e: any) {
+        await db.update(rechargesTable)
+          .set({ status: "processing", completedAt: null, errorReason: `Refund credit failed, will retry: ${e?.message ?? e}`, updatedAt: new Date() })
+          .where(and(eq(rechargesTable.id, row.id), eq(rechargesTable.status, "refunded")));
+        throw e;
+      }
+    }
+    return claimed;
+  }
+
+  // pending
+  const [updated] = await db.update(rechargesTable).set({ ...baseUpdate, status: "processing" }).where(eq(rechargesTable.id, row.id)).returning();
+  return updated ?? row;
+}
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge Ã¢ÂÂ history Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+router.get("/recharge", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const limit = Math.min(parseInt(String(req.query.limit ?? "50")) || 50, 200);
+  const offset = parseInt(String(req.query.offset ?? "0")) || 0;
+  const rows = await db.select().from(rechargesTable)
+    .where(eq(rechargesTable.userId, userId))
+    .orderBy(desc(rechargesTable.createdAt))
+    .limit(limit).offset(offset);
+  res.json({ recharges: rows.map(serializeRecharge) });
+});
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/dashboard Ã¢ÂÂ Day Book stats for a chosen IST date Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Optional ?date=YYYY-MM-DD (IST). When omitted, returns "today" up to now.
+router.get("/recharge/dashboard", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const dateStr = String(req.query.date ?? "").trim();
+    const IST_OFFSET_MS = 330 * 60 * 1000;
+    const nowMs = Date.now();
+    const istNow = new Date(nowMs + IST_OFFSET_MS);
+    const todayKey = `${istNow.getUTCFullYear()}-${String(istNow.getUTCMonth() + 1).padStart(2, "0")}-${String(istNow.getUTCDate()).padStart(2, "0")}`;
+
+    let startOfDayUtc: Date;
+    let endOfDayUtc: Date; // exclusive day-end (next-day 00:00 IST in UTC)
+    let isToday: boolean;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const istStart = new Date(Date.UTC(y, m - 1, d));
+      startOfDayUtc = new Date(istStart.getTime() - IST_OFFSET_MS);
+      endOfDayUtc = new Date(startOfDayUtc.getTime() + 24 * 60 * 60 * 1000);
+      isToday = dateStr === todayKey;
+    } else {
+      const istStart = new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()));
+      startOfDayUtc = new Date(istStart.getTime() - IST_OFFSET_MS);
+      endOfDayUtc = new Date(startOfDayUtc.getTime() + 24 * 60 * 60 * 1000);
+      isToday = true;
+    }
+    // For today, cap the upper bound at "now" so KPIs reflect intra-day reality.
+    const upperBound = isToday ? new Date(nowMs) : endOfDayUtc;
+
+    // Recharges in window: counts and sums
+    const [r] = await db.select({
+      total: sql<number>`count(*)::int`,
+      successCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'success')::int`,
+      failedCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'failed')::int`,
+      pendingCount: sql<number>`count(*) filter (where ${rechargesTable.status} in ('pending','processing'))::int`,
+      refundedCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'refunded')::int`,
+      rechargeDebitPaise: sql<number>`coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+      profitPaise: sql<number>`coalesce(sum(${rechargesTable.commissionPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+      refundCreditPaise: sql<number>`coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'refunded'), 0)::bigint`,
+    })
+      .from(rechargesTable)
+      .where(and(eq(rechargesTable.userId, userId), gte(rechargesTable.createdAt, startOfDayUtc), lt(rechargesTable.createdAt, upperBound)));
+
+    // Wallet top-ups (success) in window
+    const [t] = await db.select({
+      walletTopupPaise: sql<number>`coalesce(sum(${walletTopupsTable.amountPaise}) filter (where ${walletTopupsTable.status} = 'success'), 0)::bigint`,
+      walletTopupCount: sql<number>`count(*) filter (where ${walletTopupsTable.status} = 'success')::int`,
+    })
+      .from(walletTopupsTable)
+      .where(and(eq(walletTopupsTable.userId, userId), gte(walletTopupsTable.createdAt, startOfDayUtc), lt(walletTopupsTable.createdAt, upperBound)));
+
+    // Current wallet balance
+    const [w] = await db.select().from(walletsTable).where(eq(walletsTable.userId, userId)).limit(1);
+    const currentBalancePaise = Number(w?.balancePaise ?? 0);
+
+    // Opening balance: last ledger entry strictly before start-of-day
+    const [openingRow] = await db.select({ bal: walletLedgerTable.balanceAfterPaise })
+      .from(walletLedgerTable)
+      .where(and(eq(walletLedgerTable.userId, userId), sql`${walletLedgerTable.createdAt} < ${startOfDayUtc}`))
+      .orderBy(desc(walletLedgerTable.createdAt))
+      .limit(1);
+    const openingBalancePaise = Number(openingRow?.bal ?? 0);
+
+    // Closing balance:
+    //   - If today: current wallet balance.
+    //   - If past day: last ledger entry strictly before end-of-day (fallback to opening).
+    let closingBalancePaise = currentBalancePaise;
+    if (!isToday) {
+      const [closingRow] = await db.select({ bal: walletLedgerTable.balanceAfterPaise })
+        .from(walletLedgerTable)
+        .where(and(eq(walletLedgerTable.userId, userId), sql`${walletLedgerTable.createdAt} < ${endOfDayUtc}`))
+        .orderBy(desc(walletLedgerTable.createdAt))
+        .limit(1);
+      closingBalancePaise = Number(closingRow?.bal ?? openingBalancePaise);
+    }
+
+    // Operator-wise report for the window
+    const opRows = await db.select({
+      operatorName: rechargesTable.operatorName,
+      operatorCode: rechargesTable.operatorCode,
+      type: rechargesTable.type,
+      successCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'success')::int`,
+      successAmountPaise: sql<number>`coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+      profitPaise: sql<number>`coalesce(sum(${rechargesTable.commissionPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+    })
+      .from(rechargesTable)
+      .where(and(eq(rechargesTable.userId, userId), gte(rechargesTable.createdAt, startOfDayUtc), lt(rechargesTable.createdAt, upperBound)))
+      .groupBy(rechargesTable.operatorName, rechargesTable.operatorCode, rechargesTable.type)
+      .orderBy(desc(sql`coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'success'), 0)`));
+
+    res.json({
+      day: { startUtc: startOfDayUtc.toISOString(), nowUtc: upperBound.toISOString(), endUtc: endOfDayUtc.toISOString(), tz: "Asia/Kolkata", isToday },
+      wallet: {
+        currentBalancePaise,
+        openingBalancePaise,
+        closingBalancePaise,
+      },
+      today: {
+        totalCount: Number(r?.total ?? 0),
+        successCount: Number(r?.successCount ?? 0),
+        failedCount: Number(r?.failedCount ?? 0),
+        pendingCount: Number(r?.pendingCount ?? 0),
+        refundedCount: Number(r?.refundedCount ?? 0),
+        rechargeDebitPaise: Number(r?.rechargeDebitPaise ?? 0),
+        profitPaise: Number(r?.profitPaise ?? 0),
+        refundCreditPaise: Number(r?.refundCreditPaise ?? 0),
+        walletTopupPaise: Number(t?.walletTopupPaise ?? 0),
+        walletTopupCount: Number(t?.walletTopupCount ?? 0),
+      },
+      operators: opRows.map((o) => ({
+        operatorName: o.operatorName,
+        operatorCode: o.operatorCode,
+        type: o.type,
+        successCount: Number(o.successCount),
+        successAmountPaise: Number(o.successAmountPaise),
+        profitPaise: Number(o.profitPaise),
+      })),
+    });
+  } catch (e: any) {
+    req.log.warn({ err: e?.message }, "recharge/dashboard failed");
+    res.status(500).json({ error: "Failed to load dashboard" });
+  }
+});
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/earning Ã¢ÂÂ date-range commission/profit summary Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Query: ?from=YYYY-MM-DD&to=YYYY-MM-DD (IST, inclusive)
+router.get("/recharge/earning", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const fromStr = String(req.query.from ?? "").trim();
+    const toStr = String(req.query.to ?? "").trim();
+    const IST_OFFSET_MS = 330 * 60 * 1000;
+    const nowMs = Date.now();
+    const istNow = new Date(nowMs + IST_OFFSET_MS);
+
+    function dayStartUtc(s: string): Date | null {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+      const [y, m, d] = s.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d) - IST_OFFSET_MS);
+    }
+    const fromUtc = dayStartUtc(fromStr) ?? new Date(Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - IST_OFFSET_MS);
+    const toStartUtc = dayStartUtc(toStr) ?? fromUtc;
+    const toExclusiveUtc = new Date(toStartUtc.getTime() + 24 * 60 * 60 * 1000);
+    if (toExclusiveUtc <= fromUtc) {
+      res.status(400).json({ error: "Invalid date range" });
+      return;
+    }
+
+    const [agg] = await db.select({
+      successCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'success')::int`,
+      successAmountPaise: sql<number>`coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+      profitPaise: sql<number>`coalesce(sum(${rechargesTable.commissionPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+      failedCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'failed')::int`,
+      refundedCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'refunded')::int`,
+    })
+      .from(rechargesTable)
+      .where(and(eq(rechargesTable.userId, userId), gte(rechargesTable.createdAt, fromUtc), lt(rechargesTable.createdAt, toExclusiveUtc)));
+
+    const opRows = await db.select({
+      operatorName: rechargesTable.operatorName,
+      operatorCode: rechargesTable.operatorCode,
+      type: rechargesTable.type,
+      successCount: sql<number>`count(*) filter (where ${rechargesTable.status} = 'success')::int`,
+      successAmountPaise: sql<number>`coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+      profitPaise: sql<number>`coalesce(sum(${rechargesTable.commissionPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint`,
+    })
+      .from(rechargesTable)
+      .where(and(eq(rechargesTable.userId, userId), gte(rechargesTable.createdAt, fromUtc), lt(rechargesTable.createdAt, toExclusiveUtc)))
+      .groupBy(rechargesTable.operatorName, rechargesTable.operatorCode, rechargesTable.type)
+      .orderBy(desc(sql`coalesce(sum(${rechargesTable.commissionPaise}) filter (where ${rechargesTable.status} = 'success'), 0)`));
+
+    // Day-wise (IST) breakdown for charting / row table
+    const dayRows = await db.execute<{ day: string; success_count: number; success_amount_paise: string; profit_paise: string }>(sql`
+      select to_char((${rechargesTable.createdAt} at time zone 'Asia/Kolkata')::date, 'YYYY-MM-DD') as day,
+             count(*) filter (where ${rechargesTable.status} = 'success')::int as success_count,
+             coalesce(sum(${rechargesTable.amountPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint as success_amount_paise,
+             coalesce(sum(${rechargesTable.commissionPaise}) filter (where ${rechargesTable.status} = 'success'), 0)::bigint as profit_paise
+      from ${rechargesTable}
+      where ${rechargesTable.userId} = ${userId}
+        and ${rechargesTable.createdAt} >= ${fromUtc}
+        and ${rechargesTable.createdAt} < ${toExclusiveUtc}
+      group by 1
+      order by 1 desc
+    `);
+
+    res.json({
+      range: { from: fromStr || null, to: toStr || null, fromUtc: fromUtc.toISOString(), toExclusiveUtc: toExclusiveUtc.toISOString(), tz: "Asia/Kolkata" },
+      summary: {
+        successCount: Number(agg?.successCount ?? 0),
+        successAmountPaise: Number(agg?.successAmountPaise ?? 0),
+        profitPaise: Number(agg?.profitPaise ?? 0),
+        failedCount: Number(agg?.failedCount ?? 0),
+        refundedCount: Number(agg?.refundedCount ?? 0),
+      },
+      operators: opRows.map((o) => ({
+        operatorName: o.operatorName,
+        operatorCode: o.operatorCode,
+        type: o.type,
+        successCount: Number(o.successCount),
+        successAmountPaise: Number(o.successAmountPaise),
+        profitPaise: Number(o.profitPaise),
+      })),
+      days: (dayRows.rows ?? []).map((d: any) => ({
+        day: d.day,
+        successCount: Number(d.success_count),
+        successAmountPaise: Number(d.success_amount_paise),
+        profitPaise: Number(d.profit_paise),
+      })),
+    });
+  } catch (e: any) {
+    req.log.warn({ err: e?.message }, "recharge/earning failed");
+    res.status(500).json({ error: "Failed to load earning report" });
+  }
+});
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/search Ã¢ÂÂ find a transaction by number / TXID / order ID Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// Query: ?q=... (matches accountNumber prefix, a1RequestId, a1OrderId, a1OperatorRef)
+router.get("/recharge/search", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  try {
+    const userId = req.userId!;
+    const q = String(req.query.q ?? "").trim();
+    if (q.length < 3) {
+      res.status(400).json({ error: "Enter at least 3 characters" });
+      return;
+    }
+    const like = `%${q}%`;
+    const rows = await db.select().from(rechargesTable)
+      .where(and(
+        eq(rechargesTable.userId, userId),
+        or(
+          ilike(rechargesTable.accountNumber, like),
+          ilike(rechargesTable.a1RequestId, like),
+          ilike(rechargesTable.a1OrderId, like),
+          ilike(rechargesTable.a1OperatorRef, like),
+        )!,
+      ))
+      .orderBy(desc(rechargesTable.createdAt))
+      .limit(50);
+    res.json({ query: q, count: rows.length, recharges: rows.map(serializeRecharge) });
+  } catch (e: any) {
+    req.log.warn({ err: e?.message }, "recharge/search failed");
+    res.status(500).json({ error: "Search failed" });
+  }
+});
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/:id Ã¢ÂÂ receipt Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+router.get("/recharge/:id", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const id = parseInt(String(req.params.id), 10);
+  if (!id) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [row] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.id, id), eq(rechargesTable.userId, userId)));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(serializeRecharge(row));
+});
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /recharge/:id/status Ã¢ÂÂ manual status check (polls provider) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+router.post("/recharge/:id/status", requireAuth, async (req: AuthRequest, res) => {
+  const userId = req.userId!;
+  const id = parseInt(String(req.params.id), 10);
+  const [row] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.id, id), eq(rechargesTable.userId, userId)));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  if (["success", "failed", "refunded"].includes(row.status)) {
+    res.json(serializeRecharge(row));
+    return;
+  }
+  if (!isA1TopupConfigured()) {
+    res.status(503).json({ error: "Provider unavailable" });
+    return;
+  }
+  try {
+    const a1 = await checkStatus(row.a1RequestId);
+    const updated = await applyProviderResult(row.id, a1);
+    res.json(serializeRecharge(updated));
+  } catch (err: any) {
+    req.log.error({ err }, "[recharge/status] poll failed");
+    res.status(502).json({ error: err?.message ?? "Status poll failed" });
+  }
+});
+
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /recharge/webhook Ã¢ÂÂ A1Topup callback Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+router.post("/recharge/webhook", async (req, res): Promise<void> => {
+  const sig = (req.headers["x-a1-signature"] as string | undefined)
+           ?? (req.headers["x-signature"] as string | undefined);
+  const raw = JSON.stringify(req.body ?? {});
+  if (!verifyWebhookSig(raw, sig)) {
+    req.log.warn({ sig }, "[recharge/webhook] bad signature");
+    res.status(401).json({ error: "Invalid signature" });
+    return;
+  }
+  // A1Topup posts the same body shape as the recharge response. Echo orderid.
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const orderId =
+    (body.orderid as string | undefined) ?? (body.ORDERID as string | undefined) ??
+    (body.OrderId as string | undefined);
+  if (!orderId) {
+    req.log.warn({ body }, "[recharge/webhook] no orderid");
+    res.json({ ok: true });
+    return;
+  }
+  const [row] = await db.select().from(rechargesTable).where(eq(rechargesTable.a1RequestId, String(orderId)));
+  if (!row) {
+    req.log.warn({ orderId }, "[recharge/webhook] no matching recharge");
+    res.json({ ok: true });
+    return;
+  }
+  // Build A1Response from raw
+  const status = String(body.STATUS ?? body.status ?? "").toUpperCase();
+  const a1: A1Response = {
+    status: status === "1" || status === "SUCCESS" ? "success" :
+            status === "3" || status === "FAILED" || status === "FAILURE" ? "failed" : "pending",
+    rawStatusCode: status,
+    message: String(body.MESSAGE ?? body.message ?? ""),
+    a1OrderId: (body.TXNID ?? body.txnid) as string | undefined,
+    operatorRef: (body.OPRID ?? body.oprid) as string | undefined,
+    raw: body,
+  };
+  await applyProviderResult(row.id, a1);
+  res.json({ ok: true });
+});
+
+function serializeRecharge(r: typeof rechargesTable.$inferSelect) {
+  return {
+    id: r.id,
+    type: r.type,
+    operatorCode: r.operatorCode,
+    operatorName: r.operatorName,
+    circleCode: r.circleCode,
+    accountNumber: r.accountNumber,
+    customerName: r.customerName,
+    amountPaise: Number(r.amountPaise),
+    commissionPaise: Number(r.commissionPaise),
+    commissionTier: r.commissionTier,
+    commissionPercentBp: r.commissionPercentBp,
+    netCostPaise: Number(r.netCostPaise),
+    status: r.status,
+    a1RequestId: r.a1RequestId,
+    a1OrderId: r.a1OrderId,
+    a1OperatorRef: r.a1OperatorRef,
+    errorReason: r.errorReason,
+    createdAt: r.createdAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+    completedAt: r.completedAt ? r.completedAt.toISOString() : null,
+  };
+}
+
+export default router;
+void walletsTable; void kycRecordsTable;
