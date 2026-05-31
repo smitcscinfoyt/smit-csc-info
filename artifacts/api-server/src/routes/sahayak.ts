@@ -24,13 +24,26 @@ interface ChatMessage {
 }
 
 // ── POST /sahayak/chat ────────────────────────────────────────────────────────
-// Tries Gemini directly first. Falls back to the standalone Sahayak Replit
-// deployment (SAHAYAK_API_URL) when Gemini env vars are absent — this lets
-// production run without a separate Gemini API key as long as the Sahayak
-// service is reachable.
+// Env var priority:
+//   1. AI_INTEGRATIONS_GEMINI_BASE_URL + AI_INTEGRATIONS_GEMINI_API_KEY
+//      → set automatically by Replit AI integrations in dev
+//   2. AI_INTEGRATIONS_GEMINI_API_KEY alone (ENV_GEMINI_API_KEY GitHub secret)
+//      → production: base URL defaults to Google's public Gemini endpoint
 router.post("/sahayak/chat", async (req, res): Promise<void> => {
-  const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
-  const apiKey  = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    logger.warn("sahayak: AI_INTEGRATIONS_GEMINI_API_KEY not configured");
+    res.status(503).json({ error: "AI Sahayak service is not configured. Please contact the admin." });
+    return;
+  }
+
+  // When running on Replit the integration provides its own proxy URL.
+  // In production (Oracle VM) that var is absent so we fall back to Google's
+  // public v1beta endpoint — same request format, just a different host.
+  const baseUrl =
+    process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ||
+    "https://generativelanguage.googleapis.com/v1beta";
 
   const { message, history = [], isPrime = false } = req.body as {
     message?: string;
@@ -45,89 +58,57 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
 
   const trimmed = message.trim().slice(0, 1000);
 
-  // ── Path A: Gemini direct ──────────────────────────────────────────────────
-  if (baseUrl && apiKey) {
-    const primeNote = isPrime
-      ? "\n[User is a Prime Member — mention Prime features where relevant]"
-      : "\n[User is NOT a Prime Member — suggest upgrading where beneficial]";
+  const primeNote = isPrime
+    ? "\n[User is a Prime Member — mention Prime features where relevant]"
+    : "\n[User is NOT a Prime Member — suggest upgrading where beneficial]";
 
-    const systemWithPrime = SYSTEM_PROMPT + primeNote;
+  const systemWithPrime = SYSTEM_PROMPT + primeNote;
 
-    const safeHistory: ChatMessage[] = Array.isArray(history)
-      ? history.slice(-10).filter(
-          (m) =>
-            (m.role === "user" || m.role === "model") &&
-            Array.isArray(m.parts) &&
-            m.parts.every((p) => typeof p?.text === "string"),
-        )
-      : [];
+  const safeHistory: ChatMessage[] = Array.isArray(history)
+    ? history.slice(-10).filter(
+        (m) =>
+          (m.role === "user" || m.role === "model") &&
+          Array.isArray(m.parts) &&
+          m.parts.every((p) => typeof p?.text === "string"),
+      )
+    : [];
 
-    const contents = [
-      ...safeHistory,
-      { role: "user" as const, parts: [{ text: trimmed }] },
-    ];
+  const contents = [
+    ...safeHistory,
+    { role: "user" as const, parts: [{ text: trimmed }] },
+  ];
 
-    const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-    try {
-      const upstream = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemWithPrime }] },
-          contents,
-          generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
-        }),
-      });
-
-      if (!upstream.ok) {
-        const text = await upstream.text();
-        logger.warn({ status: upstream.status, body: text.slice(0, 300) }, "sahayak gemini upstream failed");
-        res.status(502).json({ error: "AI service error. Please try again." });
-        return;
-      }
-
-      const json = (await upstream.json()) as any;
-      const reply: string =
-        json?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
-
-      if (!reply) {
-        res.status(502).json({ error: "Empty response from AI." });
-        return;
-      }
-
-      res.json({ reply });
-      return;
-    } catch (err) {
-      logger.error({ err }, "sahayak gemini call failed — falling through to fallback");
-    }
-  }
-
-  // ── Path B: Sahayak Replit deployment fallback ─────────────────────────────
-  // Used when Gemini env vars are not configured (e.g. Oracle VM production
-  // before a Gemini API key has been set in GitHub secrets).
-  const fallbackUrl =
-    process.env.SAHAYAK_API_URL ||
-    "https://ayvr76vs.riker.replit.dev/api/chat";
+  const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   try {
-    logger.info({ fallbackUrl }, "sahayak: using fallback API");
-
-    const upstream = await fetch(fallbackUrl, {
+    const upstream = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: trimmed, history, isPrime }),
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemWithPrime }] },
+        contents,
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 1024,
+        },
+      }),
     });
 
     if (!upstream.ok) {
       const text = await upstream.text();
-      logger.warn({ status: upstream.status, body: text.slice(0, 200) }, "sahayak fallback upstream failed");
-      res.status(502).json({ error: "AI Sahayak service unavailable. Please try again shortly." });
+      logger.warn(
+        { status: upstream.status, body: text.slice(0, 300) },
+        "sahayak gemini upstream failed",
+      );
+      res.status(502).json({ error: "AI service error. Please try again." });
       return;
     }
 
     const json = (await upstream.json()) as any;
-    const reply: string = json?.reply ?? "";
+    const reply: string =
+      json?.candidates?.[0]?.content?.parts
+        ?.map((p: any) => p?.text ?? "")
+        .join("") ?? "";
 
     if (!reply) {
       res.status(502).json({ error: "Empty response from AI." });
@@ -136,8 +117,8 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
 
     res.json({ reply });
   } catch (err) {
-    logger.error({ err }, "sahayak fallback call failed");
-    res.status(502).json({ error: "Could not reach AI Sahayak. Please check your internet and try again." });
+    logger.error({ err }, "sahayak chat call failed");
+    res.status(502).json({ error: "Could not reach AI service." });
   }
 });
 
