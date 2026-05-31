@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import { UpdateUserBody, GetUserResponse, UpdateUserResponse } from "@workspace/api-zod";
+import { getPrimeStatus, hasPrimeAccess } from "../lib/prime-status";
 
 const router = Router();
 
@@ -71,6 +72,13 @@ router.patch("/users/:id", requireAuth, async (req: AuthRequest, res): Promise<v
       createdAt: user.createdAt.toISOString(),
     })
   );
+});
+
+// GET /user/status — lightweight prime-status check used by the AI Sahayak widget
+// and any other client that needs to know if the current user has Prime access.
+router.get("/user/status", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const status = await getPrimeStatus(req.userId!);
+  res.json({ is_prime: hasPrimeAccess(status) });
 });
 
 export default router;
