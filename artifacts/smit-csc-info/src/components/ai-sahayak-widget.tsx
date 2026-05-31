@@ -91,11 +91,12 @@ export function AiSahayakWidget() {
         { role: "model", parts: [{ text: reply }] },
       ].slice(-20);
       setMessages((prev) => [...prev, { role: "bot", text: reply }]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "bot", text: "ક્ષમા કરશો, server સાથે જોડાણ ન થઈ." },
-      ]);
+    } catch (err: any) {
+      const msg =
+        err?.data?.error ||
+        err?.message ||
+        "ક્ષમા કરશો, server સાથે જોડાણ ન થઈ.";
+      setMessages((prev) => [...prev, { role: "bot", text: msg }]);
     } finally {
       setSending(false);
     }
