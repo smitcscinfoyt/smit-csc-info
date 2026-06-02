@@ -762,10 +762,9 @@ function TpinSection() {
             </Button>
             <Button
               type="button"
-              variant="outline"
               onClick={() => forgotTpinMutation.mutate()}
               disabled={forgotTpinMutation.isPending}
-              className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400"
+              className="gap-2 bg-gradient-to-r from-purple-700 to-amber-600 text-white"
               data-testid="btn-forgot-tpin"
             >
               {forgotTpinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
