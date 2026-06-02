@@ -750,25 +750,28 @@ function TpinSection() {
               </p>
             )}
           </div>
-          <Button
-            onClick={() => changeMutation.mutate()}
-            disabled={changeMutation.isPending || oldPin.length < 4 || changeNew.length < 4 || changeNew !== changeConfirm}
-            className="gap-2 bg-gradient-to-r from-purple-700 to-amber-600 text-white"
-            data-testid="btn-tpin-change"
-          >
-            {changeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            <Lock className="h-4 w-4" /> Change T-PIN
-          </Button>
-          <button
-            type="button"
-            onClick={() => forgotTpinMutation.mutate()}
-            disabled={forgotTpinMutation.isPending}
-            className="mt-1 flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:underline underline-offset-2 transition-colors disabled:opacity-60"
-            data-testid="btn-forgot-tpin"
-          >
-            {forgotTpinMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-            Forgot T-PIN? Reset via Email
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={() => changeMutation.mutate()}
+              disabled={changeMutation.isPending || oldPin.length < 4 || changeNew.length < 4 || changeNew !== changeConfirm}
+              className="gap-2 bg-gradient-to-r from-purple-700 to-amber-600 text-white"
+              data-testid="btn-tpin-change"
+            >
+              {changeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Lock className="h-4 w-4" /> Change T-PIN
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => forgotTpinMutation.mutate()}
+              disabled={forgotTpinMutation.isPending}
+              className="gap-2 border-indigo-300 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-400"
+              data-testid="btn-forgot-tpin"
+            >
+              {forgotTpinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              Forgot T-PIN
+            </Button>
+          </div>
         </div>
       )}
     </div>

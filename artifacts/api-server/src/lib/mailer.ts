@@ -584,6 +584,7 @@ function buildPasswordResetHtml(toName: string, resetUrl: string): string {
 
 
 function buildTpinResetHtml(toName: string, resetUrl: string): string {
+  const year = new Date().getFullYear();
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -603,20 +604,20 @@ function buildTpinResetHtml(toName: string, resetUrl: string): string {
         </tr>
         <tr>
           <td style="padding:40px 40px 32px;">
-            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">Hello, \${toName} 👋</p>
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">Hello, ${toName} 👋</p>
             <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#333;">Transaction PIN (T-PIN) Reset Request</p>
             <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6;">
               We received a request to reset your T-PIN. Click the button below to set a new T-PIN.
               This link is valid for <strong>15 minutes</strong> only.
             </p>
             <div style="text-align:center;margin:0 0 28px;">
-              <a href="\${resetUrl}"
+              <a href="${resetUrl}"
                  style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#4F46E5,#7C3AED);color:#fff;font-size:15px;font-weight:700;text-decoration:none;border-radius:10px;">
                 🔒 Reset My T-PIN
               </a>
             </div>
             <p style="margin:0 0 8px;font-size:13px;color:#888;">Or paste this link in your browser:</p>
-            <p style="margin:0 0 24px;font-size:12px;color:#4F46E5;word-break:break-all;">\${resetUrl}</p>
+            <p style="margin:0 0 24px;font-size:12px;color:#4F46E5;word-break:break-all;">${resetUrl}</p>
             <div style="background:#fff8f0;border:1px solid #fde8cc;border-radius:8px;padding:14px 16px;margin:0 0 0;">
               <p style="margin:0;font-size:13px;color:#92400e;">
                 ⚠️ If you did not request a T-PIN reset, please ignore this email. Your T-PIN will remain unchanged. If you suspect unauthorized access, contact us immediately.
@@ -626,7 +627,7 @@ function buildTpinResetHtml(toName: string, resetUrl: string): string {
         </tr>
         <tr>
           <td style="background:#f8f8ff;padding:20px 40px;text-align:center;border-top:1px solid #ececf5;">
-            <p style="margin:0;font-size:12px;color:#aaa;">© \${new Date().getFullYear()} Smit CSC Info · Gujarat, India</p>
+            <p style="margin:0;font-size:12px;color:#aaa;">© ${year} Smit CSC Info · Gujarat, India</p>
           </td>
         </tr>
       </table>
