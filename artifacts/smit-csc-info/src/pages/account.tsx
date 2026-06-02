@@ -606,6 +606,14 @@ function TpinSection() {
     onError: (err: any) => toast({ title: "Error", description: err?.message ?? "Incorrect current T-PIN", variant: "destructive" }),
   });
 
+  const forgotTpinMutation = useMutation({
+    mutationFn: () => apiFetch<{ ok: boolean; message: string }>("/api/tpin/forgot", { method: "POST" }),
+    onSuccess: (data) => {
+      toast({ title: "Reset link sent!", description: data?.message ?? "Check your registered email address." });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message ?? "Failed to send reset link.", variant: "destructive" }),
+  });
+
   if (tpinLoading) return <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="h-4 w-4 animate-spin" /> Loading T-PIN status...</div>;
 
   const pinIcon = pinSet
@@ -751,6 +759,16 @@ function TpinSection() {
             {changeMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
             <Lock className="h-4 w-4" /> Change T-PIN
           </Button>
+          <button
+            type="button"
+            onClick={() => forgotTpinMutation.mutate()}
+            disabled={forgotTpinMutation.isPending}
+            className="mt-1 flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:underline underline-offset-2 transition-colors disabled:opacity-60"
+            data-testid="btn-forgot-tpin"
+          >
+            {forgotTpinMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            Forgot T-PIN? Reset via Email
+          </button>
         </div>
       )}
     </div>

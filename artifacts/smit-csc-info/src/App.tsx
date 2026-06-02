@@ -35,6 +35,7 @@ import Terms from "@/pages/terms";
 import Privacy from "@/pages/privacy";
 import Contact from "@/pages/contact";
 import ResetPassword from "@/pages/reset-password";
+import ResetTpin from "@/pages/reset-tpin";
 import NotFound from "@/pages/not-found";
 import { ErrorBoundary } from "@/components/error-boundary";
 import ToolsPage from "@/pages/tools";
@@ -167,6 +168,7 @@ function Router() {
         <Route path="/contact" component={Contact} />
         <Route path="/help" component={Contact} />
         <Route path="/reset-password" component={ResetPassword} />
+        <Route path="/reset-tpin" component={ResetTpin} />
 
         {/* Digital Service Tools */}
         <Route path="/tools" component={ToolsPage} />

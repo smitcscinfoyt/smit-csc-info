@@ -15,6 +15,8 @@ export const usersTable = pgTable("users", {
   verificationToken: text("verification_token"),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
+  tpinResetToken: text("tpin_reset_token"),
+  tpinResetTokenExpiry: timestamp("tpin_reset_token_expiry"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   isDeleted: boolean("is_deleted").notNull().default(false),
   deletedAt: timestamp("deleted_at"),

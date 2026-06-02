@@ -205,6 +205,26 @@ export async function sendPasswordResetEmail(
   await sendMail({ to: toEmail, subject: "🔐 Reset your password — Smit CSC Info", html });
 }
 
+
+// ─── T-PIN reset email ────────────────────────────────────────────────────────
+
+export async function sendTpinResetEmail(
+  toEmail: string,
+  toName:  string,
+  token:   string,
+): Promise<void> {
+  const appUrl   = getAppUrl();
+  const resetUrl = `${appUrl}/reset-tpin?token=${encodeURIComponent(token)}`;
+
+  console.log("════════════════════════════════════════════════════");
+  console.log(`[MAILER] T-PIN reset link for ${toEmail}:`);
+  console.log(`[MAILER] ${resetUrl}`);
+  console.log("════════════════════════════════════════════════════");
+
+  const html = buildTpinResetHtml(toName, resetUrl);
+  await sendMail({ to: toEmail, subject: "🔒 Reset your T-PIN — Smit CSC Info", html });
+}
+
 // ─── Verification email ───────────────────────────────────────────────────────
 
 export async function sendVerificationEmail(
@@ -553,6 +573,60 @@ function buildPasswordResetHtml(toName: string, resetUrl: string): string {
         <tr>
           <td style="background:#f8f8ff;padding:20px 40px;text-align:center;border-top:1px solid #ececf5;">
             <p style="margin:0;font-size:12px;color:#aaa;">© ${new Date().getFullYear()} Smit CSC Info · Gujarat, India</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+
+function buildTpinResetHtml(toName: string, resetUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Reset your T-PIN</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f9;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:540px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(79,70,229,.10);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%);padding:36px 40px;text-align:center;">
+            <p style="margin:0;font-size:22px;font-weight:800;color:#fff;">Smit CSC Info</p>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,.80);">Gujarat's #1 CSC Resource Platform</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px 40px 32px;">
+            <p style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">Hello, \${toName} 👋</p>
+            <p style="margin:0 0 8px;font-size:16px;font-weight:600;color:#333;">Transaction PIN (T-PIN) Reset Request</p>
+            <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.6;">
+              We received a request to reset your T-PIN. Click the button below to set a new T-PIN.
+              This link is valid for <strong>15 minutes</strong> only.
+            </p>
+            <div style="text-align:center;margin:0 0 28px;">
+              <a href="\${resetUrl}"
+                 style="display:inline-block;padding:14px 36px;background:linear-gradient(135deg,#4F46E5,#7C3AED);color:#fff;font-size:15px;font-weight:700;text-decoration:none;border-radius:10px;">
+                🔒 Reset My T-PIN
+              </a>
+            </div>
+            <p style="margin:0 0 8px;font-size:13px;color:#888;">Or paste this link in your browser:</p>
+            <p style="margin:0 0 24px;font-size:12px;color:#4F46E5;word-break:break-all;">\${resetUrl}</p>
+            <div style="background:#fff8f0;border:1px solid #fde8cc;border-radius:8px;padding:14px 16px;margin:0 0 0;">
+              <p style="margin:0;font-size:13px;color:#92400e;">
+                ⚠️ If you did not request a T-PIN reset, please ignore this email. Your T-PIN will remain unchanged. If you suspect unauthorized access, contact us immediately.
+              </p>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f8f8ff;padding:20px 40px;text-align:center;border-top:1px solid #ececf5;">
+            <p style="margin:0;font-size:12px;color:#aaa;">© \${new Date().getFullYear()} Smit CSC Info · Gujarat, India</p>
           </td>
         </tr>
       </table>
