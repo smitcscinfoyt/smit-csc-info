@@ -1,11 +1,14 @@
 import { PDFDocument, degrees, rgb, StandardFonts } from "pdf-lib";
-import pdfjsWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 let pdfjsCache: any | null = null;
 async function getPdfjs() {
   if (pdfjsCache) return pdfjsCache;
   const pdfjs: any = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerSrc;
+  // Use jsDelivr CDN worker — fixes 'Failed to fetch dynamically imported module'
+  // error caused by the server not serving Vite-hashed .mjs worker files with
+  // the correct MIME type (application/javascript).
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
   pdfjsCache = pdfjs;
   return pdfjs;
 }
