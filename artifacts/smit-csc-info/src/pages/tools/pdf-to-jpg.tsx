@@ -61,8 +61,13 @@ export default function PdfToJpgPage() {
           url: URL.createObjectURL(o.blob),
         })),
       );
-    } catch {
-      setError("Could not convert this PDF. It may be encrypted or corrupted.");
+    } catch (err: any) {
+      const msg: string = err?.message ?? "";
+      if (msg.toLowerCase().includes("password") || msg.toLowerCase().includes("encrypt")) {
+        setError("This PDF is password-protected. Please remove the password and try again.");
+      } else {
+        setError("Could not convert this PDF. " + (msg ? `Error: ${msg}` : "It may be encrypted or corrupted."));
+      }
     } finally {
       setBusy(false);
     }

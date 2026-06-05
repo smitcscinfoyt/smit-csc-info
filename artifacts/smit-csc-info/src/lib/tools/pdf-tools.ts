@@ -1,11 +1,11 @@
 import { PDFDocument, degrees, rgb, StandardFonts } from "pdf-lib";
+import pdfjsWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 let pdfjsCache: any | null = null;
 async function getPdfjs() {
   if (pdfjsCache) return pdfjsCache;
   const pdfjs: any = await import("pdfjs-dist");
-  const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerSrc;
   pdfjsCache = pdfjs;
   return pdfjs;
 }
@@ -24,7 +24,7 @@ export async function renderThumbnails(
 ): Promise<PageThumb[]> {
   const pdfjs = await getPdfjs();
   const buf = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
   const out: PageThumb[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
@@ -56,7 +56,7 @@ export async function renderPagesAsJpg(
 ): Promise<{ index: number; blob: Blob; width: number; height: number }[]> {
   const pdfjs = await getPdfjs();
   const buf = await file.arrayBuffer();
-  const doc = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
   const scale = dpi / 72;
   const out: { index: number; blob: Blob; width: number; height: number }[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
