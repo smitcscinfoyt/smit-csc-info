@@ -134,8 +134,7 @@ async function rasterizePdfToCompressed(
   scale: number,
 ): Promise<Blob> {
   const pdfjs: any = await import("pdfjs-dist");
-  const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
   const pdf = await pdfjs.getDocument({ data: bytes.slice() }).promise;
   const out = new jsPDF({ unit: "pt", format: "a4" });

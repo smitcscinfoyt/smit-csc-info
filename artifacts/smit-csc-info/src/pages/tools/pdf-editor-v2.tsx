@@ -420,12 +420,11 @@ export default function PdfEditorV2Page() {
       setProgress("Loading PDF…");
       try {
         const pdfjs: any = await import("pdfjs-dist");
-        const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-        pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+        pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
         const { PDFDocument } = await import("pdf-lib");
         const buf = await file.arrayBuffer();
         const doc = await PDFDocument.load(new Uint8Array(buf), { ignoreEncryption: true });
-        const loadingTask = pdfjs.getDocument({ data: buf.slice(0) });
+        const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buf) });
         const pdfDoc = await loadingTask.promise;
         const out: PageRender[] = [];
         for (let i = 1; i <= pdfDoc.numPages; i++) {

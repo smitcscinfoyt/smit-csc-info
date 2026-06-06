@@ -405,10 +405,7 @@ export async function extractPageText(
   displayWidth: number,
 ): Promise<ExtractedTextResult> {
   const pdfjs: any = await import("pdfjs-dist");
-  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-    pdfjs.GlobalWorkerOptions.workerSrc = (worker as any).default;
-  }
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
   const buf = await file.arrayBuffer();
   // Try to open the document; gracefully report password-protected files
   // instead of throwing an opaque error to the caller.
@@ -607,10 +604,7 @@ async function loadPdfPageCanvas(
   scaleMultiplier: number,
 ): Promise<{ canvas: HTMLCanvasElement; doc: any; cleanup: () => Promise<void> } | { encrypted: true }> {
   const pdfjs: any = await import("pdfjs-dist");
-  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-    pdfjs.GlobalWorkerOptions.workerSrc = (worker as any).default;
-  }
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
   const buf = await file.arrayBuffer();
   let doc: any;
   try {

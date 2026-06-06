@@ -20,10 +20,9 @@ export default function PdfToWord() {
     setProgress("Loading PDF…");
     try {
       const pdfjs: any = await import("pdfjs-dist");
-      const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
       const buf = await files[0].arrayBuffer();
-      const doc = await pdfjs.getDocument({ data: buf.slice(0) }).promise;
+      const doc = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise;
 
       const { Document, Packer, Paragraph, TextRun, PageBreak, HeadingLevel } = await import("docx");
 

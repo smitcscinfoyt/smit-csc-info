@@ -20,8 +20,7 @@ let pdfjsCache: any | null = null;
 async function getPdfjs() {
   if (pdfjsCache) return pdfjsCache;
   const pdfjs: any = await import("pdfjs-dist");
-  const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
   pdfjsCache = pdfjs;
   return pdfjs;
 }
