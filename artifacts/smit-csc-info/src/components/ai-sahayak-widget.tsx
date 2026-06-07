@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   MessageCircle,
   Sparkles,
@@ -10,17 +10,21 @@ import {
   Lock,
   Send,
   Loader2,
-} from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
-import { apiFetch } from "@/lib/api";
+} from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { apiFetch } from '@/lib/api';
+
+// External AI server URL — set NEXT_PUBLIC_CHAT_API_URL in production env.
+// Falls back to the internal API route when the variable is not defined.
+const CHAT_API_BASE = ((import.meta.env.NEXT_PUBLIC_CHAT_API_URL as string | undefined) ?? '').replace(/\/+$/, '');
 
 interface ChatMessage {
-  role: "user" | "bot";
+  role: 'user' | 'bot';
   text: string;
 }
 
 interface GeminiHistory {
-  role: "user" | "model";
+  role: 'user' | 'model';
   parts: Array<{ text: string }>;
 }
 
@@ -29,8 +33,8 @@ export function AiSahayakWidget() {
   const [, setLocation] = useLocation();
 
   const { data: status } = useQuery<{ is_prime: boolean }>({
-    queryKey: ["user-status"],
-    queryFn: () => apiFetch<{ is_prime: boolean }>("/api/user/status"),
+    queryKey: ['user-status'],
+    queryFn: () => apiFetch<{ is_prime: boolean }>('/api/user/status'),
     enabled: !!user,
     staleTime: 60_000,
   });
@@ -40,14 +44,14 @@ export function AiSahayakWidget() {
   const [chatOpen, setChatOpen] = useState(false);
   const [showUpsell, setShowUpsell] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const historyRef = useRef<GeminiHistory[]>([]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending]);
 
   function handleOpen() {
@@ -55,8 +59,9 @@ export function AiSahayakWidget() {
       if (messages.length === 0) {
         setMessages([
           {
-            role: "bot",
-            text: "નમસ્કાર! હું Smit AI Sahayak છું 🙏\nCSC સ્કીમ, document list, સરકારી યોજના — ગુજરાતીમાં પૂછો!",
+            role: 'bot',
+            text: 'નમસ્કાર! હું Smit AI Sahayak છું 🙏
+CSC સ્કીમ, document list, સરકારી યોજના — ગુજરાતીમાં પૂછો!',
           },
         ]);
       }
@@ -70,40 +75,57 @@ export function AiSahayakWidget() {
   async function sendMessage() {
     const text = input.trim();
     if (!text || sending) return;
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", text }]);
+    setInput('');
+    setMessages((prev) => [...prev, { role: 'user', text }]);
     setSending(true);
 
     try {
-      const data = await apiFetch<{ reply: string }>("/api/sahayak/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          history: historyRef.current,
-          isPrime,
-        }),
-      });
-      const reply = data.reply ?? "ક્ષમા કરશો, ત્રુટિ આવી.";
+      let reply: string;
+
+      if (CHAT_API_BASE) {
+        // Route to external Sahayak AI server
+        const res = await fetch(`${CHAT_API_BASE}/api/sahayak/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, history: historyRef.current, isPrime }),
+        });
+        if (!res.ok) {
+          const errText = await res.text().catch(() => res.statusText);
+          console.error('[Sahayak] External API error', res.status, errText);
+          throw new Error(`Server error ${res.status}`);
+        }
+        const data = await res.json() as { reply?: string };
+        reply = data.reply ?? 'ક્ષમા કરશો, ત્રુટિ આવી.';
+      } else {
+        // Fallback: internal API route
+        const data = await apiFetch<{ reply: string }>('/api/sahayak/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, history: historyRef.current, isPrime }),
+        });
+        reply = data.reply ?? 'ક્ષમા કરશો, ત્રુટિ આવી.';
+      }
+
       historyRef.current = [
         ...historyRef.current,
-        { role: "user", parts: [{ text }] },
-        { role: "model", parts: [{ text: reply }] },
+        { role: 'user', parts: [{ text }] },
+        { role: 'model', parts: [{ text: reply }] },
       ].slice(-20);
-      setMessages((prev) => [...prev, { role: "bot", text: reply }]);
+      setMessages((prev) => [...prev, { role: 'bot', text: reply }]);
     } catch (err: any) {
       const msg =
         err?.data?.error ||
         err?.message ||
-        "ક્ષમા કરશો, server સાથે જોડાણ ન થઈ.";
-      setMessages((prev) => [...prev, { role: "bot", text: msg }]);
+        'ક્ષમા કરશો, server સાથે જોડાણ ન થઈ.';
+      console.error('[Sahayak] sendMessage failed:', err);
+      setMessages((prev) => [...prev, { role: 'bot', text: msg }]);
     } finally {
       setSending(false);
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
@@ -118,16 +140,16 @@ export function AiSahayakWidget() {
           onClick={handleOpen}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.4 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.4 }}
           whileHover={{ scale: 1.06 }}
           whileTap={{ scale: 0.94 }}
           aria-label="Open Smit AI Sahayak"
           data-testid="ai-sahayak-bubble"
           className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-[60] h-14 w-14 rounded-full shadow-2xl flex items-center justify-center text-purple-950 group"
           style={{
-            background: "linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)",
+            background: 'linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)',
             boxShadow:
-              "0 10px 30px rgba(76,29,149,0.45), 0 0 0 3px rgba(255,215,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5)",
+              '0 10px 30px rgba(76,29,149,0.45), 0 0 0 3px rgba(255,215,0,0.35), inset 0 1px 0 rgba(255,255,255,0.5)',
           }}
         >
           <span className="absolute inset-0 rounded-full bg-amber-300/60 animate-ping opacity-40 pointer-events-none" />
@@ -156,14 +178,14 @@ export function AiSahayakWidget() {
               initial={{ opacity: 0, y: 30, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.97 }}
-              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 26 }}
               role="dialog"
               aria-modal="true"
               aria-labelledby="ai-sahayak-chat-title"
               className="fixed z-[71] right-2 left-2 bottom-2 lg:right-6 lg:left-auto lg:bottom-6 lg:w-[400px] h-[min(82vh,640px)] rounded-2xl overflow-hidden shadow-2xl border border-amber-300/40 flex flex-col"
               style={{
                 background:
-                  "linear-gradient(160deg, #1a0938 0%, #2d0a5b 45%, #3b0764 100%)",
+                  'linear-gradient(160deg, #1a0938 0%, #2d0a5b 45%, #3b0764 100%)',
               }}
             >
               {/* Header */}
@@ -171,13 +193,13 @@ export function AiSahayakWidget() {
                 className="flex items-center justify-between px-4 py-3 border-b border-amber-300/20 flex-shrink-0"
                 style={{
                   background:
-                    "linear-gradient(135deg, rgba(255,215,0,0.12), rgba(124,58,237,0.18))",
+                    'linear-gradient(135deg, rgba(255,215,0,0.12), rgba(124,58,237,0.18))',
                 }}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className="h-9 w-9 rounded-xl flex items-center justify-center shadow flex-shrink-0"
-                    style={{ background: "linear-gradient(135deg, #FFD700, #DAA520)" }}
+                    style={{ background: 'linear-gradient(135deg, #FFD700, #DAA520)' }}
                   >
                     <Sparkles className="h-5 w-5 text-purple-950" />
                   </div>
@@ -210,9 +232,9 @@ export function AiSahayakWidget() {
                   <div
                     key={i}
                     className={`flex max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm"
-                        : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
+                      msg.role === 'user'
+                        ? 'self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm'
+                        : 'self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm'
                     }`}
                   >
                     {msg.text}
@@ -244,7 +266,7 @@ export function AiSahayakWidget() {
                   disabled={!input.trim() || sending}
                   className="h-10 w-10 rounded-xl flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
                   style={{
-                    background: "linear-gradient(135deg, #FFD700, #DAA520)",
+                    background: 'linear-gradient(135deg, #FFD700, #DAA520)',
                   }}
                   aria-label="Send"
                 >
@@ -275,14 +297,14 @@ export function AiSahayakWidget() {
               initial={{ opacity: 0, y: 30, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.96 }}
-              transition={{ type: "spring", stiffness: 280, damping: 24 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 24 }}
               role="dialog"
               aria-modal="true"
               aria-labelledby="ai-sahayak-title"
               className="fixed z-[71] left-1/2 -translate-x-1/2 bottom-6 w-[calc(100%-1.5rem)] max-w-sm rounded-2xl overflow-hidden shadow-2xl border border-amber-300/40"
               style={{
                 background:
-                  "linear-gradient(160deg, #1a0938 0%, #2d0a5b 45%, #3b0764 100%)",
+                  'linear-gradient(160deg, #1a0938 0%, #2d0a5b 45%, #3b0764 100%)',
               }}
             >
               <button
@@ -298,7 +320,7 @@ export function AiSahayakWidget() {
                 <div className="flex items-center gap-3 mb-4">
                   <div
                     className="h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg"
-                    style={{ background: "linear-gradient(135deg, #FFD700, #DAA520)" }}
+                    style={{ background: 'linear-gradient(135deg, #FFD700, #DAA520)' }}
                   >
                     <Sparkles className="h-6 w-6 text-purple-950" />
                   </div>
@@ -322,9 +344,9 @@ export function AiSahayakWidget() {
 
                 <div className="space-y-2 mb-5">
                   {[
-                    "Gujarati-first answers, anytime",
-                    "Step-by-step scheme & form guidance",
-                    "Tool recommendations + quick links",
+                    'Gujarati-first answers, anytime',
+                    'Step-by-step scheme & form guidance',
+                    'Tool recommendations + quick links',
                   ].map((line) => (
                     <div key={line} className="flex items-start gap-2 text-xs text-amber-100/90">
                       <Lock className="h-3.5 w-3.5 text-amber-300 shrink-0 mt-0.5" />
@@ -335,11 +357,11 @@ export function AiSahayakWidget() {
 
                 <button
                   type="button"
-                  onClick={() => { setShowUpsell(false); setLocation("/membership"); }}
+                  onClick={() => { setShowUpsell(false); setLocation('/membership'); }}
                   className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-xl font-bold text-purple-950 shadow-lg active:scale-[0.98] transition-transform"
                   style={{
                     background:
-                      "linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)",
+                      'linear-gradient(135deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)',
                   }}
                 >
                   <Crown className="h-4 w-4" />
@@ -349,7 +371,7 @@ export function AiSahayakWidget() {
                 {!user && (
                   <button
                     type="button"
-                    onClick={() => { setShowUpsell(false); setLocation("/login"); }}
+                    onClick={() => { setShowUpsell(false); setLocation('/login'); }}
                     className="w-full mt-2 text-xs font-medium text-amber-200/80 hover:text-amber-100 transition-colors py-2"
                   >
                     Already a Prime member? Log in →
