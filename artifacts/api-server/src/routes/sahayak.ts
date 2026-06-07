@@ -67,7 +67,7 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
   // ── Priority 0: External Sahayak AI server ─────────────────────────────────
   if (externalUrl) {
     try {
-      const upstream = await fetch(`${externalUrl}/api/sahayak/chat`, {
+      const upstream = await fetch(`${externalUrl}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, history, isPrime }),
