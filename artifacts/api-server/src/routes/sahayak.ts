@@ -24,26 +24,23 @@ interface ChatMessage {
 }
 
 // ── POST /sahayak/chat ────────────────────────────────────────────────────────
-// Env var priority:
-//   1. AI_INTEGRATIONS_GEMINI_BASE_URL + AI_INTEGRATIONS_GEMINI_API_KEY
-//      → set automatically by Replit AI integrations in dev
-//   2. AI_INTEGRATIONS_GEMINI_API_KEY alone (ENV_GEMINI_API_KEY GitHub secret)
-//      → production: base URL defaults to Google's public Gemini endpoint
+// AI provider priority (first key found wins):
+//   1. SAMBANOVA_API_KEY  → SambaNova OpenAI-compatible API (preferred)
+//   2. AI_INTEGRATIONS_GEMINI_API_KEY → Gemini REST API (fallback)
 router.post("/sahayak/chat", async (req, res): Promise<void> => {
-  const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+  const sambaKey = process.env.SAMBANOVA_API_KEY;
+  const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
 
-  if (!apiKey) {
-    logger.warn("sahayak: AI_INTEGRATIONS_GEMINI_API_KEY not configured");
-    res.status(503).json({ error: "AI Sahayak service is not configured. Please contact the admin." });
+  if (!sambaKey && !geminiKey) {
+    logger.warn(
+      "sahayak: No AI key set (SAMBANOVA_API_KEY or AI_INTEGRATIONS_GEMINI_API_KEY)",
+    );
+    res.status(503).json({
+      error:
+        "AI Sahayak service is not configured. Please contact the admin.",
+    });
     return;
   }
-
-  // When running on Replit the integration provides its own proxy URL.
-  // In production (Oracle VM) that var is absent so we fall back to Google's
-  // public v1beta endpoint — same request format, just a different host.
-  const baseUrl =
-    process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ||
-    "https://generativelanguage.googleapis.com/v1beta";
 
   const { message, history = [], isPrime = false } = req.body as {
     message?: string;
@@ -73,42 +70,88 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
       )
     : [];
 
-  const contents = [
-    ...safeHistory,
-    { role: "user" as const, parts: [{ text: trimmed }] },
-  ];
-
-  const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
-
   try {
-    const upstream = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemWithPrime }] },
-        contents,
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 1024,
+    let reply = "";
+
+    if (sambaKey) {
+      // ── SambaNova (OpenAI-compatible) ─────────────────────────────────────
+      const messages = [
+        { role: "system", content: systemWithPrime },
+        ...safeHistory.map((m) => ({
+          role: m.role === "model" ? "assistant" : "user",
+          content: m.parts.map((p) => p.text).join(""),
+        })),
+        { role: "user", content: trimmed },
+      ];
+
+      const upstream = await fetch(
+        "https://api.sambanova.ai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sambaKey}`,
+          },
+          body: JSON.stringify({
+            model: "Meta-Llama-3.3-70B-Instruct",
+            messages,
+            temperature: 0.4,
+            max_tokens: 1024,
+          }),
         },
-      }),
-    });
-
-    if (!upstream.ok) {
-      const text = await upstream.text();
-      logger.warn(
-        { status: upstream.status, body: text.slice(0, 300) },
-        "sahayak gemini upstream failed",
       );
-      res.status(502).json({ error: "AI service error. Please try again." });
-      return;
-    }
 
-    const json = (await upstream.json()) as any;
-    const reply: string =
-      json?.candidates?.[0]?.content?.parts
-        ?.map((p: any) => p?.text ?? "")
-        .join("") ?? "";
+      if (!upstream.ok) {
+        const text = await upstream.text();
+        logger.warn(
+          { status: upstream.status, body: text.slice(0, 300) },
+          "sahayak sambanova upstream failed",
+        );
+        res.status(502).json({ error: "AI service error. Please try again." });
+        return;
+      }
+
+      const json = (await upstream.json()) as any;
+      reply = (json?.choices?.[0]?.message?.content as string) ?? "";
+    } else {
+      // ── Gemini fallback ───────────────────────────────────────────────────
+      const baseUrl =
+        process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ||
+        "https://generativelanguage.googleapis.com/v1beta";
+
+      const contents = [
+        ...safeHistory,
+        { role: "user" as const, parts: [{ text: trimmed }] },
+      ];
+
+      const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey!)}`;
+
+      const upstream = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: systemWithPrime }] },
+          contents,
+          generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+        }),
+      });
+
+      if (!upstream.ok) {
+        const text = await upstream.text();
+        logger.warn(
+          { status: upstream.status, body: text.slice(0, 300) },
+          "sahayak gemini upstream failed",
+        );
+        res.status(502).json({ error: "AI service error. Please try again." });
+        return;
+      }
+
+      const json = (await upstream.json()) as any;
+      reply =
+        json?.candidates?.[0]?.content?.parts
+          ?.map((p: any) => p?.text ?? "")
+          .join("") ?? "";
+    }
 
     if (!reply) {
       res.status(502).json({ error: "Empty response from AI." });

@@ -253,7 +253,7 @@ export function AiSahayakWidget() {
               </div>
 
               <div className="flex-shrink-0 text-center py-1.5 text-[10px] text-amber-300/25 border-t border-amber-300/8">
-                Smit CSC Info — Powered by Gemini AI
+                Smit CSC Info — Powered by Smit AI Sahayak
               </div>
             </motion.div>
           </>
