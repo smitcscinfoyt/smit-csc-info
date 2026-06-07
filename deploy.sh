@@ -37,6 +37,14 @@
   trap rollback ERR
 
   # =====================================
+  # ENSURE DOCKER AUTO-STARTS ON REBOOT
+  # =====================================
+  # Prevents 502 Bad Gateway after VM reboots — Docker daemon must be
+  # enabled as a systemd service or containers won't start back up.
+  sudo systemctl enable docker 2>/dev/null || true
+  sudo systemctl start  docker 2>/dev/null || true
+
+  # =====================================
   # CHECK APP DIRECTORY
   # =====================================
   if [ ! -d "$APP_DIR/.git" ]; then
