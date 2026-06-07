@@ -24,7 +24,10 @@ interface ChatMessage {
 }
 
 // ── POST /sahayak/chat ────────────────────────────────────────────────────────
-// AI provider priority (first key found wins):
+// AI provider waterfall — each provider is tried in order; on failure the next
+// one is attempted. This ensures the chat works even if one provider is down.
+//
+// Priority:
 //   0. NEXT_PUBLIC_CHAT_API_URL → external Sahayak AI server (proxy)
 //   1. SAMBANOVA_API_KEY        → SambaNova OpenAI-compatible API
 //   2. AI_INTEGRATIONS_GEMINI_API_KEY → Gemini REST API (fallback)
@@ -41,52 +44,6 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
 
   if (!message || typeof message !== "string" || message.trim().length === 0) {
     res.status(400).json({ error: "message is required" });
-    return;
-  }
-
-  // ── Priority 0: External Sahayak AI server ─────────────────────────────────
-  if (externalUrl) {
-    try {
-      const upstream = await fetch(`${externalUrl}/api/sahayak/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history, isPrime }),
-      });
-
-      if (!upstream.ok) {
-        const text = await upstream.text().catch(() => upstream.statusText);
-        logger.warn(
-          { status: upstream.status, body: text.slice(0, 300) },
-          "sahayak external upstream failed",
-        );
-        res.status(502).json({ error: "AI service error. Please try again." });
-        return;
-      }
-
-      const json = await upstream.json() as { reply?: string };
-      const reply = json.reply ?? "";
-      if (!reply) {
-        res.status(502).json({ error: "Empty response from AI." });
-        return;
-      }
-      res.json({ reply });
-      return;
-    } catch (err) {
-      logger.error({ err }, "sahayak external chat call failed");
-      res.status(502).json({ error: "Could not reach AI service." });
-      return;
-    }
-  }
-
-  // ── Priority 1 & 2: Built-in AI providers ─────────────────────────────────
-  if (!sambaKey && !geminiKey) {
-    logger.warn(
-      "sahayak: No AI key set (SAMBANOVA_API_KEY or AI_INTEGRATIONS_GEMINI_API_KEY)",
-    );
-    res.status(503).json({
-      error:
-        "AI Sahayak service is not configured. Please contact the admin.",
-    });
     return;
   }
 
@@ -107,11 +64,40 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
       )
     : [];
 
-  try {
-    let reply = "";
+  // ── Priority 0: External Sahayak AI server ─────────────────────────────────
+  if (externalUrl) {
+    try {
+      const upstream = await fetch(`${externalUrl}/api/sahayak/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history, isPrime }),
+        // 8-second timeout so we don't hang if the external server is down
+        signal: AbortSignal.timeout(8000),
+      });
 
-    if (sambaKey) {
-      // ── SambaNova (OpenAI-compatible) ─────────────────────────────────────
+      if (upstream.ok) {
+        const json = await upstream.json() as { reply?: string };
+        const reply = json.reply ?? "";
+        if (reply) {
+          res.json({ reply });
+          return;
+        }
+        logger.warn("sahayak external: empty reply — falling through to built-in AI");
+      } else {
+        const text = await upstream.text().catch(() => upstream.statusText);
+        logger.warn(
+          { status: upstream.status, body: text.slice(0, 300) },
+          "sahayak external upstream non-OK — falling through to built-in AI",
+        );
+      }
+    } catch (err) {
+      logger.warn({ err }, "sahayak external chat unreachable — falling through to built-in AI");
+    }
+  }
+
+  // ── Priority 1: SambaNova ──────────────────────────────────────────────────
+  if (sambaKey) {
+    try {
       const messages = [
         { role: "system", content: systemWithPrime },
         ...safeHistory.map((m) => ({
@@ -130,28 +116,38 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
             Authorization: `Bearer ${sambaKey}`,
           },
           body: JSON.stringify({
-            model: "DeepSeek-V3.1",
+            model: "DeepSeek-V3-0324",
             messages,
             temperature: 0.4,
             max_tokens: 1024,
           }),
+          signal: AbortSignal.timeout(20000),
         },
       );
 
-      if (!upstream.ok) {
+      if (upstream.ok) {
+        const json = (await upstream.json()) as any;
+        const reply = (json?.choices?.[0]?.message?.content as string) ?? "";
+        if (reply) {
+          res.json({ reply });
+          return;
+        }
+        logger.warn("sahayak sambanova: empty reply — falling through to Gemini");
+      } else {
         const text = await upstream.text();
         logger.warn(
           { status: upstream.status, body: text.slice(0, 300) },
-          "sahayak sambanova upstream failed",
+          "sahayak sambanova upstream non-OK — falling through to Gemini",
         );
-        res.status(502).json({ error: "AI service error. Please try again." });
-        return;
       }
+    } catch (err) {
+      logger.warn({ err }, "sahayak sambanova call failed — falling through to Gemini");
+    }
+  }
 
-      const json = (await upstream.json()) as any;
-      reply = (json?.choices?.[0]?.message?.content as string) ?? "";
-    } else {
-      // ── Gemini fallback ───────────────────────────────────────────────────
+  // ── Priority 2: Gemini fallback ────────────────────────────────────────────
+  if (geminiKey) {
+    try {
       const baseUrl =
         process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ||
         "https://generativelanguage.googleapis.com/v1beta";
@@ -161,7 +157,7 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
         { role: "user" as const, parts: [{ text: trimmed }] },
       ];
 
-      const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey!)}`;
+      const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
       const upstream = await fetch(url, {
         method: "POST",
@@ -171,34 +167,41 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
           contents,
           generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
         }),
+        signal: AbortSignal.timeout(20000),
       });
 
-      if (!upstream.ok) {
+      if (upstream.ok) {
+        const json = (await upstream.json()) as any;
+        const reply =
+          json?.candidates?.[0]?.content?.parts
+            ?.map((p: any) => p?.text ?? "")
+            .join("") ?? "";
+        if (reply) {
+          res.json({ reply });
+          return;
+        }
+        logger.warn("sahayak gemini: empty reply");
+      } else {
         const text = await upstream.text();
         logger.warn(
           { status: upstream.status, body: text.slice(0, 300) },
-          "sahayak gemini upstream failed",
+          "sahayak gemini upstream non-OK",
         );
-        res.status(502).json({ error: "AI service error. Please try again." });
-        return;
       }
-
-      const json = (await upstream.json()) as any;
-      reply =
-        json?.candidates?.[0]?.content?.parts
-          ?.map((p: any) => p?.text ?? "")
-          .join("") ?? "";
+    } catch (err) {
+      logger.warn({ err }, "sahayak gemini call failed");
     }
+  }
 
-    if (!reply) {
-      res.status(502).json({ error: "Empty response from AI." });
-      return;
-    }
-
-    res.json({ reply });
-  } catch (err) {
-    logger.error({ err }, "sahayak chat call failed");
-    res.status(502).json({ error: "Could not reach AI service." });
+  // ── All providers exhausted ────────────────────────────────────────────────
+  if (!externalUrl && !sambaKey && !geminiKey) {
+    logger.warn("sahayak: No AI provider configured (set SAMBANOVA_API_KEY or AI_INTEGRATIONS_GEMINI_API_KEY)");
+    res.status(503).json({
+      error: "AI Sahayak service is not configured. Please contact the admin.",
+    });
+  } else {
+    logger.error("sahayak: All AI providers failed or returned empty responses");
+    res.status(502).json({ error: "AI service unavailable. Please try again later." });
   }
 });
 
