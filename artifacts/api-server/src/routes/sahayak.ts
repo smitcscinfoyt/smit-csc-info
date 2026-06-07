@@ -25,22 +25,13 @@ interface ChatMessage {
 
 // ── POST /sahayak/chat ────────────────────────────────────────────────────────
 // AI provider priority (first key found wins):
-//   1. SAMBANOVA_API_KEY  → SambaNova OpenAI-compatible API (preferred)
+//   0. NEXT_PUBLIC_CHAT_API_URL → external Sahayak AI server (proxy)
+//   1. SAMBANOVA_API_KEY        → SambaNova OpenAI-compatible API
 //   2. AI_INTEGRATIONS_GEMINI_API_KEY → Gemini REST API (fallback)
 router.post("/sahayak/chat", async (req, res): Promise<void> => {
+  const externalUrl = (process.env.NEXT_PUBLIC_CHAT_API_URL ?? "").replace(/\/+$/, "");
   const sambaKey = process.env.SAMBANOVA_API_KEY;
   const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-
-  if (!sambaKey && !geminiKey) {
-    logger.warn(
-      "sahayak: No AI key set (SAMBANOVA_API_KEY or AI_INTEGRATIONS_GEMINI_API_KEY)",
-    );
-    res.status(503).json({
-      error:
-        "AI Sahayak service is not configured. Please contact the admin.",
-    });
-    return;
-  }
 
   const { message, history = [], isPrime = false } = req.body as {
     message?: string;
@@ -50,6 +41,52 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
 
   if (!message || typeof message !== "string" || message.trim().length === 0) {
     res.status(400).json({ error: "message is required" });
+    return;
+  }
+
+  // ── Priority 0: External Sahayak AI server ─────────────────────────────────
+  if (externalUrl) {
+    try {
+      const upstream = await fetch(`${externalUrl}/api/sahayak/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history, isPrime }),
+      });
+
+      if (!upstream.ok) {
+        const text = await upstream.text().catch(() => upstream.statusText);
+        logger.warn(
+          { status: upstream.status, body: text.slice(0, 300) },
+          "sahayak external upstream failed",
+        );
+        res.status(502).json({ error: "AI service error. Please try again." });
+        return;
+      }
+
+      const json = await upstream.json() as { reply?: string };
+      const reply = json.reply ?? "";
+      if (!reply) {
+        res.status(502).json({ error: "Empty response from AI." });
+        return;
+      }
+      res.json({ reply });
+      return;
+    } catch (err) {
+      logger.error({ err }, "sahayak external chat call failed");
+      res.status(502).json({ error: "Could not reach AI service." });
+      return;
+    }
+  }
+
+  // ── Priority 1 & 2: Built-in AI providers ─────────────────────────────────
+  if (!sambaKey && !geminiKey) {
+    logger.warn(
+      "sahayak: No AI key set (SAMBANOVA_API_KEY or AI_INTEGRATIONS_GEMINI_API_KEY)",
+    );
+    res.status(503).json({
+      error:
+        "AI Sahayak service is not configured. Please contact the admin.",
+    });
     return;
   }
 
