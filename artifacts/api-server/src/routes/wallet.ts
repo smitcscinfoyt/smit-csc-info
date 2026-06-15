@@ -237,28 +237,28 @@ async function handleWalletPhonePeCallback(req: any, res: any): Promise<void> {
       (req.body?.payload?.merchantOrderId as string | undefined) ||
       (req.body?.payload?.orderId         as string | undefined);
 
-    if (!txn && req.body?.response) {
+    if (!merchantTransactionId && req.body?.response) {
       try {
         const decoded = Buffer.from(req.body.response, "base64").toString("utf-8");
         const parsed = JSON.parse(decoded);
-        txn = parsed.merchantTransactionId;
+        merchantTransactionId = parsed.merchantTransactionId;
       } catch {}
     }
-    if (!txn) {
-      txn = req.body?.merchantTransactionId || req.query?.transactionId || req.query?.merchantTransactionId;
+    if (!merchantTransactionId) {
+      merchantTransactionId = req.body?.merchantTransactionId || req.query?.transactionId as string | undefined || req.query?.merchantTransactionId as string | undefined;
     }
 
-    if (!txn) {
+    if (!merchantTransactionId) {
       res.redirect(`${base}${appBase}/wallet?status=pending`);
       return;
     }
     if (!isPhonePeConfigured()) {
-      res.redirect(`${base}${appBase}/wallet/return?txn=${txn}&status=pending`);
+      res.redirect(`${base}${appBase}/wallet/return?txn=${merchantTransactionId}&status=pending`);
       return;
     }
 
-    await reconcileTopup(String(txn));
-    res.redirect(`${base}${appBase}/wallet/return?txn=${txn}`);
+    await reconcileTopup(String(merchantTransactionId));
+    res.redirect(`${base}${appBase}/wallet/return?txn=${merchantTransactionId}`);
   } catch (err) {
     req.log?.error({ err }, "[wallet/cb] error");
     res.redirect(`${base}${appBase}/wallet?status=pending`);
