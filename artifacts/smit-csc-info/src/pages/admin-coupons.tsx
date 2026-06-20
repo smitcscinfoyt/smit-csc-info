@@ -197,9 +197,11 @@ export default function AdminCoupons() {
       setDialogOpen(false);
       await load();
     } catch (err: any) {
+      const rawErr = err?.data?.error;
+      const desc = typeof rawErr === "string" ? rawErr : (err?.message ?? "Try again");
       toast({
         title: "Save failed",
-        description: err?.data?.error || err?.message || "Try again",
+        description: desc,
         variant: "destructive",
       });
     } finally {
