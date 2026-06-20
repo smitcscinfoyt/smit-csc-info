@@ -157,21 +157,29 @@ router.patch("/admin/coupons/:id", requireAdmin, async (req: AuthRequest, res): 
   const parsed = couponBody.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
   const d = parsed.data;
-  await db.update(couponsTable).set({
-    ...(d.code ? { code: d.code } : {}),
-    ...(d.description !== undefined ? { description: d.description } : {}),
-    ...(d.discountType ? { discountType: d.discountType } : {}),
-    ...(d.discountValue !== undefined ? { discountValue: d.discountValue } : {}),
-    ...(d.applicablePlans ? { applicablePlans: d.applicablePlans } : {}),
-    ...(d.maxUses !== undefined ? { maxUses: d.maxUses } : {}),
-    ...(d.perUserLimit !== undefined ? { perUserLimit: d.perUserLimit } : {}),
-    ...(d.minOrderPaise !== undefined ? { minOrderPaise: d.minOrderPaise } : {}),
-    ...(d.validFrom ? { validFrom: new Date(d.validFrom) } : {}),
-    ...(d.validUntil ? { validUntil: new Date(d.validUntil) } : {}),
-    ...(d.isActive !== undefined ? { isActive: d.isActive } : {}),
-    updatedAt: new Date(),
-  }).where(eq(couponsTable.id, id));
-  res.json({ ok: true });
+  try {
+    await db.update(couponsTable).set({
+      ...(d.code ? { code: d.code } : {}),
+      ...(d.description !== undefined ? { description: d.description } : {}),
+      ...(d.discountType ? { discountType: d.discountType } : {}),
+      ...(d.discountValue !== undefined ? { discountValue: d.discountValue } : {}),
+      ...(d.applicablePlans ? { applicablePlans: d.applicablePlans } : {}),
+      ...(d.maxUses !== undefined ? { maxUses: d.maxUses } : {}),
+      ...(d.perUserLimit !== undefined ? { perUserLimit: d.perUserLimit } : {}),
+      ...(d.minOrderPaise !== undefined ? { minOrderPaise: d.minOrderPaise } : {}),
+      ...(d.validFrom ? { validFrom: new Date(d.validFrom) } : {}),
+      ...(d.validUntil ? { validUntil: new Date(d.validUntil) } : {}),
+      ...(d.isActive !== undefined ? { isActive: d.isActive } : {}),
+      updatedAt: new Date(),
+    }).where(eq(couponsTable.id, id));
+    res.json({ ok: true });
+  } catch (err: any) {
+    if (String(err?.code) === "23505") {
+      res.status(409).json({ error: "Coupon code already exists. Choose a different code." });
+      return;
+    }
+    throw err;
+  }
 });
 
 // ─── Admin: delete ───────────────────────────────────────────────────────────
