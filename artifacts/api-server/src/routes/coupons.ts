@@ -115,10 +115,14 @@ const couponBody = z.object({
 // ─── Admin: create ───────────────────────────────────────────────────────────
 router.post("/admin/coupons", requireAdmin, async (req: AuthRequest, res): Promise<void> => {
   const parsed = couponBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join("; ");
+    res.status(400).json({ error: `Invalid input: ${msg}` });
+    return;
+  }
   const d = parsed.data;
   if (new Date(d.validUntil) <= new Date(d.validFrom)) {
-    res.status(400).json({ error: "validUntil must be after validFrom" });
+    res.status(400).json({ error: "Valid Until must be after Valid From" });
     return;
   }
   if (d.discountType === "percent" && d.discountValue > 100) {
@@ -143,10 +147,11 @@ router.post("/admin/coupons", requireAdmin, async (req: AuthRequest, res): Promi
     res.json({ id: row.id });
   } catch (err: any) {
     if (String(err?.code) === "23505") {
-      res.status(409).json({ error: "Coupon code already exists" });
+      res.status(409).json({ error: "Coupon code already exists. Choose a different code." });
       return;
     }
-    throw err;
+    req.log.error({ err }, "coupon create failed");
+    res.status(500).json({ error: err?.message ?? "Failed to create coupon. Please try again." });
   }
 });
 
@@ -155,7 +160,11 @@ router.patch("/admin/coupons/:id", requireAdmin, async (req: AuthRequest, res): 
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = couponBody.partial().safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => i.message).join("; ");
+    res.status(400).json({ error: `Invalid input: ${msg}` });
+    return;
+  }
   const d = parsed.data;
   try {
     await db.update(couponsTable).set({
@@ -178,7 +187,8 @@ router.patch("/admin/coupons/:id", requireAdmin, async (req: AuthRequest, res): 
       res.status(409).json({ error: "Coupon code already exists. Choose a different code." });
       return;
     }
-    throw err;
+    req.log.error({ err }, "coupon update failed");
+    res.status(500).json({ error: err?.message ?? "Failed to update coupon. Please try again." });
   }
 });
 
