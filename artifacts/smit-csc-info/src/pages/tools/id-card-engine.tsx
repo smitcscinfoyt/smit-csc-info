@@ -303,27 +303,19 @@ function packSheet(
       }
     }
 
-    // FIX 2026-05-08: Center the entire grid on the sheet. The packer
-    // computes positions starting at SHEET_MARGIN_MM in the top-left,
-    // which leaves all the leftover slack as white space on the RIGHT
-    // and BOTTOM of the page (e.g. on A4 with 1 col × 5 rows of upright
-    // pairs, ~29mm of unused width sat on the right). Visually this
-    // looked unbalanced — users perceived the cards as being "pushed"
-    // off to the left side of the sheet. We compute the actual content
-    // bounding box from the placed cells and shift every cell so the
-    // group is perfectly centered. This is purely a placement change;
-    // pairsFit, cell dimensions, and per-card geometry are untouched,
-    // so the printed cards remain exactly 86×56mm.
+    // Align the grid: horizontally centered, vertically top-anchored.
+    // Horizontal centering balances leftover slack equally on left and right.
+    // Vertical: cards start at SHEET_MARGIN_MM from the top so the printed
+    // sheet doesn't waste paper — all content prints from the top of the page.
     if (cells.length > 0) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      let minX = Infinity, maxX = -Infinity, minY = Infinity;
       for (const cl of cells) {
         if (cl.xMm < minX) minX = cl.xMm;
-        if (cl.yMm < minY) minY = cl.yMm;
         if (cl.xMm + c.cellW > maxX) maxX = cl.xMm + c.cellW;
-        if (cl.yMm + c.cellH > maxY) maxY = cl.yMm + c.cellH;
+        if (cl.yMm < minY) minY = cl.yMm;
       }
       const dx = (pageW - (maxX - minX)) / 2 - minX;
-      const dy = (pageH - (maxY - minY)) / 2 - minY;
+      const dy = SHEET_MARGIN_MM - minY; // top-align: start at top margin
       for (const cl of cells) {
         cl.xMm += dx;
         cl.yMm += dy;
