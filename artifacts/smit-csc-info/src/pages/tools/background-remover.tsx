@@ -162,12 +162,19 @@ function hasWebGPU(): boolean {
     return false;
   }
 }
+// CDN base for @imgly/background-removal assets (WASM + ONNX models).
+// Using the CDN ensures the WASM files exactly match the JS bundle version,
+// avoiding "_OrtGetInputOutputMetadata is not a function" errors that occur
+// when the locally installed onnxruntime-web WASM doesn't match the package.
+const IMGLY_CDN = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/";
+
 async function imglyRemove(file: File): Promise<Blob> {
   const resized = await preResize(file);
   const { removeBackground } = await import("@imgly/background-removal");
   const gpu = hasWebGPU();
   try {
     return await removeBackground(resized, {
+      publicPath: IMGLY_CDN,
       // GPU path: full-precision model is fine because the GPU runs it.
       // CPU path: fall back to the quantized 40MB model which is ~3-4x
       // faster on CPU and keeps the browser responsive.
@@ -180,6 +187,7 @@ async function imglyRemove(file: File): Promise<Blob> {
     // with broken Vulkan). Retry once on CPU + quantized model.
     if (gpu) {
       return await removeBackground(resized, {
+        publicPath: IMGLY_CDN,
         device: "cpu",
         model: "isnet_quint8",
         output: { format: "image/png", quality: 1.0 },
