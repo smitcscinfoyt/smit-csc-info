@@ -163,10 +163,10 @@ function hasWebGPU(): boolean {
   }
 }
 // CDN base for @imgly/background-removal assets (WASM + ONNX models).
-// Using the CDN ensures the WASM files exactly match the JS bundle version,
-// avoiding "_OrtGetInputOutputMetadata is not a function" errors that occur
-// when the locally installed onnxruntime-web WASM doesn't match the package.
-const IMGLY_CDN = "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/dist/";
+// imgly hosts their own model + WASM files at staticimgly.com — this is the
+// URL baked into the package as its default and must be used verbatim.
+// Using jsdelivr was wrong: models are NOT in the npm dist folder.
+const IMGLY_CDN = "https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/";
 
 async function imglyRemove(file: File): Promise<Blob> {
   const resized = await preResize(file);
