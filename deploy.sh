@@ -176,23 +176,32 @@
   docker ps
 
   # =====================================
+    # =====================================
     # SSL CERTIFICATE RENEWAL
     # =====================================
-    # Renew Let's Encrypt cert if near expiry (runs silently if not needed).
-    # Reloads nginx so the new cert takes effect immediately.
+    # Runs with sudo (required for /var/log/letsencrypt lock file access).
+    # If cert is expired/invalid/missing, force a full re-issue so nginx
+    # can serve HTTPS with a valid cert. Rate-limited by Let's Encrypt (5/week).
     log "Checking SSL certificate renewal..."
     if command -v certbot >/dev/null 2>&1; then
-      certbot renew --quiet --no-self-upgrade 2>&1 || warn "certbot renew failed (cert may need manual re-issue)"
-      # Reload host nginx to pick up renewed cert
-      if systemctl is-active --quiet nginx 2>/dev/null; then
-        systemctl reload nginx 2>/dev/null || true
-      elif command -v nginx >/dev/null 2>&1; then
-        nginx -s reload 2>/dev/null || true
+      # Remove stale lock file left by earlier certbot run
+      sudo rm -f /var/log/letsencrypt/.certbot.lock 2>/dev/null || true
+
+      # Check if current cert is valid; if not, force full re-issue
+      if sudo certbot certificates 2>/dev/null | grep -qE "EXPIRED|INVALID|ERROR"; then
+        warn "SSL cert appears expired/invalid — forcing full re-issue..."
+        sudo certbot --nginx -d smitcscinfo.com -d www.smitcscinfo.com \
+          --non-interactive --agree-tos -m smitcscinfoyt@gmail.com \
+          --redirect --force-renewal --quiet 2>&1 || warn "certbot force-renewal failed"
+      else
+        sudo certbot renew --quiet --no-self-upgrade --nginx 2>&1 || true
       fi
+
+      # Always reload nginx so updated cert takes effect
+      sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
       log "SSL check done."
     else
       warn "certbot not found — skipping SSL renewal"
     fi
-
     log "Deployment completed successfully"
   
