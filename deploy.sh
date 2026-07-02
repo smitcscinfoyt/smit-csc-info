@@ -177,31 +177,33 @@
 
   # =====================================
     # =====================================
-    # SSL CERTIFICATE RENEWAL
     # =====================================
-    # Runs with sudo (required for /var/log/letsencrypt lock file access).
-    # If cert is expired/invalid/missing, force a full re-issue so nginx
-    # can serve HTTPS with a valid cert. Rate-limited by Let's Encrypt (5/week).
-    log "Checking SSL certificate renewal..."
+    # SSL CERTIFICATE RENEWAL + NGINX RECONFIGURE
+    # =====================================
+    # After containers are up, force certbot --nginx to re-configure nginx SSL.
+    # This ensures nginx HTTPS blocks are always correct even if the deploy.yml
+    # certbot step failed silently. Uses sudo (needed for letsencrypt file access).
+    log "Configuring SSL certificate via certbot --nginx..."
     if command -v certbot >/dev/null 2>&1; then
-      # Remove stale lock file left by earlier certbot run
+      # Remove stale lock file left by any earlier certbot run
       sudo rm -f /var/log/letsencrypt/.certbot.lock 2>/dev/null || true
 
-      # Check if current cert is valid; if not, force full re-issue
-      if sudo certbot certificates 2>/dev/null | grep -qE "EXPIRED|INVALID|ERROR"; then
-        warn "SSL cert appears expired/invalid — forcing full re-issue..."
-        sudo certbot --nginx -d smitcscinfo.com -d www.smitcscinfo.com \
-          --non-interactive --agree-tos -m smitcscinfoyt@gmail.com \
-          --redirect --force-renewal --quiet 2>&1 || warn "certbot force-renewal failed"
-      else
-        sudo certbot renew --quiet --no-self-upgrade --nginx 2>&1 || true
-      fi
+      # certbot --nginx re-configures the nginx SSL blocks AND renews cert if needed.
+      # Unlike 'certbot renew', this always updates nginx regardless of cert age.
+      sudo certbot --nginx \
+        -d smitcscinfo.com \
+        -d www.smitcscinfo.com \
+        --non-interactive \
+        --agree-tos \
+        -m smitcscinfoyt@gmail.com \
+        --redirect \
+        --quiet 2>&1 || warn "certbot --nginx failed — HTTPS may be broken"
 
-      # Always reload nginx so updated cert takes effect
+      # Reload nginx so updated cert and SSL blocks take effect
       sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
-      log "SSL check done."
+      log "SSL configured successfully."
     else
-      warn "certbot not found — skipping SSL renewal"
+      warn "certbot not found — skipping SSL config"
     fi
     log "Deployment completed successfully"
   
