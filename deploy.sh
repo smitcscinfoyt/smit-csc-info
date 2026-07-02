@@ -3,6 +3,19 @@
   set -Eeuo pipefail
 
   # =====================================
+  # CONCURRENT DEPLOY GUARD
+  # =====================================
+  # Serialize concurrent GitHub Actions runs so two deploys can't run
+  # simultaneously and create conflicting Docker containers.
+  DEPLOY_LOCK="/tmp/smit-csc-deploy.lock"
+  exec 9>"$DEPLOY_LOCK"
+  if ! flock -w 180 9; then
+    echo "[ERROR] Could not acquire deploy lock after 3 min — another deploy is running"
+    exit 1
+  fi
+  echo "[DEPLOY] Lock acquired — starting deployment"
+
+  # =====================================
   # CONFIG
   # =====================================
   APP_DIR="$HOME/smit-csc-info"
