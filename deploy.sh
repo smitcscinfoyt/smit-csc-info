@@ -191,32 +191,77 @@
   # =====================================
     # =====================================
     # =====================================
-    # SSL CERTIFICATE RENEWAL + NGINX RECONFIGURE
     # =====================================
-    # After containers are up, force certbot --nginx to re-configure nginx SSL.
-    # This ensures nginx HTTPS blocks are always correct even if the deploy.yml
-    # certbot step failed silently. Uses sudo (needed for letsencrypt file access).
-    log "Configuring SSL certificate via certbot --nginx..."
+    # SSL: CERTBOT CERTONLY + MANUAL NGINX CONFIG
+    # =====================================
+    # Use certbot certonly (--standalone or --webroot) to get/renew the cert
+    # WITHOUT letting certbot touch the nginx config.  We write the nginx SSL
+    # blocks ourselves so the configuration is always correct and predictable.
+    log "Configuring SSL..."
     if command -v certbot >/dev/null 2>&1; then
-      # Remove stale lock file left by any earlier certbot run
       sudo rm -f /var/log/letsencrypt/.certbot.lock 2>/dev/null || true
 
-      # certbot --nginx re-configures the nginx SSL blocks AND renews cert if needed.
-      # Unlike 'certbot renew', this always updates nginx regardless of cert age.
-      sudo certbot --nginx \
+      # Renew (or obtain) the cert using the nginx authenticator.
+      # --nginx here is just for HTTP-01 challenge serving, NOT config management.
+      sudo certbot certonly \
+        --nginx \
         -d smitcscinfo.com \
         -d www.smitcscinfo.com \
         --non-interactive \
         --agree-tos \
         -m smitcscinfoyt@gmail.com \
-        --redirect \
-        --quiet 2>&1 || warn "certbot --nginx failed — HTTPS may be broken"
+        --quiet 2>&1 && log "certbot: cert obtained/renewed" || warn "certbot certonly failed; will try with existing cert"
 
-      # Reload nginx so updated cert and SSL blocks take effect
-      sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
-      log "SSL configured successfully."
+      # Diagnose cert status so failures are visible in deploy logs
+      sudo certbot certificates 2>&1 | grep -E "Certificate Name|Expiry|Domains|VALID|EXPIRED|INVALID" || true
+
+      CERT_PATH="/etc/letsencrypt/live/smitcscinfo.com/fullchain.pem"
+      KEY_PATH="/etc/letsencrypt/live/smitcscinfo.com/privkey.pem"
+
+      if sudo test -f "$CERT_PATH" && sudo test -f "$KEY_PATH"; then
+        log "Writing nginx HTTPS config..."
+        sudo tee /etc/nginx/sites-available/smit-csc-info > /dev/null << 'NGINX_SSL'
+# Managed by deploy.sh — do not edit manually
+server {
+    listen 80;
+    server_name smitcscinfo.com www.smitcscinfo.com;
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name smitcscinfo.com www.smitcscinfo.com;
+    ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX_SSL
+        if sudo nginx -t 2>&1; then
+          sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
+          log "SSL configured and nginx reloaded successfully"
+        else
+          warn "nginx -t FAILED after writing SSL config — reverting to HTTP-only"
+          sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
+          sudo systemctl reload nginx 2>/dev/null || true
+        fi
+      else
+        warn "cert files not found at $CERT_PATH — keeping HTTP-only nginx config"
+      fi
     else
-      warn "certbot not found — skipping SSL config"
+      warn "certbot not found — skipping SSL"
     fi
     log "Deployment completed successfully"
   
