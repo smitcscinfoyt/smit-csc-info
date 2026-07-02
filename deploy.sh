@@ -256,11 +256,15 @@ server {
 }
 NGINX_SSL
         if sudo nginx -t 2>&1; then
-          # Use RESTART (not reload) so old workers definitely stop.
-          # 'reload' (graceful, SIGHUP) can silently keep old workers running
-          # if new workers fail to start (e.g. cert permission issues at runtime).
-          sudo systemctl restart nginx 2>/dev/null || sudo nginx -s stop 2>/dev/null; sudo nginx 2>/dev/null || true
-          log "SSL configured and nginx restarted successfully"
+          # Kill ALL nginx processes (not just systemd-tracked one).
+          # certbot --nginx starts/reloads nginx outside systemd's PID tracking,
+          # leaving an extra nginx master holding ports 80/443. systemctl restart
+          # only kills the PID it knows about → new nginx fails bind() with EADDRINUSE.
+          sudo systemctl stop nginx 2>/dev/null || true
+          sudo pkill -x nginx 2>/dev/null || true
+          sleep 2
+          sudo systemctl start nginx 2>/dev/null || sudo nginx 2>/dev/null || true
+          log "SSL configured and nginx (re)started successfully"
           # Show last nginx error log lines for diagnostics
           sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
         else
