@@ -212,6 +212,13 @@
         -m smitcscinfoyt@gmail.com \
         --quiet 2>&1 && log "certbot: cert obtained/renewed" || warn "certbot certonly failed; will try with existing cert"
 
+      # Ensure nginx (www-data) can read cert files at runtime.
+      # certbot creates privkey*.pem with mode 600 (root-only). nginx -t
+      # passes (syntax check only) but serving HTTPS fails with SSL alert 80.
+      sudo chmod 755 /etc/letsencrypt/live/ /etc/letsencrypt/archive/ 2>/dev/null || true
+      sudo chmod 755 /etc/letsencrypt/live/smitcscinfo.com/ /etc/letsencrypt/archive/smitcscinfo.com/ 2>/dev/null || true
+      sudo chmod 644 /etc/letsencrypt/archive/smitcscinfo.com/*.pem 2>/dev/null || true
+
       # Diagnose cert status so failures are visible in deploy logs
       sudo certbot certificates 2>&1 | grep -E "Certificate Name|Expiry|Domains|VALID|EXPIRED|INVALID" || true
 
