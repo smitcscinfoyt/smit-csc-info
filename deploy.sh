@@ -282,5 +282,25 @@ NGINX_SSL
     else
       warn "certbot not found — skipping SSL"
     fi
+
+  # ========== PORT 443 DIAGNOSTICS ==========
+  log "=== What is listening on port 443? ==="
+  sudo ss -tlnp 2>/dev/null | grep ":443" || echo "NOTHING on 443"
+  log "=== Is system nginx running? ==="
+  sudo systemctl is-active nginx 2>/dev/null || echo "nginx service: inactive"
+  sudo systemctl status nginx --no-pager -l 2>/dev/null | head -20 || true
+  log "=== nginx config in sites-enabled ==="
+  sudo cat /etc/nginx/sites-enabled/smit-csc-info 2>/dev/null | head -30 || echo "config not found"
+  log "=== nginx error log (last 10 lines) ==="
+  sudo tail -10 /var/log/nginx/error.log 2>/dev/null || true
+  log "=== iptables NAT rules for 443 ==="
+  sudo iptables -t nat -L -n 2>/dev/null | grep -E "443|REDIRECT|DNAT" || echo "No NAT rules for 443"
+  log "=== All processes on port 443 ==="
+  sudo fuser 443/tcp 2>/dev/null || echo "fuser: nothing on 443/tcp"
+  log "=== SSL cert file check ==="
+  sudo openssl x509 -in /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem -noout -dates 2>/dev/null || echo "CERT READ FAILED"
+  sudo openssl rsa -in /etc/letsencrypt/live/smitcscinfo.com/privkey.pem -noout -check 2>/dev/null || echo "KEY READ FAILED"
+  # ========== END DIAGNOSTICS ==========
+
     log "Deployment completed successfully"
   
