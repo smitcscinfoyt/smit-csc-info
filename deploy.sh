@@ -230,7 +230,6 @@ server {
 }
 server {
     listen 443 ssl;
-    http2 on;
     server_name smitcscinfo.com www.smitcscinfo.com;
     ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
