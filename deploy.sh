@@ -256,12 +256,18 @@ server {
 }
 NGINX_SSL
         if sudo nginx -t 2>&1; then
-          sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || true
-          log "SSL configured and nginx reloaded successfully"
+          # Use RESTART (not reload) so old workers definitely stop.
+          # 'reload' (graceful, SIGHUP) can silently keep old workers running
+          # if new workers fail to start (e.g. cert permission issues at runtime).
+          sudo systemctl restart nginx 2>/dev/null || sudo nginx -s stop 2>/dev/null; sudo nginx 2>/dev/null || true
+          log "SSL configured and nginx restarted successfully"
+          # Show last nginx error log lines for diagnostics
+          sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
         else
           warn "nginx -t FAILED after writing SSL config — reverting to HTTP-only"
+          sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
           sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
-          sudo systemctl reload nginx 2>/dev/null || true
+          sudo systemctl restart nginx 2>/dev/null || true
         fi
       else
         warn "cert files not found at $CERT_PATH — keeping HTTP-only nginx config"
