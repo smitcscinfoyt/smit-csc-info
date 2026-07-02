@@ -240,7 +240,7 @@ server {
     server_name smitcscinfo.com www.smitcscinfo.com;
     ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_protocols TLSv1.2;
     ssl_prefer_server_ciphers off;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
     location / {
@@ -261,7 +261,10 @@ NGINX_SSL
           # leaving an extra nginx master holding ports 80/443. systemctl restart
           # only kills the PID it knows about → new nginx fails bind() with EADDRINUSE.
           sudo systemctl stop nginx 2>/dev/null || true
-          sudo pkill -x nginx 2>/dev/null || true
+          # Remove default nginx site — it may have a broken SSL block from a prior certbot run
+            # that intercepts port 443 before our smit-csc-info vhost
+            sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+            sudo pkill -x nginx 2>/dev/null || true
           sleep 2
           sudo systemctl start nginx 2>/dev/null || sudo nginx 2>/dev/null || true
           log "SSL configured and nginx (re)started successfully"
