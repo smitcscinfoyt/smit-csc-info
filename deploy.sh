@@ -165,5 +165,24 @@
   log "Running containers:"
   docker ps
 
-  log "Deployment completed successfully"
+  # =====================================
+    # SSL CERTIFICATE RENEWAL
+    # =====================================
+    # Renew Let's Encrypt cert if near expiry (runs silently if not needed).
+    # Reloads nginx so the new cert takes effect immediately.
+    log "Checking SSL certificate renewal..."
+    if command -v certbot >/dev/null 2>&1; then
+      certbot renew --quiet --no-self-upgrade 2>&1 || warn "certbot renew failed (cert may need manual re-issue)"
+      # Reload host nginx to pick up renewed cert
+      if systemctl is-active --quiet nginx 2>/dev/null; then
+        systemctl reload nginx 2>/dev/null || true
+      elif command -v nginx >/dev/null 2>&1; then
+        nginx -s reload 2>/dev/null || true
+      fi
+      log "SSL check done."
+    else
+      warn "certbot not found — skipping SSL renewal"
+    fi
+
+    log "Deployment completed successfully"
   
