@@ -140,9 +140,19 @@
 
   log "Stopping all containers to clear any stale Docker state..."
   $COMPOSE down --remove-orphans 2>&1 || true
+  sleep 3
+
+  # Force-remove named service containers so Docker always creates fresh ones.
+  # Without this, compose up tries to Restart a container still in "marked for
+  # removal" transitional state, causing ERR: container cannot be started.
+  for cname in smit_csc_db smit_csc_api smit_csc_frontend smit_csc_migrate; do
+    docker rm -f "$cname" 2>/dev/null || true
+  done
+  docker network rm smit-csc-info_csc_network 2>/dev/null || true
+  sleep 2
 
   log "Starting containers..."
-  $COMPOSE up -d --remove-orphans
+  $COMPOSE up -d --remove-orphans --force-recreate
 
   # =====================================
   # OPTIONAL HEALTH CHECK
