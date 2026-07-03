@@ -316,6 +316,17 @@ NGINX_SSL
   curl -skv https://localhost/ --resolve smitcscinfo.com:443:127.0.0.1 -H "Host: smitcscinfo.com" --max-time 5 2>&1 | grep -E "SSL|TLS|error|HTTP" | head -15 || true
   log "=== Check for broken OpenSSL engine/fips config ==="
   grep -iE "engine|fips" /etc/ssl/openssl.cnf 2>/dev/null | head -10 || echo "no engine/fips directives found"
+  log "=== VM public IP (as seen from outside) ==="
+  curl -s --max-time 5 ifconfig.me 2>/dev/null || echo "ifconfig.me check failed"
+  echo ""
+  log "=== VM private/public network interfaces ==="
+  ip -4 addr show scope global 2>/dev/null | grep inet || true
+  log "=== iptables INPUT chain (host firewall, not Docker NAT) ==="
+  sudo iptables -L INPUT -n -v --line-numbers 2>/dev/null | head -25 || true
+  log "=== ufw status ==="
+  sudo ufw status verbose 2>/dev/null || echo "ufw not active/installed"
+  log "=== firewalld status ==="
+  sudo firewall-cmd --list-all 2>/dev/null || echo "firewalld not active/installed"
   # ========== END DIAGNOSTICS ==========
 
     log "Deployment completed successfully"
