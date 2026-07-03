@@ -300,6 +300,14 @@ NGINX_SSL
   log "=== SSL cert file check ==="
   sudo openssl x509 -in /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem -noout -dates 2>/dev/null || echo "CERT READ FAILED"
   sudo openssl rsa -in /etc/letsencrypt/live/smitcscinfo.com/privkey.pem -noout -check 2>/dev/null || echo "KEY READ FAILED"
+  log "=== ALL docker containers (incl. external proxy-net stack) ==="
+  sudo docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+  log "=== proxy-net network inspect ==="
+  sudo docker network inspect proxy-net 2>/dev/null | grep -E "Name|IPv4Address" || echo "proxy-net inspect failed"
+  log "=== Full iptables NAT PREROUTING chain ==="
+  sudo iptables -t nat -L PREROUTING -n --line-numbers 2>/dev/null || true
+  log "=== Full iptables NAT DOCKER chain ==="
+  sudo iptables -t nat -L DOCKER -n --line-numbers 2>/dev/null || true
   # ========== END DIAGNOSTICS ==========
 
     log "Deployment completed successfully"
