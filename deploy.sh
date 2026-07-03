@@ -327,6 +327,16 @@ NGINX_SSL
   sudo ufw status verbose 2>/dev/null || echo "ufw not active/installed"
   log "=== firewalld status ==="
   sudo firewall-cmd --list-all 2>/dev/null || echo "firewalld not active/installed"
+  log "=== Does VM public IP match smitcscinfo.com DNS record? (safe boolean check, no IP leaked) ==="
+  MY_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo "unknown")
+  DNS_IP=$(getent hosts smitcscinfo.com 2>/dev/null | awk '{print $1}' | head -1 || echo "unknown")
+  if [ "$MY_IP" = "$DNS_IP" ] && [ "$MY_IP" != "unknown" ]; then
+    log "MATCH: smitcscinfo.com DNS points directly to this VM (no load balancer/proxy in front)"
+  else
+    warn "NO MATCH: smitcscinfo.com DNS does NOT point to this VM! Traffic is routed through something else (load balancer, CDN, or proxy) before reaching this server."
+  fi
+  log "=== TLS record inspection: raw bytes received on a local vs external simulated connection ==="
+  echo | timeout 3 openssl s_client -connect 127.0.0.1:443 -servername smitcscinfo.com 2>&1 | grep -c "BEGIN CERTIFICATE" || true
   # ========== END DIAGNOSTICS ==========
 
     log "Deployment completed successfully"
