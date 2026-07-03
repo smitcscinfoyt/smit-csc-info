@@ -308,6 +308,14 @@ NGINX_SSL
   sudo iptables -t nat -L PREROUTING -n --line-numbers 2>/dev/null || true
   log "=== Full iptables NAT DOCKER chain ==="
   sudo iptables -t nat -L DOCKER -n --line-numbers 2>/dev/null || true
+  log "=== openssl version on VM ==="
+  openssl version -a 2>/dev/null | head -5 || true
+  log "=== LOCAL SSL handshake test (from VM itself, bypasses network/firewall) ==="
+  echo | timeout 5 openssl s_client -connect localhost:443 -servername smitcscinfo.com 2>&1 | grep -E "subject|issuer|Cipher|error|alert|Verify|BEGIN CERT" || echo "local handshake test produced no output"
+  log "=== LOCAL curl test (from VM itself) ==="
+  curl -skv https://localhost/ --resolve smitcscinfo.com:443:127.0.0.1 -H "Host: smitcscinfo.com" --max-time 5 2>&1 | grep -E "SSL|TLS|error|HTTP" | head -15 || true
+  log "=== Check for broken OpenSSL engine/fips config ==="
+  grep -iE "engine|fips" /etc/ssl/openssl.cnf 2>/dev/null | head -10 || echo "no engine/fips directives found"
   # ========== END DIAGNOSTICS ==========
 
     log "Deployment completed successfully"
