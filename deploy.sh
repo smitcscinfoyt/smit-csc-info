@@ -339,5 +339,34 @@ NGINX_SSL
   echo | timeout 3 openssl s_client -connect 127.0.0.1:443 -servername smitcscinfo.com 2>&1 | grep -c "BEGIN CERTIFICATE" || true
   # ========== END DIAGNOSTICS ==========
 
-    log "Deployment completed successfully"
+  # =====================================
+  # DNS HEALTH CHECK
+  # =====================================
+  # Fails the workflow loudly (but AFTER the app has already been deployed)
+  # if smitcscinfo.com DNS ever stops pointing at this VM. Catches DNS drift
+  # (wrong A record, accidental CDN/proxy enable, etc.) that would otherwise
+  # cause a silent HTTPS outage nobody notices until a user reports it.
+  DNS_CHECK_FAILED=0
+  for HOSTNAME_TO_CHECK in smitcscinfo.com www.smitcscinfo.com; do
+    MY_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo "unknown")
+    RESOLVED_IP=$(getent hosts "$HOSTNAME_TO_CHECK" 2>/dev/null | awk '{print $1}' | head -1 || echo "unknown")
+    if [ "$MY_IP" = "unknown" ] || [ "$RESOLVED_IP" = "unknown" ]; then
+      warn "Could not verify DNS for $HOSTNAME_TO_CHECK (lookup failed) - skipping this check"
+      continue
+    fi
+    if [ "$MY_IP" != "$RESOLVED_IP" ]; then
+      echo "::error::DNS DRIFT DETECTED: $HOSTNAME_TO_CHECK does NOT resolve to this server anymore. HTTPS/HTTP for this domain will be broken or served by the wrong host until DNS is fixed. Check your DNS provider A record for $HOSTNAME_TO_CHECK."
+      error "DNS DRIFT: $HOSTNAME_TO_CHECK does not point to this VM"
+      DNS_CHECK_FAILED=1
+    else
+      log "DNS OK: $HOSTNAME_TO_CHECK correctly points to this VM"
+    fi
+  done
+
+  log "Deployment completed successfully"
+
+  if [ "$DNS_CHECK_FAILED" -eq 1 ]; then
+    error "App deployed successfully, but DNS health check FAILED - marking this workflow run as failed so it is visible. See ::error:: annotation above for details."
+    exit 1
+  fi
   
