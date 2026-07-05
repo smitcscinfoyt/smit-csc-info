@@ -337,7 +337,26 @@ NGINX_SSL
   fi
   log "=== TLS record inspection: raw bytes received on a local vs external simulated connection ==="
   echo | timeout 3 openssl s_client -connect 127.0.0.1:443 -servername smitcscinfo.com 2>&1 | grep -c "BEGIN CERTIFICATE" || true
-  # ========== END DIAGNOSTICS ==========
+  
+  log "=== certbot renewal timer/cron (possible source of intermittent SSL breakage) ==="
+  systemctl list-timers 2>/dev/null | grep -i certbot || echo "no certbot systemd timer found"
+  sudo systemctl status certbot.timer --no-pager 2>/dev/null || echo "certbot.timer not found"
+  crontab -l 2>/dev/null | grep -i certbot || echo "no certbot cron entries for current user"
+  sudo crontab -l 2>/dev/null | grep -i certbot || echo "no certbot cron entries for root"
+  ls /etc/cron.d/ 2>/dev/null | grep -i certbot || echo "no /etc/cron.d certbot entry"
+  log "=== nginx process info (checking for crashes/multiple masters) ==="
+  ps -eo pid,ppid,etimes,cmd | grep "[n]ginx" || echo "no nginx processes found"
+  log "=== nginx systemd service status and recent restarts ==="
+  sudo systemctl status nginx --no-pager 2>/dev/null | head -15 || echo "nginx not managed by systemd"
+  log "=== recent nginx-related journal entries (last 2 hours) ==="
+  sudo journalctl -u nginx --since "2 hours ago" --no-pager 2>/dev/null | tail -40 || echo "no journal access"
+  log "=== recent certbot renewal logs ==="
+  sudo tail -n 40 /var/log/letsencrypt/letsencrypt.log 2>/dev/null || echo "no certbot log found"
+  log "=== certbot renewal hooks (these run automatically and could restart/break nginx) ==="
+  sudo ls -la /etc/letsencrypt/renewal-hooks/deploy/ 2>/dev/null || echo "no deploy hooks dir"
+  sudo cat /etc/letsencrypt/renewal-hooks/deploy/*.sh 2>/dev/null || echo "no deploy hook scripts"
+  sudo cat /etc/letsencrypt/renewal/smitcscinfo.com.conf 2>/dev/null | grep -A3 "\[renewalparams\]" || echo "no renewal conf found"
+# ========== END DIAGNOSTICS ==========
 
   # =====================================
   # DNS HEALTH CHECK
