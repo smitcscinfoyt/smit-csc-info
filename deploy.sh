@@ -231,33 +231,33 @@
           NGINX_CONF_TARGET="/etc/nginx/sites-available/smit-csc-info"
           NGINX_CONF_NEW="/tmp/smit-csc-info-nginx-new.conf"
           cat > "$NGINX_CONF_NEW" << 'NGINX_SSL'
-  # Managed by deploy.sh — do not edit manually
-  server {
-      listen 80;
-      server_name smitcscinfo.com www.smitcscinfo.com;
-      location /.well-known/acme-challenge/ { root /var/www/html; }
-      location / { return 301 https://$host$request_uri; }
-  }
-  server {
-      listen 443 ssl;
-      server_name smitcscinfo.com www.smitcscinfo.com;
-      ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
-      ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
-      ssl_protocols TLSv1.2;
-      ssl_prefer_server_ciphers off;
-      ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-      location / {
-          proxy_pass http://localhost:3000;
-          proxy_http_version 1.1;
-          proxy_set_header Upgrade $http_upgrade;
-          proxy_set_header Connection "upgrade";
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-      }
-  }
-  NGINX_SSL
+# Managed by deploy.sh — do not edit manually
+server {
+    listen 80;
+    server_name smitcscinfo.com www.smitcscinfo.com;
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name smitcscinfo.com www.smitcscinfo.com;
+    ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
+    ssl_protocols TLSv1.2;
+    ssl_prefer_server_ciphers off;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX_SSL
 
           # Only touch nginx if the config actually changed OR nginx isn't
           # currently serving HTTPS correctly. This is the key fix for
