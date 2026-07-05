@@ -198,92 +198,128 @@
     # WITHOUT letting certbot touch the nginx config.  We write the nginx SSL
     # blocks ourselves so the configuration is always correct and predictable.
     log "Configuring SSL..."
-    if command -v certbot >/dev/null 2>&1; then
-      sudo rm -f /var/log/letsencrypt/.certbot.lock 2>/dev/null || true
+      if command -v certbot >/dev/null 2>&1; then
+        sudo rm -f /var/log/letsencrypt/.certbot.lock 2>/dev/null || true
 
-      # Renew (or obtain) the cert using the nginx authenticator.
-      # --nginx here is just for HTTP-01 challenge serving, NOT config management.
-      sudo certbot certonly \
-        --nginx \
-        -d smitcscinfo.com \
-        -d www.smitcscinfo.com \
-        --non-interactive \
-        --agree-tos \
-        -m smitcscinfoyt@gmail.com \
-        --quiet 2>&1 && log "certbot: cert obtained/renewed" || warn "certbot certonly failed; will try with existing cert"
+        # Renew (or obtain) the cert using the nginx authenticator.
+        # --nginx here is just for HTTP-01 challenge serving, NOT config management.
+        sudo certbot certonly \
+          --nginx \
+          -d smitcscinfo.com \
+          -d www.smitcscinfo.com \
+          --non-interactive \
+          --agree-tos \
+          -m smitcscinfoyt@gmail.com \
+          --quiet 2>&1 && log "certbot: cert obtained/renewed" || warn "certbot certonly failed; will try with existing cert"
 
-      # Ensure nginx (www-data) can read cert files at runtime.
-      # certbot creates privkey*.pem with mode 600 (root-only). nginx -t
-      # passes (syntax check only) but serving HTTPS fails with SSL alert 80.
-      sudo chmod 755 /etc/letsencrypt/live/ /etc/letsencrypt/archive/ 2>/dev/null || true
-      sudo chmod 755 /etc/letsencrypt/live/smitcscinfo.com/ /etc/letsencrypt/archive/smitcscinfo.com/ 2>/dev/null || true
-      sudo chmod 644 /etc/letsencrypt/archive/smitcscinfo.com/*.pem 2>/dev/null || true
+        # Ensure nginx (www-data) can read cert files at runtime.
+        # certbot creates privkey*.pem with mode 600 (root-only). nginx -t
+        # passes (syntax check only) but serving HTTPS fails with SSL alert 80.
+        sudo chmod 755 /etc/letsencrypt/live/ /etc/letsencrypt/archive/ 2>/dev/null || true
+        sudo chmod 755 /etc/letsencrypt/live/smitcscinfo.com/ /etc/letsencrypt/archive/smitcscinfo.com/ 2>/dev/null || true
+        sudo chmod 644 /etc/letsencrypt/archive/smitcscinfo.com/*.pem 2>/dev/null || true
 
-      # Diagnose cert status so failures are visible in deploy logs
-      sudo certbot certificates 2>&1 | grep -E "Certificate Name|Expiry|Domains|VALID|EXPIRED|INVALID" || true
+        # Diagnose cert status so failures are visible in deploy logs
+        sudo certbot certificates 2>&1 | grep -E "Certificate Name|Expiry|Domains|VALID|EXPIRED|INVALID" || true
 
-      CERT_PATH="/etc/letsencrypt/live/smitcscinfo.com/fullchain.pem"
-      KEY_PATH="/etc/letsencrypt/live/smitcscinfo.com/privkey.pem"
+        CERT_PATH="/etc/letsencrypt/live/smitcscinfo.com/fullchain.pem"
+        KEY_PATH="/etc/letsencrypt/live/smitcscinfo.com/privkey.pem"
 
-      if sudo test -f "$CERT_PATH" && sudo test -f "$KEY_PATH"; then
-        log "Writing nginx HTTPS config..."
-        sudo tee /etc/nginx/sites-available/smit-csc-info > /dev/null << 'NGINX_SSL'
-# Managed by deploy.sh — do not edit manually
-server {
-    listen 80;
-    server_name smitcscinfo.com www.smitcscinfo.com;
-    location /.well-known/acme-challenge/ { root /var/www/html; }
-    location / { return 301 https://$host$request_uri; }
-}
-server {
-    listen 443 ssl;
-    server_name smitcscinfo.com www.smitcscinfo.com;
-    ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
-    ssl_protocols TLSv1.2;
-    ssl_prefer_server_ciphers off;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-NGINX_SSL
-        if sudo nginx -t 2>&1; then
-          # Kill ALL nginx processes (not just systemd-tracked one).
-          # certbot --nginx starts/reloads nginx outside systemd's PID tracking,
-          # leaving an extra nginx master holding ports 80/443. systemctl restart
-          # only kills the PID it knows about → new nginx fails bind() with EADDRINUSE.
-          sudo systemctl stop nginx 2>/dev/null || true
-          # Remove default nginx site — it may have a broken SSL block from a prior certbot run
+        if sudo test -f "$CERT_PATH" && sudo test -f "$KEY_PATH"; then
+          # Write the desired config to a temp file first so we can detect
+          # whether it actually changed before touching a running nginx.
+          NGINX_CONF_TARGET="/etc/nginx/sites-available/smit-csc-info"
+          NGINX_CONF_NEW="/tmp/smit-csc-info-nginx-new.conf"
+          cat > "$NGINX_CONF_NEW" << 'NGINX_SSL'
+  # Managed by deploy.sh — do not edit manually
+  server {
+      listen 80;
+      server_name smitcscinfo.com www.smitcscinfo.com;
+      location /.well-known/acme-challenge/ { root /var/www/html; }
+      location / { return 301 https://$host$request_uri; }
+  }
+  server {
+      listen 443 ssl;
+      server_name smitcscinfo.com www.smitcscinfo.com;
+      ssl_certificate     /etc/letsencrypt/live/smitcscinfo.com/fullchain.pem;
+      ssl_certificate_key /etc/letsencrypt/live/smitcscinfo.com/privkey.pem;
+      ssl_protocols TLSv1.2;
+      ssl_prefer_server_ciphers off;
+      ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
+      location / {
+          proxy_pass http://localhost:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+      }
+  }
+  NGINX_SSL
+
+          # Only touch nginx if the config actually changed OR nginx isn't
+          # currently serving HTTPS correctly. This is the key fix for
+          # intermittent SSL errors: previously we stopped+killed+restarted
+          # nginx on EVERY deploy, causing a real (few-second) outage window
+          # on every single push. Most deploys don't change SSL/nginx config
+          # at all, so nginx should just be left running untouched.
+          CONFIG_CHANGED=1
+          if sudo test -f "$NGINX_CONF_TARGET" && sudo diff -q "$NGINX_CONF_TARGET" "$NGINX_CONF_NEW" >/dev/null 2>&1; then
+            CONFIG_CHANGED=0
+          fi
+
+          NGINX_CURRENTLY_HEALTHY=0
+          if sudo systemctl is-active --quiet nginx 2>/dev/null && \
+             echo | timeout 3 openssl s_client -connect 127.0.0.1:443 -servername smitcscinfo.com 2>/dev/null | grep -q "Verify return code: 0"; then
+            NGINX_CURRENTLY_HEALTHY=1
+          fi
+
+          if [ "$CONFIG_CHANGED" -eq 0 ] && [ "$NGINX_CURRENTLY_HEALTHY" -eq 1 ]; then
+            log "nginx config unchanged and HTTPS already healthy — skipping nginx restart (no downtime)"
+          else
+            sudo cp "$NGINX_CONF_NEW" "$NGINX_CONF_TARGET"
+            sudo ln -sf "$NGINX_CONF_TARGET" /etc/nginx/sites-enabled/smit-csc-info
+            # Remove default nginx site — it may have a broken SSL block from a prior certbot run
             # that intercepts port 443 before our smit-csc-info vhost
             sudo rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
-            sudo pkill -x nginx 2>/dev/null || true
-          sleep 2
-          sudo systemctl start nginx 2>/dev/null || sudo nginx 2>/dev/null || true
-          log "SSL configured and nginx (re)started successfully"
-          # Show last nginx error log lines for diagnostics
-          sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
+
+            if sudo nginx -t 2>&1; then
+              if [ "$NGINX_CURRENTLY_HEALTHY" -eq 1 ]; then
+                # Config changed but nginx is already healthy — reload is graceful
+                # (finishes in-flight requests, never drops connections) unlike
+                # stop+start which has a real downtime window.
+                log "Config changed — reloading nginx gracefully (no downtime)"
+                sudo systemctl reload nginx 2>/dev/null || true
+              else
+                # nginx isn't healthy right now (e.g. not running, or an orphan
+                # certbot-spawned nginx process is holding the port) — only in
+                # this recovery case do we do the more disruptive full restart.
+                warn "nginx not currently healthy — doing full restart to recover"
+                sudo systemctl stop nginx 2>/dev/null || true
+                sudo pkill -x nginx 2>/dev/null || true
+                sleep 2
+                sudo systemctl start nginx 2>/dev/null || sudo nginx 2>/dev/null || true
+              fi
+              log "SSL configured and nginx is up to date"
+              sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
+            else
+              warn "nginx -t FAILED after writing SSL config — reverting to HTTP-only"
+              sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
+              sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
+              sudo systemctl reload nginx 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || true
+            fi
+          fi
+          rm -f "$NGINX_CONF_NEW"
         else
-          warn "nginx -t FAILED after writing SSL config — reverting to HTTP-only"
-          sudo tail -5 /var/log/nginx/error.log 2>/dev/null || true
-          sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
-          sudo systemctl restart nginx 2>/dev/null || true
+          warn "cert files not found at $CERT_PATH — keeping HTTP-only nginx config"
         fi
       else
-        warn "cert files not found at $CERT_PATH — keeping HTTP-only nginx config"
+        warn "certbot not found — skipping SSL"
       fi
-    else
-      warn "certbot not found — skipping SSL"
-    fi
 
-  # ========== PORT 443 DIAGNOSTICS ==========
+    # ========== PORT 443 DIAGNOSTICS ==========
   log "=== What is listening on port 443? ==="
   sudo ss -tlnp 2>/dev/null | grep ":443" || echo "NOTHING on 443"
   log "=== Is system nginx running? ==="
