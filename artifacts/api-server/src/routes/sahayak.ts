@@ -193,16 +193,64 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
     }
   }
 
-  // ── All providers exhausted ────────────────────────────────────────────────
-  if (!externalUrl && !sambaKey && !geminiKey) {
-    logger.warn("sahayak: No AI provider configured (set SAMBANOVA_API_KEY or AI_INTEGRATIONS_GEMINI_API_KEY)");
-    res.status(503).json({
-      error: "AI Sahayak service is not configured. Please contact the admin.",
-    });
-  } else {
-    logger.error("sahayak: All AI providers failed or returned empty responses");
-    res.status(502).json({ error: "AI service unavailable. Please try again later." });
-  }
+  // ── All providers exhausted — use built-in knowledge-base search ────────────
+  // This fallback works even with NO API keys configured. It searches the
+  // SAHAYAK_KNOWLEDGE text for sections relevant to the user's message and
+  // returns a formatted Gujarati response.
+  logger.warn("sahayak: All AI providers failed — falling back to built-in knowledge search");
+
+  const reply = knowledgeSearch(trimmed);
+  res.json({ reply });
 });
+
+// ─── Built-in knowledge-base keyword search (no API key required) ─────────────
+function knowledgeSearch(query: string): string {
+  const q = query.toLowerCase();
+
+  // Split knowledge base into sections by ## headings
+  const sections = SAHAYAK_KNOWLEDGE.split(/\n(?=##\s)/).filter((s) => s.trim().length > 20);
+
+  // Score each section by keyword overlap
+  function score(section: string): number {
+    const words = q.split(/\s+/).filter((w) => w.length > 2);
+    const sLow = section.toLowerCase();
+    return words.reduce((acc, w) => acc + (sLow.includes(w) ? 1 : 0), 0);
+  }
+
+  const ranked = sections
+    .map((s) => ({ s, sc: score(s) }))
+    .filter((x) => x.sc > 0)
+    .sort((a, b) => b.sc - a.sc);
+
+  if (ranked.length === 0) {
+    // Generic helpful response
+    return [
+      "નમસ્કાર! 🙏 Smit AI Sahayak અહીં છે.",
+      "",
+      "તમારો પ્રશ્ન અમારી knowledge base માં ન મળ્યો.",
+      "કૃપા કરી વધુ specific keywords સાથે ફરી પૂછો, જેમ કે:",
+      "• Aadhaar, PAN, Passport, Driving Licence",
+      "• PM Kisan, Ayushman, e-Shram, Ration Card",
+      "• Recharge, Wallet, Prime Membership",
+      "",
+      "📞 CSC Helpline: 1800-3000-3468",
+      "💬 WhatsApp: https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh",
+    ].join("\n");
+  }
+
+  // Take top 2 sections (cap at 1200 chars total to avoid overflow)
+  const topSections = ranked.slice(0, 2).map((x) => x.s.trim());
+  let combined = topSections.join("\n\n---\n\n");
+  if (combined.length > 1200) combined = combined.slice(0, 1200) + "\n…";
+
+  return [
+    `📖 **"${query}" — Smit CSC Info Knowledge Base:**`,
+    "",
+    combined,
+    "",
+    "📞 વધુ જાણવા: CSC Helpline 1800-3000-3468",
+    "💬 WhatsApp Group: https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh",
+  ].join("\n");
+}
 
 export default router;
