@@ -19,38 +19,92 @@ interface ChatMessage {
   text: string;
 }
 
-// Renders bot message text: **bold**, clickable URLs, newlines as <br />
-function parseInline(part: string, i: number): React.ReactNode {
-  if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-    return <strong key={i} className="font-bold text-amber-100">{part.slice(2, -2)}</strong>;
-  }
-  if (/^https?:\/\/\S+/.test(part)) {
-    return (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline text-amber-300 hover:text-amber-200 break-all"
-      >
-        {part}
-      </a>
-    );
-  }
-  return <span key={i}>{part}</span>;
+// ── Inline markdown parser: **bold**, URLs ──────────────────────────────────
+function parseInline(line: string): React.ReactNode[] {
+  const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s)]+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={i} className="font-semibold text-amber-100">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    if (/^https?:\/\//.test(part)) {
+      return (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+          className="underline text-amber-300 hover:text-amber-200 break-all">
+          {part}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
+// ── Full markdown renderer: headings, dividers, bullets, bold, links ─────────
 function renderMessage(text: string): React.ReactNode {
-  const lines = text.split("\n");
-  return lines.map((line, li) => {
-    const parts = line.split(/(\*\*[^*]+\*\*|https?:\/\/\S+)/g);
-    return (
-      <span key={li}>
-        {li > 0 && <br />}
-        {parts.map((p, pi) => parseInline(p, pi))}
-      </span>
+  // Strip leading/trailing blank lines
+  const lines = text.trim().split("\n");
+  const nodes: React.ReactNode[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+
+    // Blank line → small spacer
+    if (line.trim() === "") {
+      nodes.push(<div key={i} className="h-1" />);
+      i++; continue;
+    }
+
+    // Horizontal rule --- or ===
+    if (/^[-=*]{3,}$/.test(line.trim())) {
+      nodes.push(<hr key={i} className="border-amber-300/20 my-1" />);
+      i++; continue;
+    }
+
+    // ## Heading 2
+    if (line.startsWith("## ")) {
+      nodes.push(
+        <p key={i} className="font-bold text-amber-200 text-[13px] mt-1">
+          {parseInline(line.slice(3))}
+        </p>
+      );
+      i++; continue;
+    }
+
+    // ### Heading 3
+    if (line.startsWith("### ")) {
+      nodes.push(
+        <p key={i} className="font-semibold text-amber-200/90 text-[12px] mt-0.5">
+          {parseInline(line.slice(4))}
+        </p>
+      );
+      i++; continue;
+    }
+
+    // Bullet: - item or * item or • item or ●
+    const bulletMatch = line.match(/^([-*•●]\s+|\d+\.\s+)(.*)/);
+    if (bulletMatch) {
+      const isNum = /^\d/.test(line);
+      nodes.push(
+        <div key={i} className="flex gap-1.5 items-start">
+          <span className="text-amber-300 shrink-0 mt-0.5">{isNum ? bulletMatch[1].trim() : "•"}</span>
+          <span className="break-words min-w-0 flex-1">{parseInline(bulletMatch[2])}</span>
+        </div>
+      );
+      i++; continue;
+    }
+
+    // Plain line (with inline markdown)
+    nodes.push(
+      <p key={i} className="break-words">
+        {parseInline(line)}
+      </p>
     );
-  });
+    i++;
+  }
+  return <div className="flex flex-col gap-0.5 min-w-0 w-full">{nodes}</div>;
 }
 
 interface GeminiHistory {
@@ -243,7 +297,7 @@ export function AiSahayakWidget() {
                 {messages.map((msg, i) => (
                   <div
                     key={i}
-                    className={`flex flex-col max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 ${
+                    className={`flex flex-col min-w-0 max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 overflow-hidden ${
                       msg.role === "user"
                         ? "self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm"
                         : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
