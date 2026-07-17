@@ -95,7 +95,7 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
     }
   }
 
-  // ── Priority 1: SambaNova ──────────────────────────────────────────────────
+  // ── Priority 1: SambaNova (Meta-Llama-3.3-70B-Instruct) ─────────────────────
   if (sambaKey) {
     try {
       const messages = [
