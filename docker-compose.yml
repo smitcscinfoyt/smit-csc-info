@@ -49,6 +49,9 @@ services:
       NODE_ENV: production
       PUBLIC_OBJECT_SEARCH_PATHS: "/tmp"
       PRIVATE_OBJECT_DIR: "/tmp"
+      SITE_URL: "https://smitcscinfo.com"
+      APP_URL: "https://smitcscinfo.com"
+      SMIT_CSC_BASE_PATH: "/"
     volumes:
       - ./attached_assets:/app/attached_assets
     depends_on:
