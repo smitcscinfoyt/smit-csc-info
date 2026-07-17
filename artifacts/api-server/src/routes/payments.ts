@@ -241,22 +241,26 @@ async function activateMembership(transactionId: string) {
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + days);
 
-  // Step 1: Mark payment record as successful with expiry date
-  const [updated] = await db
-    .update(paymentsTable)
-    .set({ status: "success", expiryDate })
-    .where(eq(paymentsTable.id, payment.id))
-    .returning();
+  // Steps 1+2: Atomically update payment status + set user role in a single transaction.
+  // Using a transaction prevents the crash window where payment is marked success
+  // but users.role never gets updated (user paid but has no Prime access).
+  let updated: typeof paymentsTable.$inferSelect | undefined;
+  await db.transaction(async (tx) => {
+    const [p] = await tx
+      .update(paymentsTable)
+      .set({ status: "success", expiryDate })
+      .where(eq(paymentsTable.id, payment.id))
+      .returning();
+    updated = p;
 
-  // Step 2: FIX — Set users.role = "prime" in the users table.
-  // The old code only updated the payments table but never touched users.role.
-  // Any middleware or route that checks user.role for premium gating always saw "user"
-  // and denied access even after a successful payment. This line fixes that.
-  await db
-    .update(usersTable)
-    .set({ role: "prime" })
-    .where(eq(usersTable.id, payment.userId));
+    // Set users.role = "prime" atomically with the payment update.
+    await tx
+      .update(usersTable)
+      .set({ role: "prime" })
+      .where(eq(usersTable.id, payment.userId));
+  });
 
+  if (!updated) return null;
   console.log(`[activateMembership] ✅ users.role="prime" set for userId=${payment.userId}`);
 
   // Step 3: Record coupon redemption if a coupon was applied (idempotent on transactionId)
