@@ -19,6 +19,40 @@ interface ChatMessage {
   text: string;
 }
 
+// Renders bot message text: **bold**, clickable URLs, newlines as <br />
+function parseInline(part: string, i: number): React.ReactNode {
+  if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+    return <strong key={i} className="font-bold text-amber-100">{part.slice(2, -2)}</strong>;
+  }
+  if (/^https?:\/\/\S+/.test(part)) {
+    return (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline text-amber-300 hover:text-amber-200 break-all"
+      >
+        {part}
+      </a>
+    );
+  }
+  return <span key={i}>{part}</span>;
+}
+
+function renderMessage(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  return lines.map((line, li) => {
+    const parts = line.split(/(\*\*[^*]+\*\*|https?:\/\/\S+)/g);
+    return (
+      <span key={li}>
+        {li > 0 && <br />}
+        {parts.map((p, pi) => parseInline(p, pi))}
+      </span>
+    );
+  });
+}
+
 interface GeminiHistory {
   role: "user" | "model";
   parts: Array<{ text: string }>;
@@ -209,13 +243,13 @@ export function AiSahayakWidget() {
                 {messages.map((msg, i) => (
                   <div
                     key={i}
-                    className={`flex max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap ${
+                    className={`flex flex-col max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 ${
                       msg.role === "user"
                         ? "self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm"
                         : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
                     }`}
                   >
-                    {msg.text}
+                    {msg.role === "user" ? msg.text : renderMessage(msg.text)}
                   </div>
                 ))}
                 {sending && (
