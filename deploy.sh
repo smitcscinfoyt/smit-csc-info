@@ -164,6 +164,9 @@
   docker network rm smit-csc-info_csc_network 2>/dev/null || true
   sleep 2
 
+  log "Ensuring proxy-net Docker network exists..."
+  docker network create proxy-net 2>/dev/null || true
+
   log "Starting containers..."
   $COMPOSE up -d --remove-orphans --force-recreate
 
