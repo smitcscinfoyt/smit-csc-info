@@ -109,11 +109,14 @@ Browser-based, Browser-side processing — data server પર store નહીં
 - હવે **માત્ર આધાર** PAN માટે **પૂરતું નહીં**
 - **ઉમેરવા પડશે:** Voter ID, Passport, Birth Certificate, Matric Marksheet
 - **નવા ફોર્મ:** Form 93 (ભારતીય નાગરિક) / Form 95 (NRI)
+- **સત્તાવાર Website:** https://www.incometax.gov.in (Income Tax New Portal — 2021 થી)
+- **NSDL/UTI Portal:** https://tin.tin.nsdl.com (PAN Application)
 - **PAN Card Documents (2026+):**
   - આધાર કાર્ડ
   - રહેઠાણ: વીજળી બિલ
   - DOB: જન્મ પ્રમાણપત્ર / ૧૦માની Marksheet
   - ઓળખ: Voter ID / Passport
+- **⚠️ નોંધ:** incometaxindiaefiling.gov.in — આ OLD URL છે, હવે redirect થઈ incometax.gov.in પર જ જાઓ
 
 ### ગુજરાત ગુમાસ્તા ધારો ૨૦૨૫ (Ordinance):
 - **Threshold:** ૧૦ → ૨૦ workers — નાના વેપારીઓ માટે રાહત
