@@ -116,7 +116,7 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
             Authorization: `Bearer ${sambaKey}`,
           },
           body: JSON.stringify({
-            model: "DeepSeek-V3-0324",
+            model: "Meta-Llama-3.3-70B-Instruct",
             messages,
             temperature: 0.4,
             max_tokens: 1024,
