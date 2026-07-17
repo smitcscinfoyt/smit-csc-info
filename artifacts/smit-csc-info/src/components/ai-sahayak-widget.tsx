@@ -19,16 +19,30 @@ interface ChatMessage {
   text: string;
 }
 
-// ── Inline markdown parser: **bold**, URLs ──────────────────────────────────
+// ── Inline markdown parser: **bold**, [text](url), bare URLs ────────────────
 function parseInline(line: string): React.ReactNode[] {
-  const parts = line.split(/(\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s)]+)/g);
+  // Split on: [text](url) | **bold** | *italic* | bare URL
+  const parts = line.split(/(\[[^\]]+\]\(https?:\/\/[^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s)>\]]+)/g);
   return parts.map((part, i) => {
+    // [text](url) markdown link
+    const mdLink = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+    if (mdLink) {
+      return (
+        <a key={i} href={mdLink[2]} target="_blank" rel="noopener noreferrer"
+          className="underline text-amber-300 hover:text-amber-200 break-all">
+          {mdLink[1]}
+        </a>
+      );
+    }
+    // **bold**
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       return <strong key={i} className="font-semibold text-amber-100">{part.slice(2, -2)}</strong>;
     }
-    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+    // *italic*
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2 && !part.startsWith("**")) {
       return <em key={i}>{part.slice(1, -1)}</em>;
     }
+    // bare URL
     if (/^https?:\/\//.test(part)) {
       return (
         <a key={i} href={part} target="_blank" rel="noopener noreferrer"
