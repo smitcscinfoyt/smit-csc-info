@@ -158,7 +158,8 @@ export function AiSahayakWidget() {
         setMessages([
           {
             role: "bot",
-            text: "Ã ÂªÂ¨Ã ÂªÂ®Ã ÂªÂ¸Ã Â«ÂÃ ÂªÂÃ ÂªÂ¾Ã ÂªÂ°! Ã ÂªÂ¹Ã Â«ÂÃ ÂªÂ Smit AI Sahayak Ã ÂªÂÃ Â«ÂÃ ÂªÂ Ã°ÂÂÂ\nCSC Ã ÂªÂ¸Ã Â«ÂÃ ÂªÂÃ Â«ÂÃ ÂªÂ®, document list, Ã ÂªÂ¸Ã ÂªÂ°Ã ÂªÂÃ ÂªÂ¾Ã ÂªÂ°Ã Â«Â Ã ÂªÂ¯Ã Â«ÂÃ ÂªÂÃ ÂªÂ¨Ã ÂªÂ¾ Ã¢ÂÂ Ã ÂªÂÃ Â«ÂÃ ÂªÂÃ ÂªÂ°Ã ÂªÂ¾Ã ÂªÂ¤Ã Â«ÂÃ ÂªÂ®Ã ÂªÂ¾Ã ÂªÂ Ã ÂªÂªÃ Â«ÂÃ ÂªÂÃ Â«Â!",
+            text: "નમસ્કાર! હું Smit AI Sahayak છું 🙏
+CSC સ્કીમ, document list, સરકારી યોજના — ગુજરાતીમાં પૂછો!",
           },
         ]);
       }
@@ -292,7 +293,7 @@ export function AiSahayakWidget() {
                     </h3>
                     <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-300/90">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Prime Member ÃÂ· Online
+                      Prime Member · Online
                     </div>
                   </div>
                 </div>
