@@ -4,35 +4,35 @@ Smit CSC Info is a comprehensive, mobile-first digital portal designed for Gujar
 
 ---
 
-## 📂 Project Folder Structure
+## ð Project Folder Structure
 
 The project is structured as a **pnpm monorepo** with two main folders for workspace packages: `artifacts/` (applications and servers) and `lib/` (shared packages and utilities).
 
 ```text
-├── artifacts/                  # Applications & Services
-│   ├── smit-csc-info/          # React + Vite frontend application
-│   ├── api-server/             # Express 5 backend server
-│   └── mockup-sandbox/         # Mockup environment / Sandbox
-│
-├── lib/                        # Shared Workspace Packages
-│   ├── db/                     # Database schema, migrations, and Drizzle config
-│   ├── api-spec/               # OpenAPI specifications for the backend
-│   ├── api-zod/                # Shared Zod validation schemas
-│   ├── api-client-react/       # Generated React Query hooks and custom fetch client
-│   └── object-storage-web/     # Shared object storage browser utilities
-│
-├── scripts/                    # Shared utility scripts (e.g. Tesseract dependency copy)
-├── attached_assets/            # Static assets and media files (mapped via Docker volumes)
-│
-├── package.json                # Monorepo root package.json
-├── pnpm-workspace.yaml         # pnpm workspace configurations and package catalogs
-├── tsconfig.json               # Root TypeScript configuration
-└── tsconfig.base.json          # Shared TypeScript base configuration
+âââ artifacts/                  # Applications & Services
+â   âââ smit-csc-info/          # React + Vite frontend application
+â   âââ api-server/             # Express 5 backend server
+â   âââ mockup-sandbox/         # Mockup environment / Sandbox
+â
+âââ lib/                        # Shared Workspace Packages
+â   âââ db/                     # Database schema, migrations, and Drizzle config
+â   âââ api-spec/               # OpenAPI specifications for the backend
+â   âââ api-zod/                # Shared Zod validation schemas
+â   âââ api-client-react/       # Generated React Query hooks and custom fetch client
+â   âââ object-storage-web/     # Shared object storage browser utilities
+â
+âââ scripts/                    # Shared utility scripts (e.g. Tesseract dependency copy)
+âââ attached_assets/            # Static assets and media files (mapped via Docker volumes)
+â
+âââ package.json                # Monorepo root package.json
+âââ pnpm-workspace.yaml         # pnpm workspace configurations and package catalogs
+âââ tsconfig.json               # Root TypeScript configuration
+âââ tsconfig.base.json          # Shared TypeScript base configuration
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## ð ï¸ Tech Stack
 
 ### Frontend (`artifacts/smit-csc-info`)
 - **Framework**: React 19 (via Vite)
@@ -53,20 +53,20 @@ The project is structured as a **pnpm monorepo** with two main folders for works
 
 ---
 
-## 🚀 Running & Deploying the Project
+## ð Running & Deploying the Project
 
 This section explains how to run the monorepo locally, orchestrate it using Docker Compose, or deploy it to a production Linux VM (e.g., Ubuntu/Debian/Arch Linux).
 
 ---
 
-### 🛡️ 1. Security & Data Privacy (GitHub Check)
+### ð¡ï¸ 1. Security & Data Privacy (GitHub Check)
 Before pushing to GitHub, verify that sensitive credentials and user-uploaded data are git-ignored:
 - The **`.env`** file (which holds active passwords and API keys) is ignored by `.gitignore`.
 - The **`attached_assets/`** folder (which houses all user-uploaded files, media, and KYC images) is ignored by `.gitignore` to prevent leaking private user documents.
 
 ---
 
-### 💻 2. Local Development (Standard)
+### ð» 2. Local Development (Standard)
 
 Ensure you have **Node.js** (v20+) and **pnpm** installed on your host.
 
@@ -98,7 +98,7 @@ pnpm run dev
 
 ---
 
-### 🐳 3. VM Deployment & Orchestration (Docker Compose)
+### ð³ 3. VM Deployment & Orchestration (Docker Compose)
 
 This is the **recommended** way to run the application on your VM. It spins up the Nginx frontend proxy, Express backend, and PostgreSQL database automatically.
 
