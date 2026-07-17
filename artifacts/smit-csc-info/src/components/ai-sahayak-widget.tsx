@@ -19,108 +19,6 @@ interface ChatMessage {
   text: string;
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Inline markdown parser: **bold**, [text](url), bare URLs Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-function parseInline(line: string): React.ReactNode[] {
-  // Split on: [text](url) | **bold** | *italic* | bare URL
-  const parts = line.split(/(\[[^\]]+\]\(https?:\/\/[^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s)>\]]+)/g);
-  return parts.map((part, i) => {
-    // [text](url) markdown link
-    const mdLink = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
-    if (mdLink) {
-      return (
-        <a key={i} href={mdLink[2]} target="_blank" rel="noopener noreferrer"
-          className="underline text-amber-300 hover:text-amber-200 break-all">
-          {mdLink[1]}
-        </a>
-      );
-    }
-    // **bold**
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return <strong key={i} className="font-semibold text-amber-100">{part.slice(2, -2)}</strong>;
-    }
-    // *italic*
-    if (part.startsWith("*") && part.endsWith("*") && part.length > 2 && !part.startsWith("**")) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    }
-    // bare URL
-    if (/^https?:\/\//.test(part)) {
-      return (
-        <a key={i} href={part} target="_blank" rel="noopener noreferrer"
-          className="underline text-amber-300 hover:text-amber-200 break-all">
-          {part}
-        </a>
-      );
-    }
-    return <span key={i}>{part}</span>;
-  });
-}
-
-// Ã¢ÂÂÃ¢ÂÂ Full markdown renderer: headings, dividers, bullets, bold, links Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
-function renderMessage(text: string): React.ReactNode {
-  // Strip leading/trailing blank lines
-  const lines = text.trim().split("\n");
-  const nodes: React.ReactNode[] = [];
-  let i = 0;
-  while (i < lines.length) {
-    const raw = lines[i];
-    const line = raw.trimEnd();
-
-    // Blank line Ã¢ÂÂ small spacer
-    if (line.trim() === "") {
-      nodes.push(<div key={i} className="h-1" />);
-      i++; continue;
-    }
-
-    // Horizontal rule --- or ===
-    if (/^[-=*]{3,}$/.test(line.trim())) {
-      nodes.push(<hr key={i} className="border-amber-300/20 my-1" />);
-      i++; continue;
-    }
-
-    // ## Heading 2
-    if (line.startsWith("## ")) {
-      nodes.push(
-        <p key={i} className="font-bold text-amber-200 text-[13px] mt-1">
-          {parseInline(line.slice(3))}
-        </p>
-      );
-      i++; continue;
-    }
-
-    // ### Heading 3
-    if (line.startsWith("### ")) {
-      nodes.push(
-        <p key={i} className="font-semibold text-amber-200/90 text-[12px] mt-0.5">
-          {parseInline(line.slice(4))}
-        </p>
-      );
-      i++; continue;
-    }
-
-    // Bullet: - item or * item or Ã¢ÂÂ¢ item or Ã¢ÂÂ
-    const bulletMatch = line.match(/^([-*Ã¢ÂÂ¢Ã¢ÂÂ]\s+|\d+\.\s+)(.*)/);
-    if (bulletMatch) {
-      const isNum = /^\d/.test(line);
-      nodes.push(
-        <div key={i} className="flex gap-1.5 items-start">
-          <span className="text-amber-300 shrink-0 mt-0.5">{isNum ? bulletMatch[1].trim() : "Ã¢ÂÂ¢"}</span>
-          <span className="break-words min-w-0 flex-1">{parseInline(bulletMatch[2])}</span>
-        </div>
-      );
-      i++; continue;
-    }
-
-    // Plain line (with inline markdown)
-    nodes.push(
-      <p key={i} className="break-words">
-        {parseInline(line)}
-      </p>
-    );
-    i++;
-  }
-  return <div className="flex flex-col gap-0.5 min-w-0 w-full">{nodes}</div>;
-}
-
 interface GeminiHistory {
   role: "user" | "model";
   parts: Array<{ text: string }>;
@@ -186,7 +84,7 @@ export function AiSahayakWidget() {
           isPrime,
         }),
       });
-      const reply = data.reply ?? "Ã ÂªÂÃ Â«ÂÃ ÂªÂ·Ã ÂªÂ®Ã ÂªÂ¾ Ã ÂªÂÃ ÂªÂ°Ã ÂªÂ¶Ã Â«Â, Ã ÂªÂ¤Ã Â«ÂÃ ÂªÂ°Ã Â«ÂÃ ÂªÂÃ ÂªÂ¿ Ã ÂªÂÃ ÂªÂµÃ Â«Â.";
+      const reply = data.reply ?? "ક્ષમા કરશો, ત્રુટિ આવી.";
       historyRef.current = [
         ...historyRef.current,
         { role: "user", parts: [{ text }] },
@@ -197,7 +95,7 @@ export function AiSahayakWidget() {
       const msg =
         err?.data?.error ||
         err?.message ||
-        "Ã ÂªÂÃ Â«ÂÃ ÂªÂ·Ã ÂªÂ®Ã ÂªÂ¾ Ã ÂªÂÃ ÂªÂ°Ã ÂªÂ¶Ã Â«Â, server Ã ÂªÂ¸Ã ÂªÂ¾Ã ÂªÂ¥Ã Â«Â Ã ÂªÂÃ Â«ÂÃ ÂªÂ¡Ã ÂªÂ¾Ã ÂªÂ£ Ã ÂªÂ¨ Ã ÂªÂ¥Ã ÂªÂ.";
+        "ક્ષમા કરશો, server સાથે જોડાણ ન થઈ.";
       setMessages((prev) => [...prev, { role: "bot", text: msg }]);
     } finally {
       setSending(false);
@@ -311,19 +209,19 @@ export function AiSahayakWidget() {
                 {messages.map((msg, i) => (
                   <div
                     key={i}
-                    className={`flex flex-col min-w-0 max-w-[88%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 select-text ${
+                    className={`flex max-w-[85%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap ${
                       msg.role === "user"
                         ? "self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm"
                         : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
                     }`}
                   >
-                    {msg.role === "user" ? msg.text : renderMessage(msg.text)}
+                    {msg.text}
                   </div>
                 ))}
                 {sending && (
                   <div className="self-start flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-sm bg-white/6 border border-amber-300/10">
                     <Loader2 className="h-3.5 w-3.5 text-amber-300 animate-spin" />
-                    <span className="text-[12px] text-amber-300/70">Ã ÂªÂÃ ÂªÂ¾Ã ÂªÂÃ ÂªÂª Ã ÂªÂÃ ÂªÂ°Ã Â«Â Ã ÂªÂÃ Â«Â...</span>
+                    <span className="text-[12px] text-amber-300/70">ટાઇપ કરે છે...</span>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -336,7 +234,7 @@ export function AiSahayakWidget() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ã ÂªÂÃ Â«ÂÃ ÂªÂÃ ÂªÂ°Ã ÂªÂ¾Ã ÂªÂ¤Ã Â«ÂÃ ÂªÂ®Ã ÂªÂ¾Ã ÂªÂ Ã ÂªÂ²Ã ÂªÂÃ Â«Â..."
+                  placeholder="ગુજરાતીમાં લખો..."
                   disabled={sending}
                   className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/6 border border-amber-300/20 text-amber-100 placeholder-amber-300/40 text-[13px] outline-none focus:border-amber-400/50 transition-colors disabled:opacity-50"
                 />
@@ -355,7 +253,7 @@ export function AiSahayakWidget() {
               </div>
 
               <div className="flex-shrink-0 text-center py-1.5 text-[10px] text-amber-300/25 border-t border-amber-300/8">
-                Smit CSC Info Ã¢ÂÂ Powered by Smit AI Sahayak
+                Smit CSC Info — Powered by Smit AI Sahayak
               </div>
             </motion.div>
           </>
@@ -418,7 +316,7 @@ export function AiSahayakWidget() {
                 </div>
 
                 <p className="text-sm text-purple-100/85 leading-relaxed mb-4">
-                  24/7 Gujarati AI assistant for CSC operators Ã¢ÂÂ instant help on
+                  24/7 Gujarati AI assistant for CSC operators — instant help on
                   schemes, forms, document tools and more.
                 </p>
 
@@ -454,7 +352,7 @@ export function AiSahayakWidget() {
                     onClick={() => { setShowUpsell(false); setLocation("/login"); }}
                     className="w-full mt-2 text-xs font-medium text-amber-200/80 hover:text-amber-100 transition-colors py-2"
                   >
-                    Already a Prime member? Log in Ã¢ÂÂ
+                    Already a Prime member? Log in →
                   </button>
                 )}
               </div>
