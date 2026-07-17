@@ -158,8 +158,7 @@ export function AiSahayakWidget() {
         setMessages([
           {
             role: "bot",
-            text: "નમસ્કાર! હું Smit AI Sahayak છું 🙏
-CSC સ્કીમ, document list, સરકારી યોજના — ગુજરાતીમાં પૂછો!",
+            text: "નમસ્કાર! હું Smit AI Sahayak છું 🙏\nCSC સ્કીમ, document list, સરકારી યોજના — ગુજરાતીમાં પૂછો!",
           },
         ]);
       }
