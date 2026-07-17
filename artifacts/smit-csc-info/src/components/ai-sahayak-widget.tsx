@@ -19,7 +19,7 @@ interface ChatMessage {
   text: string;
 }
 
-// ââ Inline markdown parser: **bold**, [text](url), bare URLs ââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Inline markdown parser: **bold**, [text](url), bare URLs Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function parseInline(line: string): React.ReactNode[] {
   // Split on: [text](url) | **bold** | *italic* | bare URL
   const parts = line.split(/(\[[^\]]+\]\(https?:\/\/[^)]+\)|\*\*[^*]+\*\*|\*[^*]+\*|https?:\/\/[^\s)>\]]+)/g);
@@ -55,7 +55,7 @@ function parseInline(line: string): React.ReactNode[] {
   });
 }
 
-// ââ Full markdown renderer: headings, dividers, bullets, bold, links âââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Full markdown renderer: headings, dividers, bullets, bold, links Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 function renderMessage(text: string): React.ReactNode {
   // Strip leading/trailing blank lines
   const lines = text.trim().split("\n");
@@ -65,7 +65,7 @@ function renderMessage(text: string): React.ReactNode {
     const raw = lines[i];
     const line = raw.trimEnd();
 
-    // Blank line â small spacer
+    // Blank line Ã¢ÂÂ small spacer
     if (line.trim() === "") {
       nodes.push(<div key={i} className="h-1" />);
       i++; continue;
@@ -97,13 +97,13 @@ function renderMessage(text: string): React.ReactNode {
       i++; continue;
     }
 
-    // Bullet: - item or * item or â¢ item or â
-    const bulletMatch = line.match(/^([-*â¢â]\s+|\d+\.\s+)(.*)/);
+    // Bullet: - item or * item or Ã¢ÂÂ¢ item or Ã¢ÂÂ
+    const bulletMatch = line.match(/^([-*Ã¢ÂÂ¢Ã¢ÂÂ]\s+|\d+\.\s+)(.*)/);
     if (bulletMatch) {
       const isNum = /^\d/.test(line);
       nodes.push(
         <div key={i} className="flex gap-1.5 items-start">
-          <span className="text-amber-300 shrink-0 mt-0.5">{isNum ? bulletMatch[1].trim() : "â¢"}</span>
+          <span className="text-amber-300 shrink-0 mt-0.5">{isNum ? bulletMatch[1].trim() : "Ã¢ÂÂ¢"}</span>
           <span className="break-words min-w-0 flex-1">{parseInline(bulletMatch[2])}</span>
         </div>
       );
@@ -158,7 +158,7 @@ export function AiSahayakWidget() {
         setMessages([
           {
             role: "bot",
-            text: "àª¨àª®àª¸à«àªàª¾àª°! àª¹à«àª Smit AI Sahayak àªà«àª ð\nCSC àª¸à«àªà«àª®, document list, àª¸àª°àªàª¾àª°à« àª¯à«àªàª¨àª¾ â àªà«àªàª°àª¾àª¤à«àª®àª¾àª àªªà«àªà«!",
+            text: "Ã ÂªÂ¨Ã ÂªÂ®Ã ÂªÂ¸Ã Â«ÂÃ ÂªÂÃ ÂªÂ¾Ã ÂªÂ°! Ã ÂªÂ¹Ã Â«ÂÃ ÂªÂ Smit AI Sahayak Ã ÂªÂÃ Â«ÂÃ ÂªÂ Ã°ÂÂÂ\nCSC Ã ÂªÂ¸Ã Â«ÂÃ ÂªÂÃ Â«ÂÃ ÂªÂ®, document list, Ã ÂªÂ¸Ã ÂªÂ°Ã ÂªÂÃ ÂªÂ¾Ã ÂªÂ°Ã Â«Â Ã ÂªÂ¯Ã Â«ÂÃ ÂªÂÃ ÂªÂ¨Ã ÂªÂ¾ Ã¢ÂÂ Ã ÂªÂÃ Â«ÂÃ ÂªÂÃ ÂªÂ°Ã ÂªÂ¾Ã ÂªÂ¤Ã Â«ÂÃ ÂªÂ®Ã ÂªÂ¾Ã ÂªÂ Ã ÂªÂªÃ Â«ÂÃ ÂªÂÃ Â«Â!",
           },
         ]);
       }
@@ -186,7 +186,7 @@ export function AiSahayakWidget() {
           isPrime,
         }),
       });
-      const reply = data.reply ?? "àªà«àª·àª®àª¾ àªàª°àª¶à«, àª¤à«àª°à«àªàª¿ àªàªµà«.";
+      const reply = data.reply ?? "Ã ÂªÂÃ Â«ÂÃ ÂªÂ·Ã ÂªÂ®Ã ÂªÂ¾ Ã ÂªÂÃ ÂªÂ°Ã ÂªÂ¶Ã Â«Â, Ã ÂªÂ¤Ã Â«ÂÃ ÂªÂ°Ã Â«ÂÃ ÂªÂÃ ÂªÂ¿ Ã ÂªÂÃ ÂªÂµÃ Â«Â.";
       historyRef.current = [
         ...historyRef.current,
         { role: "user", parts: [{ text }] },
@@ -197,7 +197,7 @@ export function AiSahayakWidget() {
       const msg =
         err?.data?.error ||
         err?.message ||
-        "àªà«àª·àª®àª¾ àªàª°àª¶à«, server àª¸àª¾àª¥à« àªà«àª¡àª¾àª£ àª¨ àª¥àª.";
+        "Ã ÂªÂÃ Â«ÂÃ ÂªÂ·Ã ÂªÂ®Ã ÂªÂ¾ Ã ÂªÂÃ ÂªÂ°Ã ÂªÂ¶Ã Â«Â, server Ã ÂªÂ¸Ã ÂªÂ¾Ã ÂªÂ¥Ã Â«Â Ã ÂªÂÃ Â«ÂÃ ÂªÂ¡Ã ÂªÂ¾Ã ÂªÂ£ Ã ÂªÂ¨ Ã ÂªÂ¥Ã ÂªÂ.";
       setMessages((prev) => [...prev, { role: "bot", text: msg }]);
     } finally {
       setSending(false);
@@ -292,7 +292,7 @@ export function AiSahayakWidget() {
                     </h3>
                     <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-300/90">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Prime Member Â· Online
+                      Prime Member ÃÂ· Online
                     </div>
                   </div>
                 </div>
@@ -323,7 +323,7 @@ export function AiSahayakWidget() {
                 {sending && (
                   <div className="self-start flex items-center gap-2 px-3.5 py-2.5 rounded-2xl rounded-bl-sm bg-white/6 border border-amber-300/10">
                     <Loader2 className="h-3.5 w-3.5 text-amber-300 animate-spin" />
-                    <span className="text-[12px] text-amber-300/70">àªàª¾àªàªª àªàª°à« àªà«...</span>
+                    <span className="text-[12px] text-amber-300/70">Ã ÂªÂÃ ÂªÂ¾Ã ÂªÂÃ ÂªÂª Ã ÂªÂÃ ÂªÂ°Ã Â«Â Ã ÂªÂÃ Â«Â...</span>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -336,7 +336,7 @@ export function AiSahayakWidget() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="àªà«àªàª°àª¾àª¤à«àª®àª¾àª àª²àªà«..."
+                  placeholder="Ã ÂªÂÃ Â«ÂÃ ÂªÂÃ ÂªÂ°Ã ÂªÂ¾Ã ÂªÂ¤Ã Â«ÂÃ ÂªÂ®Ã ÂªÂ¾Ã ÂªÂ Ã ÂªÂ²Ã ÂªÂÃ Â«Â..."
                   disabled={sending}
                   className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/6 border border-amber-300/20 text-amber-100 placeholder-amber-300/40 text-[13px] outline-none focus:border-amber-400/50 transition-colors disabled:opacity-50"
                 />
@@ -355,7 +355,7 @@ export function AiSahayakWidget() {
               </div>
 
               <div className="flex-shrink-0 text-center py-1.5 text-[10px] text-amber-300/25 border-t border-amber-300/8">
-                Smit CSC Info â Powered by Smit AI Sahayak
+                Smit CSC Info Ã¢ÂÂ Powered by Smit AI Sahayak
               </div>
             </motion.div>
           </>
@@ -418,7 +418,7 @@ export function AiSahayakWidget() {
                 </div>
 
                 <p className="text-sm text-purple-100/85 leading-relaxed mb-4">
-                  24/7 Gujarati AI assistant for CSC operators â instant help on
+                  24/7 Gujarati AI assistant for CSC operators Ã¢ÂÂ instant help on
                   schemes, forms, document tools and more.
                 </p>
 
@@ -454,7 +454,7 @@ export function AiSahayakWidget() {
                     onClick={() => { setShowUpsell(false); setLocation("/login"); }}
                     className="w-full mt-2 text-xs font-medium text-amber-200/80 hover:text-amber-100 transition-colors py-2"
                   >
-                    Already a Prime member? Log in â
+                    Already a Prime member? Log in Ã¢ÂÂ
                   </button>
                 )}
               </div>
