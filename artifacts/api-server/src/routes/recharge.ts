@@ -228,7 +228,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   const userId = req.userId!;
   const parsed = rechargeBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid recharge request", details: parsed.error.format() });
+    res.status(400).json({ error: "Invalid recharge request", details: parsed.error.issues.map((i) => i.message).join("; ") });
     return;
   }
   const { type, operatorCode, number, amountPaise, circleCode, customerName, idempotencyKey, tpin, billSession, value1Override, value2Override } = parsed.data;
