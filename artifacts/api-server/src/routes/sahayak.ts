@@ -250,27 +250,6 @@ function knowledgeSearch(query: string): string {
       ].join("\n");
     }
 
-      const ranked = sections
-    .map((s) => ({ s, sc: score(s) }))
-    .filter((x) => x.sc > 0)
-    .sort((a, b) => b.sc - a.sc);
-
-  if (ranked.length === 0) {
-    // Generic helpful response
-    return [
-      "àª¨àª®àª¸à«àªàª¾àª°! ð Smit AI Sahayak àªàª¹à«àª àªà«.",
-      "",
-      "àª¤àª®àª¾àª°à« àªªà«àª°àª¶à«àª¨ àªàª®àª¾àª°à« knowledge base àª®àª¾àª àª¨ àª®àª³à«àª¯à«.",
-      "àªà«àªªàª¾ àªàª°à« àªµàª§à« specific keywords àª¸àª¾àª¥à« àª«àª°à« àªªà«àªà«, àªà«àª® àªà«:",
-      "â¢ Aadhaar, PAN, Passport, Driving Licence",
-      "â¢ PM Kisan, Ayushman, e-Shram, Ration Card",
-      "â¢ Recharge, Wallet, Prime Membership",
-      "",
-      "ð CSC Helpline: 1800-3000-3468",
-      "ð¬ WhatsApp: https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh",
-    ].join("\n");
-  }
-
   // Take top 2 sections (cap at 1200 chars total to avoid overflow)
   const topSections = ranked.slice(0, 2).map((x) => x.s.trim());
   let combined = topSections.join("\n\n---\n\n");
