@@ -4,21 +4,23 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-const SYSTEM_PROMPT = `àª¤àª®à« "Smit AI Sahayak" àªà« â Smit CSC Info àª¨à« AI assistant.
-àª¤àª®à« CSC (Common Service Centre) operators àªàª¨à« àªà«àª°àª¾àª®à«àª¯ àª¨àª¾àªàª°àª¿àªà«àª¨à« àªà«àªàª°àª¾àª¤à« àª­àª¾àª·àª¾àª®àª¾àª àª¸àª¹àª¾àª¯ àªàª°à« àªà«.
+const SYSTEM_PROMPT = `You are "Smit AI Sahayak" - the AI assistant for Smit CSC Info.
+  You help CSC operators and rural citizens in Gujarat. Always respond in Gujarati.
 
-â ï¸ àªàª¡àª àª¨àª¿àª¯àª®à« (STRICT RULES):
-1. àª¹àªàª®à«àª¶àª¾ àªà«àªàª°àª¾àª¤à«àª®àª¾àª àª àªàªµàª¾àª¬ àªàªªà«.
-2. ONLY àª¨à«àªà« àªàªªà«àª² Knowledge Base àª¨à« àª®àª¾àª¹àª¿àª¤à« àªµàª¾àªªàª°à« â àªà«àª¯àª¾àª°à«àª¯ àªªà«àª¤àª¾àª¨à« àª¤àª°àª«àª¥à« URL, website, phone number, process INVENT àª¨ àªàª°à«.
-3. Knowledge base àª®àª¾àª àª¨ àª¹à«àª¯ àª¤à« EXACTLY àª àªàª¹à«: "àª àª®àª¾àª¹àª¿àª¤à« àªàªªàª²àª¬à«àª§ àª¨àª¥à«. CSC Helpline 1800-3000-3468 àªªàª° call àªàª°à«."
-4. àªà«àªà« URL, wrong website, invented steps NEVER share àªàª°à« â users àª¨à« àª­à«àª°àª¾àª®àª àª®àª¾àª¹àª¿àª¤à« àª¨ àªàªªà«.
-5. àªà«àªàªàª¾, clear bullet points (max 5 bullets), verified info only.
-6. Fees, documents, steps â exactly knowledge base àª¨à« info, àªàª®à«àª°à«-àªàªàª¾àª¡à« àª¨ àªàª°à«.
-7. Prime membership àª¨àª¾ àª«àª¾àª¯àª¦àª¾ mention àªàª°à« àªà«àª¯àª¾àª°à« relevant àª¹à«àª¯.
-8. WhatsApp group: https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh
+  IMPORTANT FACTS (strictly follow):
+  1. Owner/founder/creator of Smit CSC Info: SAGAR Kindarakhediya. Never say any other name.
+  2. Contact info for Smit CSC Info owner SAGAR Kindarakhediya:
+     - YouTube: https://www.youtube.com/@SmitCSCInfo
+     - Instagram: https://www.instagram.com/smit_csc_info
+     - Facebook: https://www.facebook.com/share/1KQkXYXKcQ/
+     - WhatsApp Group: https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh
+  3. NEVER give CSC Helpline 1800-3000-3468 as the owner's contact. That is India's government CSC helpline, not SAGAR's contact.
+  4. Only use the Knowledge Base below. Never invent URLs, phone numbers, or steps.
+  5. If info is not in knowledge base, say so and provide the social media links above.
+  6. Short, clear responses in Gujarati. No markdown ** or ### formatting.
 
-Knowledge Base (ONLY àª source use àªàª°à« â àª¬à«àªà« àªà«àª information invent àª¨ àªàª°à«):
-${SAHAYAK_KNOWLEDGE}`;
+  Knowledge Base (ONLY use this as source):
+  ${SAHAYAK_KNOWLEDGE}`
 
 interface ChatMessage {
   role: "user" | "model";
@@ -207,7 +209,7 @@ router.post("/sahayak/chat", async (req, res): Promise<void> => {
   } catch (unexpectedErr) {
       logger.error({ err: unexpectedErr }, "sahayak: unexpected top-level error");
       if (!res.headersSent) {
-        res.json({ reply: "ક્ષમા કરશો, અડચણ આવી. CSC Helpline: 1800-3000-3468" });
+        res.json({ reply: "ક્ષમા કરશો, અડચણ આવી. ફરી try કરો." });
       }
     }
 });
@@ -227,6 +229,28 @@ function knowledgeSearch(query: string): string {
   }
 
   const ranked = sections
+    .map((s) => ({ s, sc: score(s) }))
+    .filter((x) => x.sc > 0)
+    .sort((a, b) => b.sc - a.sc);
+
+  if (ranked.length === 0) {
+        // Generic helpful response
+      return [
+        "નમસ્કાર! 🙏 Smit AI Sahayak",
+        "",
+        "આ માહિતી Knowledge Base માં ઉપલ્બ્ધ નથી.",
+        "કૃપા કરી વધુ specific keywords સાથે ફરી પૂછો:",
+        "• Aadhaar, PAN, Passport, Driving Licence",
+        "• PM Kisan, Ayushman, e-Shram, Ration Card",
+        "• Recharge, Wallet, Prime Membership",
+        "",
+        "📱 SAGAR Kindarakhediya — Smit CSC Info:",
+        "YouTube: https://www.youtube.com/@SmitCSCInfo",
+        "WhatsApp Group: https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh",
+      ].join("\n");
+    }
+
+      const ranked = sections
     .map((s) => ({ s, sc: score(s) }))
     .filter((x) => x.sc > 0)
     .sort((a, b) => b.sc - a.sc);
