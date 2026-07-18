@@ -110,7 +110,7 @@ const slabBody = z.object({
 
 router.post("/admin/commission-slabs", requireAdmin, async (req: AuthRequest, res): Promise<void> => {
   const parsed = slabBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") }); return; }
   const d = parsed.data;
   const [row] = await db.insert(commissionSlabsTable).values({
     type: d.type, operatorCode: d.operatorCode, tier: d.tier, percentBp: d.percentBp,
@@ -206,7 +206,7 @@ router.post("/admin/wallets/:userId/adjust", requireAdmin, async (req: AuthReque
   const parsed = z.object({
     direction: z.enum(["credit", "debit"]),
     amountPaise: z.number().int().positive(),
-    reason: z.string().min(3).max(500),
+    reason: z.string().min(1).max(500),
   }).safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
   const { direction, amountPaise, reason } = parsed.data;
