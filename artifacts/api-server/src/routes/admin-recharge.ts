@@ -123,7 +123,7 @@ router.post("/admin/commission-slabs", requireAdmin, async (req: AuthRequest, re
 router.patch("/admin/commission-slabs/:id", requireAdmin, async (req: AuthRequest, res): Promise<void> => {
   const id = parseInt(String(req.params.id), 10);
   const parsed = slabBody.partial().safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") }); return; }
   const d = parsed.data;
   await db.update(commissionSlabsTable).set({
     ...(d.type ? { type: d.type } : {}),
