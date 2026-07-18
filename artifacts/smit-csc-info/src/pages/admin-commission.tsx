@@ -53,7 +53,7 @@ export default function AdminCommission() {
       active: form.active,
     }),
     onSuccess: () => { toast({ title: "Saved" }); setOpen(false); qc.invalidateQueries({ queryKey: ["admin", "slabs"] }); },
-    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.data?.error }),
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.message ?? e?.data?.error }),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminDeleteSlab(id),
