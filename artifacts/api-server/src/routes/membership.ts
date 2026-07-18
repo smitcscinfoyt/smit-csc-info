@@ -138,7 +138,7 @@ router.post("/membership/subscribe", requireAuth, async (req: AuthRequest, res):
   // Optional billing details
   const billingParsed = billingSchema.safeParse(req.body?.billing);
   if (req.body?.billing && !billingParsed.success) {
-    res.status(400).json({ error: "Invalid billing details", details: billingParsed.error.format() });
+    res.status(400).json({ error: "Invalid billing details", details: billingParsed.error.issues.map((i) => i.message).join("; ") });
     return;
   }
   const billing = billingParsed.success ? billingParsed.data : undefined;
