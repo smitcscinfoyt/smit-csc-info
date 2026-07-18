@@ -4,35 +4,35 @@ Smit CSC Info is a comprehensive, mobile-first digital portal designed for Gujar
 
 ---
 
-## ð Project Folder Structure
+## Ã°ÂÂÂ Project Folder Structure
 
 The project is structured as a **pnpm monorepo** with two main folders for workspace packages: `artifacts/` (applications and servers) and `lib/` (shared packages and utilities).
 
 ```text
-âââ artifacts/                  # Applications & Services
-â   âââ smit-csc-info/          # React + Vite frontend application
-â   âââ api-server/             # Express 5 backend server
-â   âââ mockup-sandbox/         # Mockup environment / Sandbox
-â
-âââ lib/                        # Shared Workspace Packages
-â   âââ db/                     # Database schema, migrations, and Drizzle config
-â   âââ api-spec/               # OpenAPI specifications for the backend
-â   âââ api-zod/                # Shared Zod validation schemas
-â   âââ api-client-react/       # Generated React Query hooks and custom fetch client
-â   âââ object-storage-web/     # Shared object storage browser utilities
-â
-âââ scripts/                    # Shared utility scripts (e.g. Tesseract dependency copy)
-âââ attached_assets/            # Static assets and media files (mapped via Docker volumes)
-â
-âââ package.json                # Monorepo root package.json
-âââ pnpm-workspace.yaml         # pnpm workspace configurations and package catalogs
-âââ tsconfig.json               # Root TypeScript configuration
-âââ tsconfig.base.json          # Shared TypeScript base configuration
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ artifacts/                  # Applications & Services
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ smit-csc-info/          # React + Vite frontend application
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ api-server/             # Express 5 backend server
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ mockup-sandbox/         # Mockup environment / Sandbox
+Ã¢ÂÂ
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ lib/                        # Shared Workspace Packages
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ db/                     # Database schema, migrations, and Drizzle config
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ api-spec/               # OpenAPI specifications for the backend
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ api-zod/                # Shared Zod validation schemas
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ api-client-react/       # Generated React Query hooks and custom fetch client
+Ã¢ÂÂ   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ object-storage-web/     # Shared object storage browser utilities
+Ã¢ÂÂ
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ scripts/                    # Shared utility scripts (e.g. Tesseract dependency copy)
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ attached_assets/            # Static assets and media files (mapped via Docker volumes)
+Ã¢ÂÂ
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ package.json                # Monorepo root package.json
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ pnpm-workspace.yaml         # pnpm workspace configurations and package catalogs
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ tsconfig.json               # Root TypeScript configuration
+Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ tsconfig.base.json          # Shared TypeScript base configuration
 ```
 
 ---
 
-## ð ï¸ Tech Stack
+## Ã°ÂÂÂ Ã¯Â¸Â Tech Stack
 
 ### Frontend (`artifacts/smit-csc-info`)
 - **Framework**: React 19 (via Vite)
@@ -53,20 +53,20 @@ The project is structured as a **pnpm monorepo** with two main folders for works
 
 ---
 
-## ð Running & Deploying the Project
+## Ã°ÂÂÂ Running & Deploying the Project
 
 This section explains how to run the monorepo locally, orchestrate it using Docker Compose, or deploy it to a production Linux VM (e.g., Ubuntu/Debian/Arch Linux).
 
 ---
 
-### ð¡ï¸ 1. Security & Data Privacy (GitHub Check)
+### Ã°ÂÂÂ¡Ã¯Â¸Â 1. Security & Data Privacy (GitHub Check)
 Before pushing to GitHub, verify that sensitive credentials and user-uploaded data are git-ignored:
 - The **`.env`** file (which holds active passwords and API keys) is ignored by `.gitignore`.
 - The **`attached_assets/`** folder (which houses all user-uploaded files, media, and KYC images) is ignored by `.gitignore` to prevent leaking private user documents.
 
 ---
 
-### ð» 2. Local Development (Standard)
+### Ã°ÂÂÂ» 2. Local Development (Standard)
 
 Ensure you have **Node.js** (v20+) and **pnpm** installed on your host.
 
@@ -98,7 +98,7 @@ pnpm run dev
 
 ---
 
-### ð³ 3. VM Deployment & Orchestration (Docker Compose)
+### Ã°ÂÂÂ³ 3. VM Deployment & Orchestration (Docker Compose)
 
 This is the **recommended** way to run the application on your VM. It spins up the Nginx frontend proxy, Express backend, and PostgreSQL database automatically.
 
