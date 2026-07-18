@@ -52,7 +52,7 @@ export default function AdminManualTopups() {
       toast({ title: "Approved", description: "Credited to wallet" });
       qc.invalidateQueries({ queryKey: ["admin", "manual-topups"] });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.data?.error }),
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.message ?? e?.data?.error }),
   });
 
   const rejectMutation = useMutation({
@@ -62,7 +62,7 @@ export default function AdminManualTopups() {
       setRejectTarget(null); setReason("");
       qc.invalidateQueries({ queryKey: ["admin", "manual-topups"] });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.data?.error }),
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.message ?? e?.data?.error }),
   });
 
   return (
