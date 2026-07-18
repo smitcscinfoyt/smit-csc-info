@@ -209,7 +209,7 @@ export function AiSahayakWidget() {
                 {messages.map((msg, i) => (
                   <div
                     key={i}
-                    className={`flex max-w-[88%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap select-text ${
+                    className={`flex max-w-[88%] text-[13px] leading-relaxed rounded-2xl px-3.5 py-2.5 whitespace-pre-wrap select-text break-words [overflow-wrap:anywhere] ${
                       msg.role === "user"
                         ? "self-end bg-gradient-to-br from-purple-700 to-purple-900 text-amber-100 border border-amber-300/20 rounded-br-sm"
                         : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
