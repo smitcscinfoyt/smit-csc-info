@@ -39,7 +39,7 @@ export default function AdminRecharge() {
       setRefundTarget(null); setReason("");
       qc.invalidateQueries({ queryKey: ["admin", "recharges"] });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.data?.error }),
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.message ?? e?.data?.error }),
   });
 
   return (
