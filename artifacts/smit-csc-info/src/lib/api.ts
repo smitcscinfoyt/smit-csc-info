@@ -55,8 +55,15 @@ export async function apiFetch<T = unknown>(
       sessionStorage.removeItem("auth_token");
       window.dispatchEvent(new CustomEvent("auth:expired"));
     }
-    const serverMsg = (data as any)?.error || (data as any)?.message;
-    throw new ApiError(friendlyMessage(res.status, serverMsg), res.status, data);
+    // Normalize error to string to prevent React "Objects are not valid as a React child" crashes
+      const rawErr = (data as any)?.error;
+      if (rawErr !== undefined && rawErr !== null && typeof rawErr !== "string") {
+        (data as any).error = typeof rawErr === "object"
+          ? (Array.isArray(rawErr) ? rawErr.join("; ") : Object.values(rawErr as any).flatMap((v: any) => Array.isArray(v?._errors) ? v._errors : typeof v === "string" ? [v] : []).filter(Boolean).join("; ") || JSON.stringify(rawErr))
+          : String(rawErr);
+      }
+      const serverMsg = (data as any)?.error || (data as any)?.message;
+      throw new ApiError(friendlyMessage(res.status, serverMsg), res.status, data);
   }
   return res.json() as Promise<T>;
 }
