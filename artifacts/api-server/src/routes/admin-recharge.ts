@@ -175,7 +175,7 @@ router.patch("/admin/recharge-settings", requireAdmin, async (req: AuthRequest, 
     maxTopupPaise: z.number().int().positive().optional(),
     dailyRechargeCountLimit: z.number().int().positive().optional(),
   }).safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") }); return; }
   const next = await updateGlobalSettings(parsed.data, req.userId!);
   res.json(next);
 });
@@ -208,7 +208,7 @@ router.post("/admin/wallets/:userId/adjust", requireAdmin, async (req: AuthReque
     amountPaise: z.number().int().positive(),
     reason: z.string().min(1).max(500),
   }).safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.format() }); return; }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.issues.map((i) => i.message).join("; ") }); return; }
   const { direction, amountPaise, reason } = parsed.data;
   try {
     const r = direction === "credit"
