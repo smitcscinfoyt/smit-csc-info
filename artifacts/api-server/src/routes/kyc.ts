@@ -34,7 +34,7 @@ router.post("/kyc", requireAuth, async (req: AuthRequest, res): Promise<void> =>
   const userId = req.userId!;
   const parsed = submitBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid KYC data", details: parsed.error.format() });
+    res.status(400).json({ error: "Invalid KYC data", details: parsed.error.issues.map((i) => i.message).join("; ") });
     return;
   }
   const data = parsed.data;
@@ -90,7 +90,7 @@ router.post("/kyc/digital", requireAuth, async (req: AuthRequest, res): Promise<
   const userId = req.userId!;
   const parsed = submitBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid KYC data", details: parsed.error.format() });
+    res.status(400).json({ error: "Invalid KYC data", details: parsed.error.issues.map((i) => i.message).join("; ") });
     return;
   }
   const data = parsed.data;
