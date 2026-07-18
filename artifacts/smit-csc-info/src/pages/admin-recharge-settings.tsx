@@ -50,7 +50,7 @@ export default function AdminRechargeSettings() {
   const saveMutation = useMutation({
     mutationFn: (patch: Partial<RechargeSettings>) => adminUpdateSettings(patch),
     onSuccess: () => { toast({ title: "Settings saved" }); qc.invalidateQueries({ queryKey: ["admin", "recharge-settings"] }); },
-    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.data?.error }),
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.message ?? e?.data?.error }),
   });
 
   if (isLoading || !s) return <div className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -143,7 +143,7 @@ function CommissionManager() {
       qc.invalidateQueries({ queryKey: ["admin", "commission-slabs"] });
       setEdits((e) => { const c = { ...e }; delete c[slab.id]; return c; });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Save failed", description: e?.data?.error?.toString() ?? e?.message }),
+    onError: (e: any) => toast({ variant: "destructive", title: "Save failed", description: e?.message ?? e?.data?.error?.toString() ?? e?.message }),
     onSettled: () => setSavingId(null),
   });
 
