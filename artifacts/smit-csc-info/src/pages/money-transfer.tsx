@@ -126,7 +126,7 @@ function useSenderLookup() {
     onError: (e: any) => {
       if (!mountedRef.current) return;
       toast({ variant: "destructive", title: "Lookup failed",
-        description: e?.data?.error ?? e?.message });
+        description: e?.message ?? e?.data?.error ?? e?.message });
     },
   });
 
@@ -262,7 +262,7 @@ function TabMoneyTransfer() {
       }
       setShowTpin(false);
       toast({ variant: "destructive", title: "Transfer failed",
-        description: e?.data?.error ?? e?.message });
+        description: e?.message ?? e?.data?.error ?? e?.message });
     },
   });
 
@@ -730,7 +730,7 @@ function TabVerifyBeneficiary() {
     },
     onError: (e: any) => toast({
       variant: "destructive", title: "Verify failed",
-      description: e?.data?.error ?? e?.message,
+      description: e?.message ?? e?.data?.error ?? e?.message,
     }),
   });
 
@@ -743,7 +743,7 @@ function TabVerifyBeneficiary() {
     }),
     onError: (e: any) => toast({
       variant: "destructive", title: "Penny-drop failed",
-      description: e?.data?.error ?? e?.message,
+      description: e?.message ?? e?.data?.error ?? e?.message,
     }),
   });
 
