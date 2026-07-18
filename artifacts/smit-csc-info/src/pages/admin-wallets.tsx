@@ -34,7 +34,11 @@ export default function AdminWallets() {
       setAdjustTarget(null); setAmount(""); setReason("");
       qc.invalidateQueries({ queryKey: ["admin", "wallets"] });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e?.data?.error }),
+    onError: (e: any) => {
+        const raw = e?.data?.error ?? e?.message ?? "Adjust failed";
+        const desc = typeof raw === "string" ? raw : JSON.stringify(raw);
+        toast({ variant: "destructive", title: "Wallet Adjust Failed", description: desc });
+      },
   });
   const freezeMutation = useMutation({
     mutationFn: ({ id, frozen }: { id: string; frozen: boolean }) => adminFreezeWallet(id, frozen),
@@ -103,7 +107,7 @@ export default function AdminWallets() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAdjustTarget(null)}>Cancel</Button>
-            <Button disabled={!amount || !reason || adjustMutation.isPending} onClick={() => adjustMutation.mutate()}>
+            <Button disabled={!amount || reason.trim().length < 1 || adjustMutation.isPending} onClick={() => adjustMutation.mutate()}>
               {adjustMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Confirm
             </Button>
           </DialogFooter>
