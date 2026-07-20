@@ -95,7 +95,7 @@ export default function ImageUpscalerPage() {
         sharpen,
         onProgress: (p) => setProgress(p),
       });
-      let blob = await canvasToBlob(out, "image/jpeg", 0.95);
+      let blob = await canvasToBlob(out, "image/jpeg", 1.0);
       blob = await setJpegDPI(blob, 300);
       if (resultUrl) URL.revokeObjectURL(resultUrl);
       const url = URL.createObjectURL(blob);
