@@ -34,7 +34,7 @@ export default function PassportPhotoMaker() {
       setBusy(true);
       const img = await loadImage(files[0]);
       const canvas = drawCoverFit(img, TARGET, TARGET, "#ffffff");
-      let blob = await canvasToBlob(canvas, "image/jpeg", 0.95);
+      let blob = await canvasToBlob(canvas, "image/jpeg", 1.0);
       blob = await setJpegDPI(blob, 300);
       setOutBlob(blob);
       const url = URL.createObjectURL(blob);
