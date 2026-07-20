@@ -281,7 +281,7 @@ export default function PassportEnginePage() {
         targetW,
         targetH,
       );
-      const blob = await canvasToBlob(c, "image/jpeg", 0.95);
+      const blob = await canvasToBlob(c, "image/jpeg", 0.97);
       const finalUrl = URL.createObjectURL(blob);
 
       if (cropTargetId === null) {
@@ -390,7 +390,7 @@ export default function PassportEnginePage() {
             if (!blob2) return;
             const url = URL.createObjectURL(blob2);
             updateEntry(entryId, { finalUrl: url });
-          }, "image/jpeg", 0.95);
+          }, "image/jpeg", 0.97);
           return merged;
         }),
       );
@@ -413,7 +413,7 @@ export default function PassportEnginePage() {
         updateEntry(entryId, { bg, finalUrl: url });
       },
       "image/jpeg",
-      0.95,
+      0.97,
     );
   }
 
@@ -469,12 +469,14 @@ export default function PassportEnginePage() {
         r.width = finalCanvas.height;
         r.height = finalCanvas.width;
         const ctx = r.getContext("2d")!;
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.translate(r.width / 2, r.height / 2);
         ctx.rotate(Math.PI / 2);
         ctx.drawImage(finalCanvas, -finalCanvas.width / 2, -finalCanvas.height / 2);
-        imgData = r.toDataURL("image/jpeg", 0.95);
+        imgData = r.toDataURL("image/jpeg", 1.0);
       } else {
-        imgData = finalCanvas.toDataURL("image/jpeg", 0.95);
+        imgData = finalCanvas.toDataURL("image/jpeg", 1.0);
       }
       entryImgData.push(imgData);
     }
@@ -487,7 +489,7 @@ export default function PassportEnginePage() {
     for (let i = 0; i < total; i++) {
       const cell = layout.cells[i];
       const data = entryImgData[cell.entryIndex];
-      pdf.addImage(data, "JPEG", cell.xMm, cell.yMm, layout.cellW, layout.cellH, undefined, "FAST");
+      pdf.addImage(data, "JPEG", cell.xMm, cell.yMm, layout.cellW, layout.cellH, undefined, "NONE");
       pdf.rect(cell.xMm, cell.yMm, layout.cellW, layout.cellH, "S");
       setPdfProgress(35 + Math.round(((i + 1) / total) * 60));
       if (i % 6 === 5) await new Promise((r) => setTimeout(r, 0));
@@ -920,7 +922,7 @@ export default function PassportEnginePage() {
                         const e = entries[0];
                         if (!e) return;
                         const finalCanvas = entryFinalCanvas(e);
-                        const blob = await canvasToBlob(finalCanvas, "image/jpeg", 0.95);
+                        const blob = await canvasToBlob(finalCanvas, "image/jpeg", 1.0);
                         downloadBlob(blob, "passport-photo-3.5x4.5cm.jpg");
                       })
                     }
