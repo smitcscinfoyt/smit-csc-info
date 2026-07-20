@@ -34,7 +34,7 @@ export default function DpiConverter() {
       canvas.height = img.height;
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
-      let blob = await canvasToBlob(canvas, "image/jpeg", 0.95);
+      let blob = await canvasToBlob(canvas, "image/jpeg", 1.0);
       blob = await setJpegDPI(blob, dpi);
       setOutBlob(blob);
       const url = URL.createObjectURL(blob);
