@@ -897,7 +897,7 @@ export default function BackgroundRemover() {
           : state,
       bgImage: bgImgEl,
     });
-    return await canvasToBlob(off, kind === "png" ? "image/png" : "image/jpeg", 0.95);
+    return await canvasToBlob(off, kind === "png" ? "image/png" : "image/jpeg", 1.0);
   };
 
   const doDownload = async (kind: "png" | "jpg") => {
