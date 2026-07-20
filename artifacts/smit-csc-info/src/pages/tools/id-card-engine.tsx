@@ -152,17 +152,14 @@ async function renderPdfPages(file: File): Promise<PdfPageThumb[]> {
   // reported the page "reloading" after PDF upload — the actual cause
   // was Android killing the tab during high-memory PDF rasterisation).
   //
-  // Mobile (≤ 900 px viewport): scale 1.25 (~90 DPI) — keeps a single
-  //   A4 page canvas under ~5 MB so Firefox doesn't OOM the tab when
-  //   it's briefly backgrounded by the file picker.
-  // Desktop: scale 1.5 (~108 DPI) — still plenty of pixels for ID-card
-  //   crops which max out at 86×56 mm @ 300 DPI = 1016×661 px.
-  // Reducing from the original scale 2 (144 DPI) saves ~44% canvas
-  // memory and dramatically improves stability on low-RAM phones with
-  // no visible loss of cropping quality.
+  // Mobile (≤ 900 px viewport): scale 1.8 (~130 DPI) — enough pixels
+  //   for high-quality 300-DPI card crops while staying under ~10 MB.
+  // Desktop: scale 2.5 (~180 DPI) — high-quality source for 300-DPI
+  //   card crops (86×56 mm = 1016×661 px target). Higher scale means
+  //   less upscaling in the crop step → sharper output PDF.
   const isMobile =
     typeof window !== "undefined" && window.innerWidth <= 900;
-  const renderScale = isMobile ? 1.25 : 1.5;
+  const renderScale = isMobile ? 1.8 : 2.5;
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -172,7 +169,7 @@ async function renderPdfPages(file: File): Promise<PdfPageThumb[]> {
     canvas.height = viewport.height;
     const ctx = canvas.getContext("2d")!;
     await page.render({ canvasContext: ctx, viewport }).promise;
-    const blob = await canvasToBlob(canvas, "image/jpeg", 0.9);
+    const blob = await canvasToBlob(canvas, "image/jpeg", 0.97);
     // Explicitly free the page-level pdf.js internals + zero out the
     // canvas so the browser can GC them BEFORE we render the next
     // page. Without this, multi-page PDFs accumulate memory and
@@ -465,7 +462,7 @@ async function rotateImageUrl(sourceUrl: string, steps: 0 | 1 | 2 | 3): Promise<
   ctx.translate(bw / 2, bh / 2);
   ctx.rotate(rad);
   ctx.drawImage(img, -img.width / 2, -img.height / 2);
-  const blob = await canvasToBlob(c, "image/jpeg", 0.95);
+  const blob = await canvasToBlob(c, "image/jpeg", 0.97);
   return URL.createObjectURL(blob);
 }
 
@@ -1029,7 +1026,7 @@ export default function IdCardEnginePage() {
     }
     try {
       const c = await buildSideCanvasFromQuad(rotatedUrl, quad);
-      const blob = await canvasToBlob(c, "image/jpeg", 0.95);
+      const blob = await canvasToBlob(c, "image/jpeg", 0.97);
       const url = URL.createObjectURL(blob);
       if (target === "front") {
         if (draftFrontUrl) URL.revokeObjectURL(draftFrontUrl);
@@ -1095,7 +1092,7 @@ export default function IdCardEnginePage() {
         width: source.width,
         height: source.height,
       });
-      const blob = await canvasToBlob(c, "image/jpeg", 0.95);
+      const blob = await canvasToBlob(c, "image/jpeg", 0.97);
       const url = URL.createObjectURL(blob);
       if (target === "front") {
         if (draftFrontUrl) URL.revokeObjectURL(draftFrontUrl);
@@ -1246,10 +1243,10 @@ export default function IdCardEnginePage() {
     setDraftBack(card.backCanvas);
     // Re-create blob URLs for the existing canvases so the preview
     // boxes stay alive even if user cancels (we never revoke originals).
-    canvasToBlob(card.frontCanvas, "image/jpeg", 0.95).then((b) =>
+    canvasToBlob(card.frontCanvas, "image/jpeg", 0.97).then((b) =>
       setDraftFrontUrl(URL.createObjectURL(b)),
     );
-    canvasToBlob(card.backCanvas, "image/jpeg", 0.95).then((b) =>
+    canvasToBlob(card.backCanvas, "image/jpeg", 0.97).then((b) =>
       setDraftBackUrl(URL.createObjectURL(b)),
     );
     setEditingCardId(cardId);
@@ -1372,12 +1369,14 @@ export default function IdCardEnginePage() {
           r.width = c.height;
           r.height = c.width;
           const ctx = r.getContext("2d")!;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
           ctx.translate(r.width / 2, r.height / 2);
           ctx.rotate(Math.PI / 2);
           ctx.drawImage(c, -c.width / 2, -c.height / 2);
-          data = r.toDataURL("image/jpeg", 0.95);
+          data = r.toDataURL("image/jpeg", 1.0);
         } else {
-          data = c.toDataURL("image/jpeg", 0.95);
+          data = c.toDataURL("image/jpeg", 1.0);
         }
         cache.set(key, data);
         return data;
@@ -1391,7 +1390,7 @@ export default function IdCardEnginePage() {
       for (let i = 0; i < total; i++) {
         const cell = layout.cells[i];
         const data = dataFor(cell.cardIndex, cell.side, cell.rotate);
-        pdf.addImage(data, "JPEG", cell.xMm, cell.yMm, layout.cellW, layout.cellH, undefined, "FAST");
+        pdf.addImage(data, "JPEG", cell.xMm, cell.yMm, layout.cellW, layout.cellH, undefined, "NONE");
         pdf.rect(cell.xMm, cell.yMm, layout.cellW, layout.cellH, "S");
         setPdfProgress(25 + Math.round(((i + 1) / total) * 70));
         if (i % 4 === 3) await new Promise((r) => setTimeout(r, 0));
@@ -1432,11 +1431,13 @@ export default function IdCardEnginePage() {
       out.width = cw * 2 + gap;
       out.height = ch;
       const ctx = out.getContext("2d")!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, out.width, out.height);
       ctx.drawImage(card.frontCanvas, 0, 0);
       ctx.drawImage(card.backCanvas, cw + gap, 0);
-      const blob = await canvasToBlob(out, "image/jpeg", 0.95);
+      const blob = await canvasToBlob(out, "image/jpeg", 0.97);
       downloadBlob(blob, `id-card-${CARD_W_MM}x${CARD_H_MM}mm-pair.jpg`);
     });
   }
