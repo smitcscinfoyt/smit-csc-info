@@ -4,7 +4,7 @@ import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import { creditWallet, ensureWallet, WalletError } from "../lib/wallet-engine";
 import { getGlobalSettings } from "../lib/recharge-config";
-import { initiatePhonePePayment, checkPhonePeStatus, isPhonePeConfigured, getCallbackBaseUrl, verifyV1Callback } from "../lib/phonepe";
+import { createUpiOrder, checkUpiOrderStatus, isUpiGatewayConfigured, getCallbackBaseUrl } from "../lib/upigateway";
 import { hasTpin } from "../lib/tpin";
 import { sendWalletTopupSuccessEmail } from "../lib/mailer";
 import { usersTable } from "@workspace/db";
@@ -143,7 +143,7 @@ router.get("/wallet/ledger/range", requireAuth, async (req: AuthRequest, res): P
   });
 });
 
-// ─── POST /wallet/topup/init — start a PhonePe top-up ────────────────────────
+// ─── POST /wallet/topup/init — start a UPI Gateway (AllAPI.in) top-up ────────
 const topupInitBody = z.object({
   amountPaise: z.number().int().positive(),
 });
@@ -176,10 +176,13 @@ router.post("/wallet/topup/init", requireAuth, async (req: AuthRequest, res): Pr
     return;
   }
 
-  if (!isPhonePeConfigured()) {
-    res.status(503).json({ error: "PhonePe payment gateway not configured" });
+  if (!isUpiGatewayConfigured()) {
+    res.status(503).json({ error: "Payment gateway not configured" });
     return;
   }
+
+  // Fetch user details for AllAPI (name + mobile required by the gateway)
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
   const transactionId = genTopupTxn(userId);
   await db.insert(walletTopupsTable).values({
@@ -187,80 +190,70 @@ router.post("/wallet/topup/init", requireAuth, async (req: AuthRequest, res): Pr
     amountPaise,
     transactionId,
     status: "pending",
+    method: "upi_gateway",
   });
 
   const base = getCallbackBaseUrl();
-  // BASE_PATH for the smit-csc-info artifact (e.g. "/" or "/smit-csc-info")
   const appBase = (process.env.SMIT_CSC_BASE_PATH ?? "/").replace(/\/$/, "");
   const redirectUrl = `${base}${appBase}/wallet/return?txn=${transactionId}`;
-  const callbackUrl = `${base}/api/wallet/topup/phonepe/callback`;
 
   try {
-    const { phonePeRedirectUrl } = await initiatePhonePePayment({
-      merchantTransactionId: transactionId,
-      merchantUserId: `user-${userId}`,
-      amount: amountPaise / 100,
+    const { paymentUrl } = await createUpiOrder({
+      orderId:        transactionId,
+      amountRupees:   amountPaise / 100,
+      customerName:   user?.name    || "User",
+      customerMobile: user?.mobile  || "0000000000",
+      customerEmail:  user?.email   || undefined,
+      txnNote:        `Wallet Top-up ₹${amountPaise / 100}`,
       redirectUrl,
-      callbackUrl,
     });
-    res.json({ transactionId, redirectUrl: phonePeRedirectUrl, amountPaise });
+    req.log.info({ txn: transactionId, amountPaise }, "[wallet/topup] UPI order created");
+    res.json({ transactionId, redirectUrl: paymentUrl, amountPaise });
   } catch (err: any) {
     await db.update(walletTopupsTable)
       .set({ status: "failed", errorReason: err?.message ?? "init failed", updatedAt: new Date() })
       .where(eq(walletTopupsTable.transactionId, transactionId));
-    req.log.error({ err }, "[wallet/topup] PhonePe init failed");
+    req.log.error({ err }, "[wallet/topup] UPI Gateway init failed");
     res.status(502).json({ error: err?.message ?? "Payment initiation failed" });
   }
 });
 
-// ─── PhonePe callback for wallet top-ups ─────────────────────────────────────
+// ─── POST /wallet/topup/upi/webhook — AllAPI server-to-server notification ────
+// Set this URL in upigateway.in → Developer → Webhook/wallet URL:
+//   https://smitcscinfo.com/api/wallet/topup/upi/webhook
+router.post("/wallet/topup/upi/webhook", async (req: any, res: any): Promise<void> => {
+  try {
+    req.log?.info({ body: req.body }, "[wallet/upi-webhook] received");
+    const orderId: string | undefined =
+      req.body?.order_id ?? req.body?.orderId ?? req.body?.txn_id;
+    if (orderId) {
+      void reconcileTopup(orderId).catch((e) =>
+        req.log?.error({ err: e }, "[wallet/upi-webhook] reconcile error")
+      );
+    }
+    res.status(200).json({ status: true });
+  } catch (err) {
+    req.log?.error({ err }, "[wallet/upi-webhook] error");
+    res.status(200).json({ status: true }); // always 200 to ACK
+  }
+});
+
+// ─── Legacy PhonePe callback stub — kept so old pending WLT rows can redirect ─
 async function handleWalletPhonePeCallback(req: any, res: any): Promise<void> {
   const base = getCallbackBaseUrl();
   const appBase = (process.env.SMIT_CSC_BASE_PATH ?? "/").replace(/\/$/, "");
   try {
-    req.log?.info({ q: req.query, b: req.body }, "[wallet/cb] in");
-
-    const xVerify = req.headers["x-verify"] as string | undefined;
-    const callbackResponse = req.body?.response as string | undefined;
-    if (callbackResponse && xVerify) {
-      const valid = verifyV1Callback(callbackResponse, xVerify);
-      req.log?.info({ valid }, "[wallet/cb] v1 X-VERIFY");
+    req.log?.info({ q: req.query, b: req.body }, "[wallet/phonepe-cb] received (legacy)");
+    const txn: string | undefined =
+      (req.query?.txn as string | undefined) ??
+      (req.body?.merchantOrderId as string | undefined) ??
+      (req.body?.orderId as string | undefined);
+    if (txn) {
+      void reconcileTopup(txn).catch(() => {/* best-effort */});
     }
-
-       // Extract the transaction ID from all locations PhonePe may send it
-    let merchantTransactionId: string | undefined =
-      (req.query?.txn             as string | undefined) ||
-      (req.query?.merchantOrderId as string | undefined) ||
-      (req.query?.orderId         as string | undefined) ||
-      (req.body?.merchantOrderId  as string | undefined) ||
-      (req.body?.orderId          as string | undefined) ||
-      (req.body?.payload?.merchantOrderId as string | undefined) ||
-      (req.body?.payload?.orderId         as string | undefined);
-
-    if (!merchantTransactionId && req.body?.response) {
-      try {
-        const decoded = Buffer.from(req.body.response, "base64").toString("utf-8");
-        const parsed = JSON.parse(decoded);
-        merchantTransactionId = parsed.merchantTransactionId;
-      } catch {}
-    }
-    if (!merchantTransactionId) {
-      merchantTransactionId = req.body?.merchantTransactionId || req.query?.transactionId as string | undefined || req.query?.merchantTransactionId as string | undefined;
-    }
-
-    if (!merchantTransactionId) {
-      res.redirect(`${base}${appBase}/wallet?status=pending`);
-      return;
-    }
-    if (!isPhonePeConfigured()) {
-      res.redirect(`${base}${appBase}/wallet/return?txn=${merchantTransactionId}&status=pending`);
-      return;
-    }
-
-    await reconcileTopup(String(merchantTransactionId));
-    res.redirect(`${base}${appBase}/wallet/return?txn=${merchantTransactionId}`);
+    res.redirect(`${base}${appBase}/wallet/return?txn=${txn ?? ""}`);
   } catch (err) {
-    req.log?.error({ err }, "[wallet/cb] error");
+    req.log?.error({ err }, "[wallet/phonepe-cb] error");
     res.redirect(`${base}${appBase}/wallet?status=pending`);
   }
 }
@@ -280,7 +273,7 @@ router.post("/wallet/topup/:txn/verify", requireAuth, async (req: AuthRequest, r
     res.json({ status: "success", transactionId: txn, amountPaise: Number(t.amountPaise) });
     return;
   }
-  if (!isPhonePeConfigured()) {
+  if (!isUpiGatewayConfigured()) {
     res.status(503).json({ error: "Payment gateway not configured" });
     return;
   }
@@ -288,19 +281,24 @@ router.post("/wallet/topup/:txn/verify", requireAuth, async (req: AuthRequest, r
   res.json({ status: result.status, transactionId: txn, amountPaise: Number(t.amountPaise), error: result.error });
 });
 
-/** Idempotently sync a single top-up's status from PhonePe and credit the wallet on success. */
+/** Idempotently sync a top-up's status from AllAPI/UPI Gateway and credit wallet on success. */
 async function reconcileTopup(txn: string): Promise<{ status: string; error?: string }> {
   const [t] = await db.select().from(walletTopupsTable).where(eq(walletTopupsTable.transactionId, txn));
   if (!t) return { status: "not_found" };
   if (t.status === "success") return { status: "success" };
 
-  const { success, state } = await checkPhonePeStatus(txn);
+  const { success, status: upiStatus, utrNumber, paymentMode } = await checkUpiOrderStatus(txn);
 
   if (success) {
-    // Atomic: update topup row only if still pending; if so credit wallet.
     const [updated] = await db
       .update(walletTopupsTable)
-      .set({ status: "success", completedAt: new Date(), updatedAt: new Date() })
+      .set({
+        status: "success",
+        completedAt: new Date(),
+        updatedAt: new Date(),
+        utr: utrNumber ?? null,
+        method: paymentMode ? `upi_${paymentMode.toLowerCase()}` : "upi_gateway",
+      })
       .where(and(eq(walletTopupsTable.id, t.id), eq(walletTopupsTable.status, "pending")))
       .returning();
     if (updated) {
@@ -310,13 +308,12 @@ async function reconcileTopup(txn: string): Promise<{ status: string; error?: st
         refType: "wallet_topup",
         refId: t.id,
         refCode: txn,
-        note: `Wallet top-up via PhonePe`,
+        note: `Wallet top-up via UPI${utrNumber ? ` (UTR: ${utrNumber})` : ""}`,
       });
-            await db.update(walletTopupsTable)
+      await db.update(walletTopupsTable)
         .set({ ledgerEntryId: credit.ledgerEntryId, updatedAt: new Date() })
         .where(eq(walletTopupsTable.id, t.id));
 
-      // Fire-and-forget success email
       try {
         const [u] = await db.select().from(usersTable).where(eq(usersTable.id, t.userId));
         if (u?.email) {
@@ -326,7 +323,7 @@ async function reconcileTopup(txn: string): Promise<{ status: string; error?: st
             amountPaise: Number(t.amountPaise),
             transactionId: t.transactionId,
             completedAt: updated.completedAt ?? new Date(),
-            method: t.method ?? "phonepe",
+            method: updated.method ?? "upi_gateway",
             newBalancePaise: credit.balancePaise,
           }).catch((e) => console.error("[wallet topup] email send failed:", e?.message ?? e));
         }
@@ -336,13 +333,13 @@ async function reconcileTopup(txn: string): Promise<{ status: string; error?: st
     }
     return { status: "success" };
   }
-  if (state === "PENDING") return { status: "pending" };
+  if (upiStatus === "PENDING") return { status: "pending" };
 
   await db
     .update(walletTopupsTable)
-    .set({ status: "failed", errorReason: `PhonePe state: ${state}`, updatedAt: new Date() })
+    .set({ status: "failed", errorReason: `UPI Gateway status: ${upiStatus}`, updatedAt: new Date() })
     .where(and(eq(walletTopupsTable.id, t.id), eq(walletTopupsTable.status, "pending")));
-  return { status: "failed", error: `PhonePe state: ${state}` };
+  return { status: "failed", error: `UPI Gateway status: ${upiStatus}` };
 }
 
 // ─── GET /wallet/payment-info — bank + UPI details for manual top-ups ───────
