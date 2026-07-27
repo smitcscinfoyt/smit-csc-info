@@ -24,15 +24,15 @@ export default function WalletAdd() {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-primary" />Add Money to Wallet</CardTitle>
-            <CardDescription>PhonePe Gateway or Manual Payment (Bank / UPI QR)</CardDescription>
+            <CardDescription>UPI Payment or Manual Payment (Bank / UPI QR)</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="phonepe" className="w-full">
+            <Tabs defaultValue="upi" className="w-full">
               <TabsList className="grid grid-cols-2 w-full mb-4">
-                <TabsTrigger value="phonepe" data-testid="tab-phonepe">PhonePe Gateway</TabsTrigger>
+                <TabsTrigger value="upi" data-testid="tab-upi">UPI Payment</TabsTrigger>
                 <TabsTrigger value="manual" data-testid="tab-manual">Manual Payment</TabsTrigger>
               </TabsList>
-              <TabsContent value="phonepe"><PhonePeTab /></TabsContent>
+              <TabsContent value="upi"><UpiTab /></TabsContent>
               <TabsContent value="manual"><ManualTab /></TabsContent>
             </Tabs>
           </CardContent>
@@ -42,8 +42,8 @@ export default function WalletAdd() {
   );
 }
 
-// ─── PhonePe gateway flow (existing) ─────────────────────────────────────────
-function PhonePeTab() {
+// ─── UPI Gateway flow (AllAPI.in) ──────────────────────────────────────────────
+function UpiTab() {
   const { toast } = useToast();
   const [amount, setAmount] = useState("");
   const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: getWallet });
@@ -88,7 +88,7 @@ function PhonePeTab() {
         </div>
       )}
       <Button className="w-full bg-primary hover:bg-primary/90 text-white font-semibold h-12 text-base" disabled={initMutation.isPending || numAmount < 10 || exceedsCap} onClick={handleSubmit} data-testid="btn-pay">
-        {initMutation.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Processing...</> : <>Pay ₹{numAmount > 0 ? numAmount.toLocaleString("en-IN") : "0"} via PhonePe</>}
+        {initMutation.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Processing...</> : <>Pay ₹{numAmount > 0 ? numAmount.toLocaleString("en-IN") : "0"} via UPI</>}
       </Button>
       <p className="text-xs text-center text-muted-foreground">Money will be credited to your wallet instantly after successful payment.</p>
     </div>
