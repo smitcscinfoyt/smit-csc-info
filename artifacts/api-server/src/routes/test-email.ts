@@ -1,35 +1,34 @@
 import { Router } from "express";
 import { sendTestEmail, sendMembershipSuccessEmail, getSmtpStatus } from "../lib/mailer";
+import { requireAdmin } from "../lib/auth";
 
 const router = Router();
 
 /**
+ * All test-email endpoints can trigger outbound email delivery and expose
+ * operational SMTP status, so they are restricted to authenticated admins.
+ * Keeping this as a router-level guard also covers future subpaths such as
+ * /test-email/config and /test-email/payment.
+ */
+router.use("/test-email", requireAdmin);
+
+/**
  * GET /api/test-email/config
- * Returns the currently active SMTP configuration (no email sent).
- * Use this to confirm what HOST/PORT/USER is actually running on the server.
+ * Returns whether SMTP is configured without exposing connection details.
  */
 router.get("/test-email/config", (req, res): void => {
   const status = getSmtpStatus();
   res.json({
     smtpConfigured: status.configured,
-    host: status.host  || "(not set)",
-    port: status.port  || "(not set)",
-    user: status.user  || "(not set)",
-    pass: status.configured ? "✓ set (hidden)" : "(not set)",
-    hint: !status.configured
-      ? "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS in GitHub Secrets and redeploy."
-      : status.host.includes("zoho")
-      ? "Zoho SMTP detected. Make sure SMTP_PASS is a Zoho App Password (not your regular login password). Generate at: mail.zoho.in → Settings → Security → App Passwords."
-      : status.host.includes("gmail")
-      ? "Gmail SMTP detected. Make sure SMTP_PASS is a Gmail App Password. Generate at: myaccount.google.com → Security → App Passwords."
-      : "SMTP is configured. Test with /api/test-email?to=you@email.com",
+    hint: status.configured
+      ? "SMTP is configured."
+      : "SMTP is not configured. Set the required SMTP secrets on the server.",
   });
 });
 
 /**
  * GET /api/test-email?to=someone@gmail.com
- * Sends a test email and returns a detailed SMTP status report.
- * Remove or protect this route before going to production.
+ * Sends a test email and returns a limited delivery status report.
  */
 router.get("/test-email", async (req, res): Promise<void> => {
   const to = typeof req.query.to === "string" ? req.query.to.trim() : null;
@@ -41,12 +40,7 @@ router.get("/test-email", async (req, res): Promise<void> => {
       success: false,
       smtpConfigured: false,
       message: "SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS as secrets.",
-      currentConfig: {
-        SMTP_HOST: status.host  || "(not set)",
-        SMTP_PORT: status.port  || "(not set)",
-        SMTP_USER: status.user  || "(not set)",
-        SMTP_PASS: "(hidden)",
-      },
+      currentConfig: { SMTP_PASS: "(hidden)" },
       helpZoho: [
         "1. Login to mail.zoho.in → Settings (gear) → Security → App Passwords",
         "2. Click 'Generate New Password', name it 'smit-csc-info'",
@@ -69,11 +63,7 @@ router.get("/test-email", async (req, res): Promise<void> => {
     res.json({
       success: true,
       message: `Test email sent to ${to}. Check the inbox (and spam folder).`,
-      smtpConfig: {
-        host: status.host,
-        port: status.port,
-        user: status.user,
-      },
+      smtpConfigured: true,
     });
   } catch (err: any) {
     const isZoho  = status.host.includes("zoho");
@@ -102,11 +92,6 @@ router.get("/test-email", async (req, res): Promise<void> => {
     res.status(500).json({
       success: false,
       smtpConfigured: true,
-      smtpConfig: {
-        host: status.host,
-        port: status.port,
-        user: status.user,
-      },
       error: err?.message ?? "Unknown error",
       code:  err?.code   ?? "UNKNOWN",
       hint,
