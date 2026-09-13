@@ -5,10 +5,22 @@ import {
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
-import { ObjectPermission } from "../lib/objectAcl";
+import { requireAuth, type AuthRequest } from "../lib/auth";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_NAME_LENGTH = 255;
+const ALLOWED_UPLOAD_CONTENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+]);
 
 /**
  * POST /storage/uploads/request-url
@@ -17,7 +29,10 @@ const objectStorageService = new ObjectStorageService();
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned presigned URL.
  */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
+router.post(
+  "/storage/uploads/request-url",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });
@@ -25,7 +40,33 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
   }
 
   try {
-    const { name, size, contentType } = parsed.data;
+    const name = parsed.data.name.trim();
+    const contentType = parsed.data.contentType.trim().toLowerCase();
+    const size = parsed.data.size;
+
+    if (!name || name.length > MAX_UPLOAD_NAME_LENGTH) {
+      res.status(400).json({
+        error: `File name is required and must be ${MAX_UPLOAD_NAME_LENGTH} characters or fewer`,
+      });
+      return;
+    }
+
+    if (!Number.isSafeInteger(size) || size <= 0) {
+      res.status(400).json({ error: "File size must be a positive integer" });
+      return;
+    }
+
+    if (size > MAX_UPLOAD_SIZE_BYTES) {
+      res.status(413).json({ error: "File is too large. Maximum upload size is 10 MB." });
+      return;
+    }
+
+    if (!ALLOWED_UPLOAD_CONTENT_TYPES.has(contentType)) {
+      res.status(415).json({
+        error: "Unsupported file type. Allowed types are PDF, Word, PowerPoint, JPEG, and PNG.",
+      });
+      return;
+    }
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
@@ -41,7 +82,8 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
     req.log.error({ err: error }, "Error generating upload URL");
     res.status(500).json({ error: "Failed to generate upload URL" });
   }
-});
+  },
+);
 
 /**
  * GET /storage/public-objects/*
