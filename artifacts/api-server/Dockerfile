@@ -1,7 +1,7 @@
 # Multi-stage build for lightweight Express 5 API backend
 
 # --- Build Stage ---
-FROM node:24-slim AS builder
+FROM node:24-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS builder
 
 WORKDIR /app
 
@@ -33,7 +33,7 @@ RUN pnpm --filter @workspace/db run build || true
 RUN pnpm --filter @workspace/api-server run build
 
 # --- Production Runner Stage ---
-FROM node:24-slim AS runner
+FROM node:24-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
