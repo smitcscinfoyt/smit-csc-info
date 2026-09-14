@@ -23,7 +23,14 @@ const DEFAULT_BASE = "https://business.a1topup.com";
 
 function username(): string  { return process.env.A1TOPUP_USERNAME ?? process.env.A1TOPUP_API_TOKEN ?? ""; }
 function pwd(): string       { return process.env.A1TOPUP_PASSWORD ?? ""; }
-function base(): string      { return (process.env.A1TOPUP_BASE_URL ?? DEFAULT_BASE).replace(/\/+$/, ""); }
+/**
+ * A1TOPUP_BASE_URL is documented as the host, but some deployments store a
+ * complete endpoint. Strip known endpoint suffixes before appending paths.
+ */
+function base(): string {
+  const configured = (process.env.A1TOPUP_BASE_URL ?? DEFAULT_BASE).trim().replace(/\/+$/, "");
+  return configured.replace(/\/(?:recharge\/(?:api|status|balance|fetchbill)|recharge)$/i, "") || DEFAULT_BASE;
+}
 function webhookSecret(): string { return process.env.A1TOPUP_WEBHOOK_SECRET ?? ""; }
 
 export function isA1TopupConfigured(): boolean {
@@ -49,7 +56,7 @@ function normaliseStatus(code: string | number | undefined, msg: string): A1Resp
   // A1Topup numeric / textual codes
   if (s === "1" || s === "200" || s === "SUCCESS" || s === "S") return "success";
   if (s === "2" || s === "201" || s === "PENDING" || s === "P" || s === "PROCESSING" || s === "ACCEPTED") return "pending";
-  if (s === "3" || s === "FAILED" || s === "F" || s === "FAILURE") return "failed";
+  if (s === "3" || s === "FAILED" || s === "FAIL" || s === "F" || s === "FAILURE" || s === "REJECTED" || s === "ERROR") return "failed";
   const m = msg.toLowerCase();
   if (m.includes("success")) return "success";
   if (m.includes("accepted") || m.includes("pending") || m.includes("process")) return "pending";
@@ -101,22 +108,33 @@ async function callApi(path: string, params: Record<string, string>): Promise<Re
   for (const k of ["pwd", "password", "otp"]) if (k in safe) safe[k] = "***";
   logger.info({ path, params: safe }, "[A1Topup] â");
 
-  const resp = await fetch(url.toString(), { method: "GET", headers: { Accept: "application/json" } });
-  const text = await resp.text();
+  const resp = await fetch(url.toString(), { method: "GET", headers: { Accept: "application/json, text/plain" } });
+  const text = (await resp.text()).trim();
   let json: Record<string, unknown>;
   try {
     json = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    logger.error({ status: resp.status, text }, "[A1Topup] â non-JSON");
-    // Wrap plain-text error into a structured failed response instead of throwing,
-    // so callers can handle it through normal status-code logic.
-    const plainMsg = text.trim().slice(0, 300) || "Unknown error";
-    return {
-      status: "3",
-      message: plainMsg,
-    } as Record<string, unknown>;
+    // A1Topup documents CSV as a supported response format and may fall back
+    // to it even when format=json is supplied.
+    const fields = text.split(",").map((field) => field.trim());
+    if (fields.length >= 6) {
+      json = {
+        txid: fields[0],
+        status: fields[1],
+        opid: fields[2],
+        number: fields[3],
+        amount: fields[4],
+        orderid: fields[5],
+      };
+    } else {
+      logger.error({ status: resp.status, text }, "[A1Topup] response was not JSON or CSV");
+      return {
+        status: "3",
+        message: text.slice(0, 300) || `HTTP ${resp.status}`,
+      } as Record<string, unknown>;
+    }
   }
-  logger.info({ status: resp.status, body: json }, "[A1Topup] â");
+  logger.info({ status: resp.status, body: json }, "[A1Topup] response");
   return json;
 }
 
