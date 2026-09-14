@@ -32,6 +32,7 @@ import liveDataRouter from "./live-data";
 import newsRouter from "./news";
 import sahayakRouter from "./sahayak";
 import statsRouter from "./stats";
+import vyapargatewayRouter from "./vyapargateway-webhook";
 
 const router: IRouter = Router();
 
@@ -68,5 +69,6 @@ router.use(liveDataRouter);
 router.use(newsRouter);
 router.use(sahayakRouter);
 router.use(statsRouter);
+router.use(vyapargatewayRouter);
 
 export default router;

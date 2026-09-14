@@ -7,7 +7,7 @@ const rawPort = process.env["API_PORT"] ?? process.env["PORT"];
 
 if (!rawPort) {
   throw new Error(
-    "PORT environment variable is required but was not provided.",
+    "API_PORT or PORT environment variable is required but was not provided.",
   );
 }
 
@@ -17,18 +17,19 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const server = app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
-
+const server = app.listen(port, () => {
   logger.info({ port }, "Server listening");
   startPrimeReminderScheduler();
 });
 
+server.on("error", (err) => {
+  logger.error({ err }, "Error listening on port");
+  process.exit(1);
+});
+
 const shutdown = (signal: string) => {
   logger.info({ signal }, "Received shutdown signal, closing server");
+  stopPrimeReminderScheduler();
   server.close(() => {
     logger.info("Server closed");
     process.exit(0);

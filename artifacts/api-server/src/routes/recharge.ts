@@ -4,7 +4,8 @@ import { sendRechargeSuccessEmail } from "../lib/mailer";
 import { and, desc, eq, gte, lt, or, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuth, type AuthRequest } from "../lib/auth";
-import { ensureWallet, debitWallet, creditWallet, WalletError } from "../lib/wallet-engine";
+import { ensureWallet, debitWallet, creditWallet, holdWalletBalance, releaseWalletHold, commitWalletHold, WalletError } from "../lib/wallet-engine";
+import { createVyaparOrder, isVyaparGatewayConfigured, getCallbackBaseUrl } from "../lib/vyapargateway";
 import { computeCommission, type RechargeType } from "../lib/commission-engine";
 import { doRecharge, fetchBill, checkStatus, isA1TopupConfigured, OPERATORS, CIRCLES, verifyWebhookSig, type A1Response } from "../lib/a1topup";
 import { getGlobalSettings } from "../lib/recharge-config";
@@ -549,7 +550,7 @@ export async function applyProviderResult(rechargeId: number, a1: A1Response) {
       const [latest] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, row.id));
       return latest ?? row;
     }
-    if (row.debitLedgerId) {
+    if (row.debitLedgerId || Number(row.upiPaidPaise ?? 0) > 0) {
       // Refund must succeed or we revert the CAS so retry can complete it (no user fund loss).
       try {
         const r = await creditWallet(row.userId, {
@@ -579,6 +580,285 @@ export async function applyProviderResult(rechargeId: number, a1: A1Response) {
   const [updated] = await db.update(rechargesTable).set({ ...baseUpdate, status: "processing" }).where(eq(rechargesTable.id, row.id)).returning();
   return updated ?? row;
 }
+
+/**
+ * Execute a recharge after payment (UPI shortfall / VyaparGateway payment success).
+ * 1. Commits held wallet balance (if walletDebitPaise > 0).
+ * 2. Invokes A1Topup provider.
+ * 3. Applies result: credits cashback on success, or auto-refunds full amount (wallet + UPI) on failure.
+ */
+export async function executeRechargeAfterPayment(rechargeId: number): Promise<any> {
+  const [row] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, rechargeId));
+  if (!row) throw new Error(`Recharge ${rechargeId} not found`);
+  if (row.status !== "pending" && row.status !== "processing") {
+    return row;
+  }
+
+  // 1. Commit wallet hold if there is a wallet portion
+  const walletDebitPaise = Number(row.walletDebitPaise ?? 0);
+  let debitLedgerId = row.debitLedgerId;
+  if (walletDebitPaise > 0 && !debitLedgerId) {
+    try {
+      const d = await commitWalletHold(row.userId, {
+        type: "recharge_debit",
+        amountPaise: walletDebitPaise,
+        refType: "recharge",
+        refId: row.id,
+        refCode: row.a1RequestId,
+        note: `${row.operatorName} ${row.type} → ${row.accountNumber}`,
+      });
+      debitLedgerId = d.ledgerEntryId;
+      await db.update(rechargesTable)
+        .set({ status: "processing", debitLedgerId, updatedAt: new Date() })
+        .where(eq(rechargesTable.id, row.id));
+    } catch (err: any) {
+      console.error("[recharge/shortfall] commitWalletHold error:", err);
+    }
+  } else {
+    await db.update(rechargesTable)
+      .set({ status: "processing", updatedAt: new Date() })
+      .where(eq(rechargesTable.id, row.id));
+  }
+
+  // 2. Execute A1Topup recharge
+  const effectiveCircle = row.type === "mobile" ? (row.circleCode || "12") : "0";
+  const v1 = row.type === "bill" ? row.accountNumber : undefined;
+
+  let a1: A1Response;
+  try {
+    a1 = await doRecharge({
+      requestId: row.a1RequestId,
+      operatorCode: row.operatorCode,
+      number: row.accountNumber,
+      amountRupees: Number(row.amountPaise) / 100,
+      circleCode: effectiveCircle,
+      value1: v1,
+    });
+  } catch (err: any) {
+    console.error("[recharge/executeAfterPayment] Provider call error:", err);
+    await db.update(rechargesTable)
+      .set({ status: "processing", errorReason: `Provider call error: ${err?.message ?? err}`, updatedAt: new Date() })
+      .where(eq(rechargesTable.id, row.id));
+    const [latest] = await db.select().from(rechargesTable).where(eq(rechargesTable.id, row.id));
+    return latest!;
+  }
+
+  return await applyProviderResult(row.id, a1);
+}
+
+// ─── POST /recharge/init-shortfall — Wallet hold + VyaparGateway Shortfall ────
+router.post("/recharge/init-shortfall", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const userId = req.userId!;
+  const parsed = rechargeBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid recharge request", details: parsed.error.issues.map((i) => i.message).join("; ") });
+    return;
+  }
+  const { type, operatorCode, number, amountPaise, circleCode, customerName, idempotencyKey, tpin } = parsed.data;
+
+  // Idempotency check
+  const [existing] = await db.select().from(rechargesTable).where(and(eq(rechargesTable.userId, userId), eq(rechargesTable.idempotencyKey, idempotencyKey)));
+  if (existing) {
+    res.json({ existing: true, recharge: serializeRecharge(existing) });
+    return;
+  }
+
+  const settings = await getGlobalSettings();
+  if (!settings.rechargeEnabled) {
+    res.status(503).json({ error: "Recharge service is currently disabled" });
+    return;
+  }
+  if (!isA1TopupConfigured()) {
+    res.status(503).json({ error: "Recharge provider not configured", code: "PROVIDER_UNAVAILABLE" });
+    return;
+  }
+  if (!isVyaparGatewayConfigured()) {
+    res.status(503).json({ error: "Payment gateway not configured" });
+    return;
+  }
+
+  // Operator lookup
+  const billCats = ["postpaid", "electricity", "gas", "insurance", "fastag", "giftcard", "bill"] as const;
+  const candidateLists = type === "bill"
+    ? billCats.map((c) => OPERATORS[c] as ReadonlyArray<{ code: string; name: string }>)
+    : [OPERATORS[type] as ReadonlyArray<{ code: string; name: string }>];
+  let op: { code: string; name: string } | undefined;
+  for (const list of candidateLists) {
+    op = list.find((o) => o.code === operatorCode);
+    if (op) break;
+  }
+  if (!op) { res.status(400).json({ error: "Unknown operator" }); return; }
+
+  const acct = number.trim();
+  if (type === "mobile" && !/^[6-9][0-9]{9}$/.test(acct)) { res.status(400).json({ error: "Invalid mobile number" }); return; }
+  if (type === "dth" && acct.length < 6) { res.status(400).json({ error: "Invalid DTH customer ID" }); return; }
+  if (type === "bill" && acct.length < 4) { res.status(400).json({ error: "Invalid consumer number" }); return; }
+
+  const wallet = await ensureWallet(userId);
+  if (wallet.isFrozen) { res.status(403).json({ error: wallet.freezeReason || "Wallet is frozen", code: "WALLET_FROZEN" }); return; }
+
+  const currentBal = Number(wallet.balancePaise);
+  const currentHeld = Number(wallet.heldPaise || 0);
+  const availableBal = Math.max(0, currentBal - currentHeld);
+
+  // If wallet is already fully sufficient, caller should use standard direct recharge
+  if (availableBal >= amountPaise) {
+    res.status(400).json({
+      error: "Wallet balance is sufficient for this recharge. Please proceed with direct wallet payment.",
+      sufficient: true,
+    });
+    return;
+  }
+
+  const walletDebitPaise = availableBal; // Use available balance towards recharge
+  const shortfallPaise = amountPaise - walletDebitPaise;
+  const shortfallRupees = shortfallPaise / 100;
+
+  // Rule 6: Transaction PIN rule: ₹500+ na debit par PIN required
+  if (walletDebitPaise >= 50000) {
+    const tpinSet = await hasTpin(userId);
+    if (!tpinSet) { res.status(400).json({ error: "T-PIN must be set up for wallet deduction of ₹500+", code: "TPIN_NOT_SET" }); return; }
+    if (!tpin) { res.status(400).json({ error: "T-PIN is required", code: "TPIN_REQUIRED" }); return; }
+    const ok = await verifyTpin(userId, tpin);
+    if (!ok) { res.status(401).json({ error: "Invalid T-PIN", code: "TPIN_INVALID" }); return; }
+  }
+
+  // Tier + commission
+  const status = await getPrimeStatus(userId);
+  const opTier = await getUserOperatorTier(userId);
+  const tier = resolveCommissionTier(opTier, status);
+  const com = await computeCommission(type, operatorCode, tier, amountPaise);
+
+  // 1. Hold wallet portion (if > 0)
+  if (walletDebitPaise > 0) {
+    await holdWalletBalance(userId, walletDebitPaise);
+  }
+
+  const requestId = genReqId(userId, type);
+  let rechargeRow;
+  try {
+    [rechargeRow] = await db.insert(rechargesTable).values({
+      userId,
+      walletId: wallet.id,
+      type,
+      operatorCode,
+      operatorName: op.name,
+      circleCode: circleCode ?? null,
+      accountNumber: acct,
+      customerName: customerName ?? null,
+      amountPaise,
+      commissionPaise: com.commissionPaise,
+      commissionTier: tier,
+      commissionPercentBp: com.percentBp,
+      netCostPaise: amountPaise - com.commissionPaise,
+      status: "pending",
+      paymentSplit: walletDebitPaise > 0 ? "split" : "upi",
+      walletDebitPaise,
+      upiPaidPaise: shortfallPaise,
+      vyaparStatus: "pending",
+      a1RequestId: requestId,
+      idempotencyKey,
+    }).returning();
+  } catch (err: any) {
+    if (walletDebitPaise > 0) {
+      await releaseWalletHold(userId, walletDebitPaise).catch(() => {});
+    }
+    throw err;
+  }
+
+  // 2. Create VyaparGateway order for shortfall
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  const base = getCallbackBaseUrl();
+  const callbackUrl = `${base}/api/webhook/vyapargateway`;
+
+  try {
+    const vyaparOrder = await createVyaparOrder({
+      clientTxnId: requestId,
+      amountRupees: shortfallRupees,
+      customerName: user?.name || "Customer",
+      customerMobile: user?.mobile || undefined,
+      customerEmail: user?.email || undefined,
+      productInfo: `${op.name} ${type} Recharge Shortfall`,
+      callbackUrl,
+      udf1: String(rechargeRow.id),
+    });
+
+    await db.update(rechargesTable)
+      .set({ vyaparOrderId: vyaparOrder.order_id, updatedAt: new Date() })
+      .where(eq(rechargesTable.id, rechargeRow.id));
+
+    res.json({
+      rechargeId: rechargeRow.id,
+      a1RequestId: requestId,
+      amountPaise,
+      walletDebitPaise,
+      shortfallPaise,
+      shortfallRupees,
+      vyaparOrder: {
+        orderId: vyaparOrder.order_id,
+        amount: vyaparOrder.amount,
+        qrCode: vyaparOrder.qr_code,
+        upiString: vyaparOrder.upi_string,
+        upiIntent: vyaparOrder.upi_intent,
+        merchantName: vyaparOrder.merchant_name,
+        expiresAt: vyaparOrder.expires_at,
+      },
+    });
+  } catch (err: any) {
+    if (walletDebitPaise > 0) {
+      await releaseWalletHold(userId, walletDebitPaise).catch(() => {});
+    }
+    await db.update(rechargesTable)
+      .set({ status: "failed", errorReason: err?.message ?? "Gateway order failed", updatedAt: new Date(), completedAt: new Date() })
+      .where(eq(rechargesTable.id, rechargeRow.id));
+    res.status(502).json({ error: err?.message ?? "Payment initiation failed" });
+  }
+});
+
+// ─── POST /recharge/release-hold — Release wallet hold on cancellation ────────
+router.post("/recharge/release-hold", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const userId = req.userId!;
+  const rechargeId = Number(req.body?.rechargeId);
+  const a1RequestId = typeof req.body?.a1RequestId === "string" ? req.body.a1RequestId.trim() : "";
+
+  if (!rechargeId && !a1RequestId) {
+    res.status(400).json({ error: "rechargeId or a1RequestId required" });
+    return;
+  }
+
+  const [row] = await db.select().from(rechargesTable).where(
+    and(
+      eq(rechargesTable.userId, userId),
+      rechargeId ? eq(rechargesTable.id, rechargeId) : eq(rechargesTable.a1RequestId, a1RequestId)
+    )
+  );
+
+  if (!row) {
+    res.status(404).json({ error: "Recharge not found" });
+    return;
+  }
+
+  if (row.vyaparStatus === "success" || row.status === "success" || row.status === "processing") {
+    res.status(400).json({ error: "Cannot cancel a paid or processing recharge" });
+    return;
+  }
+
+  if (Number(row.walletDebitPaise ?? 0) > 0) {
+    await releaseWalletHold(userId, Number(row.walletDebitPaise));
+  }
+
+  await db.update(rechargesTable)
+    .set({
+      status: "cancelled",
+      vyaparStatus: "cancelled",
+      errorReason: "Cancelled by user before payment",
+      updatedAt: new Date(),
+      completedAt: new Date(),
+    })
+    .where(eq(rechargesTable.id, row.id));
+
+  res.json({ success: true, message: "Wallet hold released and payment cancelled" });
+});
 
 // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge Ã¢ÂÂ history Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get("/recharge", requireAuth, async (req: AuthRequest, res) => {

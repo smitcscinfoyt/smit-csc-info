@@ -5,6 +5,8 @@ import { requireAuth, type AuthRequest } from "../lib/auth";
 import { creditWallet, ensureWallet, WalletError } from "../lib/wallet-engine";
 import { getGlobalSettings } from "../lib/recharge-config";
 import { createUpiOrder, checkUpiOrderStatus, isUpiGatewayConfigured, getCallbackBaseUrl } from "../lib/upigateway";
+import { createVyaparOrder, isVyaparGatewayConfigured } from "../lib/vyapargateway";
+import { reconcileVyaparTopup } from "./vyapargateway-webhook";
 import { hasTpin } from "../lib/tpin";
 import { sendWalletTopupSuccessEmail } from "../lib/mailer";
 import { usersTable } from "@workspace/db";
@@ -30,6 +32,8 @@ router.get("/wallet", requireAuth, async (req: AuthRequest, res): Promise<void> 
 
   res.json({
     balancePaise: Number(w.balancePaise),
+    heldPaise: Number(w.heldPaise || 0),
+    availablePaise: Math.max(0, Number(w.balancePaise) - Number(w.heldPaise || 0)),
     kycLevel: w.kycLevel,
     kycStatus: kyc?.status ?? "none",
     tpinSet,
@@ -176,12 +180,12 @@ router.post("/wallet/topup/init", requireAuth, async (req: AuthRequest, res): Pr
     return;
   }
 
-  if (!isUpiGatewayConfigured()) {
+  if (!isVyaparGatewayConfigured()) {
     res.status(503).json({ error: "Payment gateway not configured" });
     return;
   }
 
-  // Fetch user details for AllAPI (name + mobile required by the gateway)
+  // Fetch user details for VyaparGateway
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
   const transactionId = genTopupTxn(userId);
@@ -190,30 +194,48 @@ router.post("/wallet/topup/init", requireAuth, async (req: AuthRequest, res): Pr
     amountPaise,
     transactionId,
     status: "pending",
-    method: "upi_gateway",
+    method: "vyapargateway",
   });
 
   const base = getCallbackBaseUrl();
   const appBase = (process.env.SMIT_CSC_BASE_PATH ?? "/").replace(/\/$/, "");
   const redirectUrl = `${base}${appBase}/wallet/return?txn=${transactionId}`;
+  const callbackUrl = `${base}/api/webhook/vyapargateway`;
 
   try {
-    const { paymentUrl } = await createUpiOrder({
-      orderId:        transactionId,
-      amountRupees:   amountPaise / 100,
-      customerName:   user?.name    || "User",
-      customerMobile: user?.mobile  || "0000000000",
-      customerEmail:  user?.email   || undefined,
-      txnNote:        `Wallet Top-up ₹${amountPaise / 100}`,
+    const vyaparOrder = await createVyaparOrder({
+      clientTxnId: transactionId,
+      amountRupees: amountPaise / 100,
+      customerName: user?.name || "User",
+      customerMobile: user?.mobile || undefined,
+      customerEmail: user?.email || undefined,
+      productInfo: `Wallet Top-up ₹${amountPaise / 100}`,
+      callbackUrl,
       redirectUrl,
     });
-    req.log.info({ txn: transactionId, amountPaise }, "[wallet/topup] UPI order created");
-    res.json({ transactionId, redirectUrl: paymentUrl, amountPaise });
+
+    await db
+      .update(walletTopupsTable)
+      .set({ vyaparOrderId: vyaparOrder.order_id, updatedAt: new Date() })
+      .where(eq(walletTopupsTable.transactionId, transactionId));
+
+    req.log.info({ txn: transactionId, orderId: vyaparOrder.order_id, amountPaise }, "[wallet/topup] VyaparGateway order created");
+    res.json({
+      transactionId,
+      orderId: vyaparOrder.order_id,
+      amountPaise,
+      amountRupees: amountPaise / 100,
+      qrCode: vyaparOrder.qr_code,
+      upiString: vyaparOrder.upi_string,
+      upiIntent: vyaparOrder.upi_intent,
+      merchantName: vyaparOrder.merchant_name,
+      redirectUrl: vyaparOrder.payment_url || redirectUrl,
+    });
   } catch (err: any) {
     await db.update(walletTopupsTable)
       .set({ status: "failed", errorReason: err?.message ?? "init failed", updatedAt: new Date() })
       .where(eq(walletTopupsTable.transactionId, transactionId));
-    req.log.error({ err }, "[wallet/topup] UPI Gateway init failed");
+    req.log.error({ err }, "[wallet/topup] VyaparGateway init failed");
     res.status(502).json({ error: err?.message ?? "Payment initiation failed" });
   }
 });
@@ -273,11 +295,7 @@ router.post("/wallet/topup/:txn/verify", requireAuth, async (req: AuthRequest, r
     res.json({ status: "success", transactionId: txn, amountPaise: Number(t.amountPaise) });
     return;
   }
-  if (!isUpiGatewayConfigured()) {
-    res.status(503).json({ error: "Payment gateway not configured" });
-    return;
-  }
-  const result = await reconcileTopup(txn);
+  const result = await reconcileVyaparTopup(txn);
   res.json({ status: result.status, transactionId: txn, amountPaise: Number(t.amountPaise), error: result.error });
 });
 

@@ -1020,7 +1020,7 @@ function UpgradeView({
       }
       return;
     }
-    // Paid plans → go to checkout page (billing details + optional coupon → PhonePe).
+    // Paid plans → go to checkout page (billing details + optional coupon → VyaparGateway UPI).
     setLocation(`/checkout/operator/${planId}`);
   };
 
@@ -1117,7 +1117,7 @@ function UpgradeView({
                     {busy === plan.id ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     ) : null}
-                    {isCurrent ? "Your Current Plan" : isFree ? "Apply Silver" : `Pay ${formatINR(plan.pricePaise)} via PhonePe`}
+                    {isCurrent ? "Your Current Plan" : isFree ? "Apply Silver" : `Pay ${formatINR(plan.pricePaise)} via UPI`}
                   </Button>
                 </CardContent>
               </Card>
@@ -1128,7 +1128,7 @@ function UpgradeView({
 
       <Card className="bg-gradient-to-r from-purple-50 via-white to-amber-50 border-0">
         <CardContent className="p-4 text-xs text-muted-foreground">
-          <strong>Note:</strong> Upgrade is one-time and lifetime — no renewal needed. Payments are processed securely via PhonePe.
+          <strong>Note:</strong> Upgrade is one-time and lifetime — no renewal needed. Payments are processed securely via VyaparGateway UPI.
           Your tier is applied automatically once payment is confirmed. For billing questions, contact support.
         </CardContent>
       </Card>

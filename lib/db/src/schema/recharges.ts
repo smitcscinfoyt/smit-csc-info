@@ -35,6 +35,13 @@ export const rechargesTable = pgTable("recharges", {
   refundLedgerId: integer("refund_ledger_id"),
   commissionLedgerId: integer("commission_ledger_id"),
 
+  // Split payment & VyaparGateway tracking
+  paymentSplit: varchar("payment_split", { length: 20 }).notNull().default("wallet"),
+  walletDebitPaise: bigint("wallet_debit_paise", { mode: "number" }).notNull().default(0),
+  upiPaidPaise: bigint("upi_paid_paise", { mode: "number" }).notNull().default(0),
+  vyaparOrderId: varchar("vyapar_order_id", { length: 120 }),
+  vyaparStatus: varchar("vyapar_status", { length: 30 }),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),

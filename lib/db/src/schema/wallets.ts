@@ -7,6 +7,7 @@ export const walletsTable = pgTable("wallets", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().unique().references(() => usersTable.id),
   balancePaise: bigint("balance_paise", { mode: "number" }).notNull().default(0),
+  heldPaise: bigint("held_paise", { mode: "number" }).notNull().default(0),
   kycLevel: varchar("kyc_level", { length: 20 }).notNull().default("none"),
   tpinHash: varchar("tpin_hash", { length: 255 }),
   tpinRequiredFromPaise: bigint("tpin_required_from_paise", { mode: "number" }).notNull().default(50000),

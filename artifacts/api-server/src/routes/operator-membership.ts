@@ -19,6 +19,8 @@ import {
   isPhonePeConfigured,
   getCallbackBaseUrl,
 } from "../lib/phonepe";
+import { createVyaparOrder, isVyaparGatewayConfigured } from "../lib/vyapargateway";
+import { reconcileVyaparOperatorMembership } from "./vyapargateway-webhook";
 import {
   OPERATOR_PLANS,
   getOperatorPlan,
@@ -162,7 +164,7 @@ router.post("/operator-membership/init", requireAuth, async (req: AuthRequest, r
     return;
   }
 
-  if (!isPhonePeConfigured()) {
+  if (!isVyaparGatewayConfigured()) {
     res.status(503).json({ error: "Payment gateway not configured" });
     return;
   }
@@ -174,6 +176,7 @@ router.post("/operator-membership/init", requireAuth, async (req: AuthRequest, r
     amountPaise: finalPaise,
     transactionId,
     status: "pending",
+    gateway: "vyapargateway",
     billingName: billing?.name ?? null,
     billingMobile: billing?.mobile ?? null,
     billingEmail: billing?.email ?? null,
@@ -184,24 +187,37 @@ router.post("/operator-membership/init", requireAuth, async (req: AuthRequest, r
     originalAmountPaise: plan.pricePaise,
   });
 
-      const base = getCallbackBaseUrl();
-  const callbackUrl = `${base}/api/operator-membership/phonepe/callback`;
-  const redirectUrl = `${callbackUrl}?txn=${transactionId}`;
-  const [user] = await db.select({ mobile: usersTable.mobile }).from(usersTable).where(eq(usersTable.id, userId));
+  const base = getCallbackBaseUrl();
+  const appBase = (process.env.SMIT_CSC_BASE_PATH ?? "/").replace(/\/$/, "");
+  const callbackUrl = `${base}/api/webhook/vyapargateway`;
+  const redirectUrl = `${base}${appBase}/recharge#upgrade?txn=${transactionId}`;
+  const [user] = await db.select({ mobile: usersTable.mobile, email: usersTable.email, name: usersTable.name }).from(usersTable).where(eq(usersTable.id, userId));
 
   try {
-    const { phonePeRedirectUrl } = await initiatePhonePePayment({
-      merchantTransactionId: transactionId,
-      merchantUserId: `USER_${userId}`,
-      amount: finalPaise / 100,
-      redirectUrl,
+    const vyaparOrder = await createVyaparOrder({
+      clientTxnId: transactionId,
+      amountRupees: finalPaise / 100,
+      customerName: billing?.name || user?.name || "Member",
+      customerMobile: billing?.mobile || user?.mobile || undefined,
+      customerEmail: billing?.email || user?.email || undefined,
+      productInfo: `Operator Plan Upgrade: ${plan.name}`,
       callbackUrl,
-      mobileNumber: billing?.mobile ?? user?.mobile ?? undefined,
+      redirectUrl,
+      udf1: plan.id,
     });
-    
+
+    await db.update(operatorMembershipPaymentsTable)
+      .set({ vyaparOrderId: vyaparOrder.order_id, updatedAt: new Date() })
+      .where(eq(operatorMembershipPaymentsTable.transactionId, transactionId));
+
     res.json({
       transactionId,
-      redirectUrl: phonePeRedirectUrl,
+      orderId: vyaparOrder.order_id,
+      redirectUrl: vyaparOrder.payment_url || redirectUrl,
+      qrCode: vyaparOrder.qr_code,
+      upiString: vyaparOrder.upi_string,
+      upiIntent: vyaparOrder.upi_intent,
+      merchantName: vyaparOrder.merchant_name,
       plan: plan.id,
       amountPaise: finalPaise,
       originalAmountPaise: plan.pricePaise,
@@ -212,9 +228,23 @@ router.post("/operator-membership/init", requireAuth, async (req: AuthRequest, r
     await db.update(operatorMembershipPaymentsTable)
       .set({ status: "failed", errorReason: err?.message ?? "init failed", updatedAt: new Date() })
       .where(eq(operatorMembershipPaymentsTable.transactionId, transactionId));
-    req.log.error({ err }, "[operator-membership/init] PhonePe failed");
+    req.log.error({ err }, "[operator-membership/init] VyaparGateway failed");
     res.status(502).json({ error: err?.message ?? "Payment initiation failed" });
   }
+
+  /* ─── ROLLBACK SAFETY: Legacy PhonePe init code kept below ───
+  try {
+    const { phonePeRedirectUrl } = await initiatePhonePePayment({
+      merchantTransactionId: transactionId,
+      merchantUserId: `USER_${userId}`,
+      amount: finalPaise / 100,
+      redirectUrl,
+      callbackUrl,
+      mobileNumber: billing?.mobile ?? user?.mobile ?? undefined,
+    });
+    // res.json({ transactionId, redirectUrl: phonePeRedirectUrl, ... });
+  } catch (err: any) { ... }
+  ───────────────────────────────────────────────────────────── */
 });
 
 /** Idempotently sync a payment from PhonePe and apply the upgrade on success. */
@@ -330,6 +360,11 @@ router.post("/operator-membership/:txn/verify", requireAuth, async (req: AuthReq
     .where(and(eq(operatorMembershipPaymentsTable.transactionId, txn), eq(operatorMembershipPaymentsTable.userId, userId)));
   if (!p) {
     res.status(404).json({ error: "Payment not found" });
+    return;
+  }
+  if (p.gateway === "vyapargateway" || !p.phonePeOrderId) {
+    const r = await reconcileVyaparOperatorMembership(txn);
+    res.json({ status: r.status, tier: r.tier ?? (await getUserOperatorTier(userId)), error: r.error });
     return;
   }
   if (!isPhonePeConfigured()) {

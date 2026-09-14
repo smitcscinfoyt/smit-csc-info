@@ -146,13 +146,6 @@ export default function AdminDashboard() {
             <Wallet className="h-6 w-6 text-primary" />Wallets
           </Button>
         </Link>
-        {isAdmin && (
-          <Link href="/admin/manual-topups">
-            <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-manual-topups">
-              <Wallet className="h-6 w-6 text-amber-600" />Manual Top-ups
-            </Button>
-          </Link>
-        )}
         <Link href="/admin/kyc">
           <Button variant="outline" className="w-full h-24 text-base flex flex-col items-center justify-center gap-2" data-testid="link-admin-kyc">
             <ShieldCheck className="h-6 w-6 text-primary" />KYC Review

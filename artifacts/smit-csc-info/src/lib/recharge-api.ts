@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+export { apiFetch };
 
 export type Operator = { code: string; name: string };
 export type OperatorsResponse = {
@@ -188,12 +189,66 @@ export async function getLedger(limit = 50, offset = 0): Promise<{ items: Ledger
   };
 }
 
-export async function initWalletTopup(amountPaise: number) {
-  const r = await apiFetch<{ transactionId: string; redirectUrl: string; amountPaise: number }>(
+export interface WalletTopupInitResponse {
+  transactionId: string;
+  orderId: string;
+  amountPaise: number;
+  amountRupees: number;
+  qrCode?: string;
+  upiString?: string;
+  upiIntent?: {
+    phonepe_link?: string;
+    gpay_link?: string;
+    paytm_link?: string;
+    bhim_link?: string;
+  };
+  merchantName?: string;
+  redirectUrl?: string;
+}
+
+export async function initWalletTopup(amountPaise: number): Promise<WalletTopupInitResponse> {
+  return await apiFetch<WalletTopupInitResponse>(
     "/api/wallet/topup/init",
     { method: "POST", body: JSON.stringify({ amountPaise }) },
   );
-  return { topupId: r.transactionId, redirectUrl: r.redirectUrl, merchantTransactionId: r.transactionId };
+}
+
+export interface ShortfallInitResponse {
+  rechargeId: number;
+  a1RequestId: string;
+  amountPaise: number;
+  walletDebitPaise: number;
+  shortfallPaise: number;
+  shortfallRupees: number;
+  existing?: boolean;
+  vyaparOrder?: {
+    orderId: string;
+    amount: number;
+    qrCode?: string;
+    upiString?: string;
+    upiIntent?: {
+      phonepe_link?: string;
+      gpay_link?: string;
+      paytm_link?: string;
+      bhim_link?: string;
+    };
+    merchantName?: string;
+    expiresAt?: string;
+  };
+}
+
+export async function initShortfallRecharge(body: any): Promise<ShortfallInitResponse> {
+  return await apiFetch<ShortfallInitResponse>(
+    "/api/recharge/init-shortfall",
+    { method: "POST", body: JSON.stringify(body) }
+  );
+}
+
+export async function releaseRechargeHold(rechargeId: number, a1RequestId?: string): Promise<{ success: boolean }> {
+  return await apiFetch<{ success: boolean }>(
+    "/api/recharge/release-hold",
+    { method: "POST", body: JSON.stringify({ rechargeId, a1RequestId }) }
+  );
 }
 
 export async function verifyWalletTopup(txn: string) {

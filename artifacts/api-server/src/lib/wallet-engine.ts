@@ -171,5 +171,140 @@ export async function getBalance(userId: number): Promise<Wallet> {
   return ensureWallet(userId);
 }
 
+/**
+ * Hold funds in wallet for a pending transaction (e.g. UPI shortfall flow).
+ * Held funds cannot be spent on other transactions.
+ */
+export async function holdWalletBalance(
+  userId: number,
+  amountPaise: number
+): Promise<{ heldPaise: number; availablePaise: number }> {
+  if (amountPaise <= 0) {
+    const w = await ensureWallet(userId);
+    const avail = Math.max(0, Number(w.balancePaise) - Number(w.heldPaise || 0));
+    return { heldPaise: Number(w.heldPaise || 0), availablePaise: avail };
+  }
+
+  return db.transaction(async (tx) => {
+    await ensureWallet(userId);
+    const [w] = await tx
+      .select()
+      .from(walletsTable)
+      .where(eq(walletsTable.userId, userId))
+      .for("update");
+    if (!w) throw new WalletError("WALLET_NOT_FOUND", "Wallet not found");
+    if (w.isFrozen) {
+      throw new WalletError("WALLET_FROZEN", w.freezeReason || "Wallet is frozen");
+    }
+
+    const currentBal = Number(w.balancePaise);
+    const currentHeld = Number(w.heldPaise || 0);
+    const available = currentBal - currentHeld;
+
+    if (available < amountPaise) {
+      throw new WalletError(
+        "INSUFFICIENT_BALANCE",
+        `Insufficient available balance to hold. Available ₹${(available / 100).toFixed(2)}, required ₹${(amountPaise / 100).toFixed(2)}`
+      );
+    }
+
+    const newHeld = currentHeld + amountPaise;
+    await tx
+      .update(walletsTable)
+      .set({ heldPaise: newHeld, updatedAt: new Date() })
+      .where(eq(walletsTable.id, w.id));
+
+    return { heldPaise: newHeld, availablePaise: currentBal - newHeld };
+  });
+}
+
+/**
+ * Release previously held funds back to available balance (e.g. user cancels payment or recharge fails).
+ */
+export async function releaseWalletHold(
+  userId: number,
+  amountPaise: number
+): Promise<{ heldPaise: number; availablePaise: number }> {
+  if (amountPaise <= 0) {
+    const w = await ensureWallet(userId);
+    const avail = Math.max(0, Number(w.balancePaise) - Number(w.heldPaise || 0));
+    return { heldPaise: Number(w.heldPaise || 0), availablePaise: avail };
+  }
+
+  return db.transaction(async (tx) => {
+    await ensureWallet(userId);
+    const [w] = await tx
+      .select()
+      .from(walletsTable)
+      .where(eq(walletsTable.userId, userId))
+      .for("update");
+    if (!w) throw new WalletError("WALLET_NOT_FOUND", "Wallet not found");
+
+    const currentBal = Number(w.balancePaise);
+    const currentHeld = Number(w.heldPaise || 0);
+    const newHeld = Math.max(0, currentHeld - amountPaise);
+
+    await tx
+      .update(walletsTable)
+      .set({ heldPaise: newHeld, updatedAt: new Date() })
+      .where(eq(walletsTable.id, w.id));
+
+    return { heldPaise: newHeld, availablePaise: currentBal - newHeld };
+  });
+}
+
+/**
+ * Commit a previously held balance into an actual debit upon successful UPI payment.
+ * Decrements heldPaise AND decrements balancePaise, writing a ledger entry atomically.
+ */
+export async function commitWalletHold(
+  userId: number,
+  input: LedgerWriteInput
+): Promise<{ balancePaise: number; ledgerEntryId: number }> {
+  if (input.amountPaise <= 0) {
+    return { balancePaise: 0, ledgerEntryId: 0 };
+  }
+
+  return db.transaction(async (tx) => {
+    await ensureWallet(userId);
+    const [w] = await tx
+      .select()
+      .from(walletsTable)
+      .where(eq(walletsTable.userId, userId))
+      .for("update");
+    if (!w) throw new WalletError("WALLET_NOT_FOUND", "Wallet not found");
+
+    const currentBal = Number(w.balancePaise);
+    const currentHeld = Number(w.heldPaise || 0);
+
+    const newHeld = Math.max(0, currentHeld - input.amountPaise);
+    const newBalance = Math.max(0, currentBal - input.amountPaise);
+
+    await tx
+      .update(walletsTable)
+      .set({ balancePaise: newBalance, heldPaise: newHeld, updatedAt: new Date() })
+      .where(eq(walletsTable.id, w.id));
+
+    const [entry] = await tx
+      .insert(walletLedgerTable)
+      .values({
+        walletId: w.id,
+        userId,
+        direction: "debit",
+        type: input.type,
+        amountPaise: input.amountPaise,
+        balanceAfterPaise: newBalance,
+        refType: input.refType,
+        refId: input.refId ?? null,
+        refCode: input.refCode ?? null,
+        note: input.note ?? null,
+      })
+      .returning({ id: walletLedgerTable.id });
+
+    return { balancePaise: newBalance, ledgerEntryId: entry.id };
+  });
+}
+
 // Re-export for convenience
 export { sql };
+

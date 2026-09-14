@@ -81,6 +81,11 @@ jobs:
             echo "EZYTM_API_USERID=${{ secrets.EZYTM_API_USERID }}" >> "$APP_DIR/.env"
             echo "EZYTM_API_PASSWORD=${{ secrets.EZYTM_API_PASSWORD }}" >> "$APP_DIR/.env"
             echo "UPIGATEWAY_TOKEN=${{ secrets.UPIGATEWAY_TOKEN }}" >> "$APP_DIR/.env"
+            echo "VYAPAR_API_KEY=${{ secrets.VYAPAR_API_KEY }}" >> "$APP_DIR/.env"
+            echo "VYAPAR_WEBHOOK_SECRET=${{ secrets.VYAPAR_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
+            echo "VYAPAR_API_URL=${{ secrets.VYAPAR_API_URL }}" >> "$APP_DIR/.env"
+            echo "VYAPARGATEWAY_API_KEY=${{ secrets.VYAPAR_API_KEY }}" >> "$APP_DIR/.env"
+            echo "VYAPARGATEWAY_WEBHOOK_SECRET=${{ secrets.VYAPAR_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
 
             # Configure system nginx
             sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info

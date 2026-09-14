@@ -10,6 +10,7 @@ export const walletTopupsTable = pgTable("wallet_topups", {
   transactionId: varchar("transaction_id", { length: 255 }).notNull().unique(),
   phonePeOrderId: varchar("phonepe_order_id", { length: 255 }),
   phonePeProviderRef: varchar("phonepe_provider_ref", { length: 255 }),
+  vyaparOrderId: varchar("vyapar_order_id", { length: 255 }),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   errorReason: text("error_reason"),
   ledgerEntryId: integer("ledger_entry_id"),

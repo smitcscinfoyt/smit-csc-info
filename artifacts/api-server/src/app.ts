@@ -39,7 +39,14 @@ app.use(cors());
 // accept base64-encoded crops up to ~12MB raw. The vision route enforces
 // its own per-request cap; this just keeps express from rejecting them
 // before they reach the handler.
-app.use(express.json({ limit: "16mb" }));
+app.use(
+  express.json({
+    limit: "16mb",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString("utf8");
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: "16mb" }));
 
 app.use("/api", router);

@@ -22,6 +22,7 @@ import { useGetMembershipPlans, getGetMembershipPlansQueryKey } from "@workspace
 import { INDIAN_STATES, GUJARAT_DISTRICTS } from "@/lib/gujarat-districts";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import { loadDraft, clearDraft } from "@/lib/draft-store";
+import { VyaparPaymentDialog, type VyaparPaymentData } from "@/components/vyapar-payment-dialog";
 
 function formatINR(paise: number): string {
   return `₹${(paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -89,6 +90,13 @@ export default function Checkout() {
 
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof BillingDetails, string>>>({});
+  const [paymentDialog, setPaymentDialog] = useState<{
+    open: boolean;
+    data: VyaparPaymentData | null;
+  }>({
+    open: false,
+    data: null,
+  });
 
   // ── Draft autosave ──────────────────────────────────────────
   // Mobile browsers (esp. Android Chrome) frequently kill the tab
@@ -106,11 +114,6 @@ export default function Checkout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey]);
   useDraftAutosave(draftKey, { billing, couponInput, showCoupon }, { enabled: !submitting });
-
-  if (!user) {
-    setLocation("/login");
-    return null;
-  }
 
   if ((scope === "operator" && opPlansQ.isLoading) || (scope === "prime" && primePlansQ.isLoading)) {
     return (
@@ -184,6 +187,17 @@ export default function Checkout() {
     setCouponInput("");
   }
 
+  const handleOperatorSuccess = async () => {
+    await qc.invalidateQueries({ queryKey: ["operator-membership", "status"] });
+    clearDraft(draftKey);
+    setPaymentDialog({ open: false, data: null });
+    toast({
+      title: "Plan Activated!",
+      description: `${plan!.name} is now active for life.`,
+    });
+    setLocation("/recharge");
+  };
+
   async function handleProceed() {
     if (!validateForm()) return;
     setSubmitting(true);
@@ -193,19 +207,38 @@ export default function Checkout() {
         billing,
         couponCode: coupon?.ok ? coupon.code : undefined,
       };
-      const r = scope === "operator"
-        ? await initOperatorCheckout(payload)
-        : await initPrimeCheckout(payload);
 
-      // Operator: 100% off → status=success, no redirect
-      if (scope === "operator" && (r as any).status === "success" && !(r as any).redirectUrl) {
-        await qc.invalidateQueries({ queryKey: ["operator-membership", "status"] });
-        toast({ title: "Plan activated", description: `${plan!.name} is now active for life.` });
-        clearDraft(draftKey);
-        setLocation("/recharge");
+      if (scope === "operator") {
+        const r = await initOperatorCheckout(payload);
+        // Operator: 100% off → status=success, no redirect
+        if ((r as any).status === "success" && !(r as any).qrCode && !(r as any).upiString) {
+          await qc.invalidateQueries({ queryKey: ["operator-membership", "status"] });
+          toast({ title: "Plan activated", description: `${plan!.name} is now active for life.` });
+          clearDraft(draftKey);
+          setLocation("/recharge");
+          return;
+        }
+
+        // Open VyaparGateway Device-Based UI
+        setPaymentDialog({
+          open: true,
+          data: {
+            orderId: (r as any).orderId || (r as any).transactionId,
+            clientTxnId: (r as any).transactionId,
+            amountRupees: ((r as any).amountPaise || plan!.pricePaise) / 100,
+            qrCode: (r as any).qrCode,
+            upiString: (r as any).upiString,
+            upiIntent: (r as any).upiIntent,
+            merchantName: (r as any).merchantName || "Smit CSC Info",
+            title: `Upgrade: ${plan!.name}`,
+            backText: "Back to Checkout",
+          },
+        });
         return;
       }
 
+      // Prime membership: untouched PhonePe flow
+      const r = await initPrimeCheckout(payload);
       const redirectUrl = (r as any).redirectUrl;
       if (redirectUrl) {
         clearDraft(draftKey);
@@ -423,18 +456,29 @@ export default function Checkout() {
                     <><Loader2 className="h-5 w-5 animate-spin mr-2" />Processing…</>
                   ) : finalPaise === 0 ? (
                     "Activate Plan (Free)"
+                  ) : scope === "operator" ? (
+                    `Pay ${formatINR(finalPaise)} via UPI`
                   ) : (
                     `Pay ${formatINR(finalPaise)} via PhonePe`
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Secure payment via PhonePe. UPI, Cards, Net Banking accepted.
+                  {scope === "operator"
+                    ? "Secure UPI payment via VyaparGateway. QR & UPI Apps accepted."
+                    : "Secure payment via PhonePe. UPI, Cards, Net Banking accepted."}
                 </p>
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      <VyaparPaymentDialog
+        open={paymentDialog.open}
+        payment={paymentDialog.data}
+        onSuccess={handleOperatorSuccess}
+        onCancel={() => setPaymentDialog({ open: false, data: null })}
+      />
     </div>
   );
 }

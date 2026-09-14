@@ -13,12 +13,14 @@ import {
   ChevronUp, ChevronDown,
 } from "lucide-react";
 import { TpinDialog } from "@/components/recharge/tpin-dialog";
+import { VyaparPaymentDialog, type VyaparPaymentData } from "@/components/vyapar-payment-dialog";
 import {
   getOperators, getQuote, initRecharge, getWallet, getTpinStatus, formatINR,
   detectOperator, type OperatorDetection,
   getPlans, type PlanCategory,
   type RechargeType,
   fetchBillInfo, type BillInfoResult,
+  initShortfallRecharge, releaseRechargeHold,
 } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
@@ -102,6 +104,15 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
   const [amount, setAmount] = useState("");
   const [showTpin, setShowTpin] = useState(false);
   const [idempotencyKey] = useState(() => `${effCategory}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`);
+  const [paymentDialog, setPaymentDialog] = useState<{
+    open: boolean;
+    data: VyaparPaymentData | null;
+    rechargeId?: number;
+    a1RequestId?: string;
+  }>({
+    open: false,
+    data: null,
+  });
 
   // Pre-fill from retry params — set by "Retry — Same Details" on the receipt page.
   // URL: /recharge/<type>?retry=1&op=PGVCL&num=35211005414&amt=10
@@ -300,7 +311,9 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
 
   const numAmount = parseFloat(amount) || 0;
   const amountPaise = Math.round(numAmount * 100);
-  const insufficient = wallet ? amountPaise > wallet.balance : false;
+  const availableWalletPaise = wallet ? Math.max(0, (wallet as any).availablePaise ?? wallet.balance) : 0;
+  const isShortfall = amountPaise > availableWalletPaise;
+  const shortfallPaise = isShortfall ? amountPaise - availableWalletPaise : 0;
 
   const { data: quote } = useQuery({
     queryKey: ["quote", backendType, operatorCode, amountPaise],
@@ -333,12 +346,86 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     },
   });
 
+  const shortfallMutation = useMutation({
+    mutationFn: (params: { tpin?: string }) => initShortfallRecharge({
+      type: backendType,
+      operatorCode,
+      number,
+      amountPaise,
+      circleCode: isMobile ? circleCode || undefined : undefined,
+      customerName: billInfo?.consumerName ?? undefined,
+      tpin: params.tpin,
+      idempotencyKey,
+      billSession: billInfo?.session ?? undefined,
+      value1Override: extraValue1.trim() || undefined,
+      value2Override: extraValue2.trim() || undefined,
+    }),
+    onSuccess: (res) => {
+      setShowTpin(false);
+      if (res.existing && (res as any).recharge) {
+        clearDraft(DRAFT_KEY);
+        setLocation(`/recharge/receipt/${(res as any).recharge.id}`);
+        return;
+      }
+      if (!res.vyaparOrder) {
+        toast({ variant: "destructive", title: "Error", description: "Could not create payment order" });
+        return;
+      }
+      setPaymentDialog({
+        open: true,
+        rechargeId: res.rechargeId,
+        a1RequestId: res.a1RequestId,
+        data: {
+          orderId: res.vyaparOrder.orderId,
+          clientTxnId: res.a1RequestId,
+          amountRupees: res.shortfallRupees,
+          qrCode: res.vyaparOrder.qrCode,
+          upiString: res.vyaparOrder.upiString,
+          upiIntent: res.vyaparOrder.upiIntent,
+          merchantName: res.vyaparOrder.merchantName,
+          title: "Recharge Shortfall",
+          backText: "Back to Recharge",
+        },
+      });
+    },
+    onError: (err: any) => {
+      setShowTpin(false);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err?.data?.error || err?.message || "Payment initiation failed",
+      });
+    },
+  });
+
+  const handleVyaparSuccess = async () => {
+    await qc.invalidateQueries({ queryKey: ["wallet"] });
+    await qc.invalidateQueries({ queryKey: ["recharge", "history"] });
+    clearDraft(DRAFT_KEY);
+    const recId = paymentDialog.rechargeId;
+    setPaymentDialog({ open: false, data: null });
+    toast({ title: "Payment Confirmed", description: "Recharge is processing!" });
+    if (recId) {
+      setLocation(`/recharge/receipt/${recId}`);
+    } else {
+      setLocation("/recharge");
+    }
+  };
+
+  const handleVyaparCancel = async () => {
+    if (paymentDialog.rechargeId) {
+      await releaseRechargeHold(paymentDialog.rechargeId, paymentDialog.a1RequestId).catch(() => {});
+      await qc.invalidateQueries({ queryKey: ["wallet"] });
+      toast({ title: "Payment Cancelled", description: "Wallet hold released." });
+    }
+    setPaymentDialog({ open: false, data: null });
+  };
+
   const handleSubmit = () => {
     if (!operatorCode) { toast({ variant: "destructive", title: "Select operator" }); return; }
     if (!number || number.length < minNumLen) { toast({ variant: "destructive", title: "Enter a valid number" }); return; }
     if (numAmount < meta.minAmount) { toast({ variant: "destructive", title: `Minimum Rs.${meta.minAmount}` }); return; }
     if (numAmount > meta.maxAmount) { toast({ variant: "destructive", title: `Maximum Rs.${meta.maxAmount.toLocaleString("en-IN")}` }); return; }
-    if (insufficient) { toast({ variant: "destructive", title: "Insufficient wallet balance", description: "Add money" }); return; }
     // Validate required extra fields
     if (showExtraValue1 && !extraValue1.trim()) {
       toast({ variant: "destructive", title: `Enter ${extraValue1Label}`, description: extraValue1Hint });
@@ -355,14 +442,28 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
       toast({ variant: "destructive", title: "Enter Processing Cycle", description: "Required for MSEDC - found on your electricity bill" });
       return;
     }
-    if (requiresTpin) {
-      if (!tpinStatus?.hasPin) {
-        toast({ variant: "destructive", title: "T-PIN not set", description: "T-PIN required for larger amounts" });
-        return;
+
+    if (isShortfall) {
+      // Wallet portion >= ₹500 requires T-PIN (Rule 6)
+      if (availableWalletPaise >= 50000) {
+        if (!tpinStatus?.hasPin) {
+          toast({ variant: "destructive", title: "T-PIN not set", description: "T-PIN required for wallet deduction of ₹500+" });
+          return;
+        }
+        setShowTpin(true);
+      } else {
+        shortfallMutation.mutate({});
       }
-      setShowTpin(true);
     } else {
-      initMutation.mutate({});
+      if (requiresTpin) {
+        if (!tpinStatus?.hasPin) {
+          toast({ variant: "destructive", title: "T-PIN not set", description: "T-PIN required for larger amounts" });
+          return;
+        }
+        setShowTpin(true);
+      } else {
+        initMutation.mutate({});
+      }
     }
   };
 
@@ -556,22 +657,66 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
               </div>
             )}
 
-            {insufficient && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Insufficient wallet balance. <Link href="/wallet/add" className="underline font-semibold">Add money</Link></AlertDescription>
-              </Alert>
+            {isShortfall && (
+              <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 space-y-1.5">
+                <div className="font-semibold flex items-center gap-1.5 text-sm text-blue-950">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
+                  Wallet-First Auto Shortfall
+                </div>
+                <div className="flex justify-between text-gray-700">
+                  <span>Recharge Total:</span>
+                  <span className="font-bold text-gray-900">{formatINR(amountPaise)}</span>
+                </div>
+                {availableWalletPaise > 0 ? (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>From Wallet ({formatINR(availableWalletPaise)}):</span>
+                    <span className="font-bold">−{formatINR(availableWalletPaise)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-gray-500">
+                    <span>From Wallet:</span>
+                    <span>₹0 (balance is empty)</span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-blue-200/80 pt-1.5 font-bold text-blue-950 text-sm">
+                  <span>UPI Payment Required:</span>
+                  <span className="text-primary">{formatINR(shortfallPaise)}</span>
+                </div>
+                <p className="text-[11px] text-blue-800/80 pt-0.5">
+                  {availableWalletPaise > 0
+                    ? `Your ₹${(availableWalletPaise / 100).toFixed(0)} wallet balance is used first. Pay the remaining shortfall of ₹${(shortfallPaise / 100).toFixed(0)} via UPI.`
+                    : `Your wallet balance is ₹0. Pay ₹${(amountPaise / 100).toFixed(0)} securely via UPI.`}
+                </p>
+              </div>
             )}
 
-            {requiresTpin && !tpinStatus?.hasPin && (
+            {requiresTpin && !tpinStatus?.hasPin && !isShortfall && (
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>T-PIN required for Rs.500+. <Link href="/account" className="underline">Set up</Link></AlertDescription>
               </Alert>
             )}
 
-            <Button className="w-full bg-primary text-white h-12 text-base font-semibold" disabled={initMutation.isPending || insufficient || billFetchBlocking} onClick={handleSubmit} data-testid="btn-recharge">
-              {initMutation.isPending ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Processing...</> : `Recharge ${formatINR(amountPaise || 0)}`}
+            <Button
+              className="w-full bg-primary hover:bg-primary/90 text-white h-12 text-base font-bold rounded-xl shadow-md transition-all"
+              disabled={initMutation.isPending || shortfallMutation.isPending || billFetchBlocking || numAmount < meta.minAmount}
+              onClick={handleSubmit}
+              data-testid="btn-recharge"
+            >
+              {initMutation.isPending || shortfallMutation.isPending ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : isShortfall ? (
+                availableWalletPaise > 0 ? (
+                  `Use ${formatINR(availableWalletPaise)} Wallet + Pay ${formatINR(shortfallPaise)} via UPI`
+                ) : (
+                  `Pay ${formatINR(amountPaise)} via UPI & Recharge`
+                )
+              ) : (
+                `Recharge ${formatINR(amountPaise || 0)}`
+              )}
             </Button>
 
             {isMobile && opsRes && (
@@ -599,7 +744,22 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
     return (
       <>
         {inner}
-        <TpinDialog open={showTpin} onOpenChange={setShowTpin} amount={amountPaise} loading={initMutation.isPending} onSubmit={(pin) => initMutation.mutate({ tpin: pin })} />
+        <TpinDialog
+          open={showTpin}
+          onOpenChange={setShowTpin}
+          amount={isShortfall ? availableWalletPaise : amountPaise}
+          loading={initMutation.isPending || shortfallMutation.isPending}
+          onSubmit={(pin) => {
+            if (isShortfall) shortfallMutation.mutate({ tpin: pin });
+            else initMutation.mutate({ tpin: pin });
+          }}
+        />
+        <VyaparPaymentDialog
+          open={paymentDialog.open}
+          payment={paymentDialog.data}
+          onSuccess={handleVyaparSuccess}
+          onCancel={handleVyaparCancel}
+        />
       </>
     );
   }
@@ -610,7 +770,22 @@ export default function RechargeForm({ type, category, embedded, operatorFilter,
         <Link href="/recharge"><Button variant="ghost" size="sm" className="mb-4"><ArrowLeft className="h-4 w-4 mr-2" />Recharge</Button></Link>
         {inner}
       </div>
-      <TpinDialog open={showTpin} onOpenChange={setShowTpin} amount={amountPaise} loading={initMutation.isPending} onSubmit={(pin) => initMutation.mutate({ tpin: pin })} />
+      <TpinDialog
+        open={showTpin}
+        onOpenChange={setShowTpin}
+        amount={isShortfall ? availableWalletPaise : amountPaise}
+        loading={initMutation.isPending || shortfallMutation.isPending}
+        onSubmit={(pin) => {
+          if (isShortfall) shortfallMutation.mutate({ tpin: pin });
+          else initMutation.mutate({ tpin: pin });
+        }}
+      />
+      <VyaparPaymentDialog
+        open={paymentDialog.open}
+        payment={paymentDialog.data}
+        onSuccess={handleVyaparSuccess}
+        onCancel={handleVyaparCancel}
+      />
     </div>
   );
 }

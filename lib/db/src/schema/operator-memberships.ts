@@ -11,6 +11,8 @@ export const operatorMembershipPaymentsTable = pgTable("operator_membership_paym
   transactionId: varchar("transaction_id", { length: 255 }).notNull().unique(),
   phonePeOrderId: varchar("phonepe_order_id", { length: 255 }),
   phonePeProviderRef: varchar("phonepe_provider_ref", { length: 255 }),
+  vyaparOrderId: varchar("vyapar_order_id", { length: 255 }),
+  gateway: varchar("gateway", { length: 20 }).notNull().default("vyapargateway"),
   status: varchar("status", { length: 20 }).notNull().default("pending"),
   errorReason: text("error_reason"),
   // Billing details collected at checkout
