@@ -41,12 +41,13 @@ function sendRechargeSuccessEmailSafe(userId: number, row: any): void {
 }
 
 function genReqId(): string {
-  // A1Topup's recharge API documents `orderid` as a numeric value. Keep the
-  // provider-facing ID numeric even though our database row ID is the
-  // canonical internal transaction identifier.
-  const timestamp = Date.now().toString();
-  const random = Math.floor(Math.random() * 10_000).toString().padStart(4, "0");
-  return `${timestamp}${random}`;
+  // A1Topup's legacy endpoint expects a short numeric order ID (their
+  // documented examples are 6 digits). Keep this at 10 digits or less so
+  // older provider-side validators do not reject an otherwise valid request.
+  // The internal database row remains the canonical transaction identifier.
+  const timestampPart = Date.now().toString().slice(-7);
+  const randomPart = Math.floor(Math.random() * 1_000).toString().padStart(3, "0");
+  return `${timestampPart}${randomPart}`;
 }
 
 // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/operators Ã¢ÂÂ operator + circle catalog Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
