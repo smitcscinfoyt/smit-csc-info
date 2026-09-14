@@ -1,0 +1,1 @@
+- [A1Topup legacy contract](a1topup-contract.md) — recharge order IDs should be numeric, and whole-rupee amounts should be sent without decimal formatting.
