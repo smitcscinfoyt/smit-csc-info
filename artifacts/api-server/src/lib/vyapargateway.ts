@@ -4,10 +4,22 @@
  */
 import crypto from "crypto";
 
-const VYAPAR_BASE_URL =
-  process.env.VYAPAR_API_URL ||
-  process.env.VYAPARGATEWAY_BASE_URL ||
-  "https://vyapargateway.com";
+export function getVyaparBaseUrl(): string {
+  let raw = (
+    process.env.VYAPAR_API_URL ||
+    process.env.VYAPARGATEWAY_BASE_URL ||
+    "https://vyapargateway.com"
+  ).trim();
+
+  if (!raw) return "https://vyapargateway.com";
+  raw = raw.replace(/\/+$/, "");
+  raw = raw.replace("api.vyapargateway.com", "vyapargateway.com");
+  raw = raw.replace(/\/api(\/.*)?$/i, "");
+  if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
+    raw = `https://${raw}`;
+  }
+  return raw;
+}
 
 export function getVyaparApiKey(): string {
   return (
@@ -119,7 +131,8 @@ export async function createVyaparOrder(
     udf3: params.udf3 || "",
   };
 
-  const res = await fetch(`${VYAPAR_BASE_URL}/api/v1/create_order`, {
+  const baseUrl = getVyaparBaseUrl();
+  const res = await fetch(`${baseUrl}/api/v1/create_order`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -131,7 +144,17 @@ export async function createVyaparOrder(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
-    throw new Error(`VyaparGateway HTTP ${res.status}: ${errorText || res.statusText}`);
+    let errMsg = `VyaparGateway HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.detail) errMsg += `: ${parsed.detail}`;
+      else if (parsed.msg) errMsg += `: ${parsed.msg}`;
+      else if (parsed.message) errMsg += `: ${parsed.message}`;
+      else if (errorText) errMsg += `: ${errorText}`;
+    } catch {
+      if (errorText) errMsg += `: ${errorText}`;
+    }
+    throw new Error(errMsg);
   }
 
   const result = (await res.json()) as VyaparOrderResponse;
@@ -157,7 +180,8 @@ export async function checkVyaparOrderStatus(orderId: string): Promise<{
   }
 
   try {
-    const res = await fetch(`${VYAPAR_BASE_URL}/api/v1/check_order_status`, {
+    const baseUrl = getVyaparBaseUrl();
+    const res = await fetch(`${baseUrl}/api/v1/check_order_status`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
