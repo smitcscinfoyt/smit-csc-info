@@ -40,10 +40,13 @@ function sendRechargeSuccessEmailSafe(userId: number, row: any): void {
   })();
 }
 
-function genReqId(userId: number, type: string): string {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `R${type[0].toUpperCase()}${userId}${ts}${rnd}`;
+function genReqId(): string {
+  // A1Topup's recharge API documents `orderid` as a numeric value. Keep the
+  // provider-facing ID numeric even though our database row ID is the
+  // canonical internal transaction identifier.
+  const timestamp = Date.now().toString();
+  const random = Math.floor(Math.random() * 10_000).toString().padStart(4, "0");
+  return `${timestamp}${random}`;
 }
 
 // Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /recharge/operators Ã¢ÂÂ operator + circle catalog Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
@@ -312,7 +315,7 @@ router.post("/recharge", requireAuth, async (req: AuthRequest, res): Promise<voi
   const com = await computeCommission(type, operatorCode, tier, amountPaise);
 
   // Insert pending recharge first (so we have a row to update on failure)
-  const requestId = genReqId(userId, type);
+  const requestId = genReqId();
   let rechargeRow;
   try {
     [rechargeRow] = await db.insert(rechargesTable).values({

@@ -66,7 +66,17 @@ function pick<T = unknown>(o: Record<string, unknown>, ...keys: string[]): T | u
 }
 
 function parseA1(raw: Record<string, unknown>): A1Response {
-  const message = String(pick(raw, "message", "MESSAGE", "msg") ?? "");
+  const message = String(pick(
+    raw,
+    "message",
+    "MESSAGE",
+    "msg",
+    "error",
+    "error_message",
+    "errorMessage",
+    "reason",
+    "description",
+  ) ?? "");
   const statusCode = pick(raw, "status", "STATUS") as string | number | undefined;
   const status = normaliseStatus(statusCode, message);
   const amtRaw = pick(raw, "amount", "AMT") as string | number | undefined;
@@ -137,7 +147,11 @@ export async function doRecharge(args: RechargeArgs): Promise<A1Response> {
     pwd: pwd(),
     operatorcode: args.operatorCode,
     number: args.number,
-    amount: args.amountRupees.toFixed(2),
+    // The legacy A1Topup endpoint documents whole-rupee amounts as integers.
+    // Preserve decimals only when a caller explicitly uses paise.
+    amount: Number.isInteger(args.amountRupees)
+      ? String(args.amountRupees)
+      : args.amountRupees.toFixed(2),
     orderid: args.requestId,
     format: "json",
   };
