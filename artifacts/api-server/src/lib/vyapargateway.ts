@@ -21,22 +21,40 @@ export function getVyaparBaseUrl(): string {
   return raw;
 }
 
+/**
+ * GitHub Actions and .env files can leave a secret wrapped in quotes or with
+ * a trailing newline. Both make an otherwise valid gateway key fail with 401.
+ */
+function cleanSecret(value: string | undefined): string {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === "'" || first === '"') && last === first) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+}
+
 export function getVyaparApiKey(): string {
-  return (
-    process.env.VYAPAR_API_KEY ||
-    process.env.VYAPARGATEWAY_API_KEY ||
-    process.env.VYAPARGATEWAY_KEY ||
-    ""
-  );
+  return [
+    process.env.VYAPAR_API_KEY,
+    process.env.VYAPARGATEWAY_API_KEY,
+    process.env.VYAPARGATEWAY_KEY,
+  ]
+    .map(cleanSecret)
+    .find(Boolean) ?? "";
 }
 
 export function getVyaparWebhookSecret(): string {
-  return (
-    process.env.VYAPAR_WEBHOOK_SECRET ||
-    process.env.VYAPARGATEWAY_WEBHOOK_SECRET ||
-    process.env.VYAPARGATEWAY_SECRET ||
-    ""
-  );
+  return [
+    process.env.VYAPAR_WEBHOOK_SECRET,
+    process.env.VYAPARGATEWAY_WEBHOOK_SECRET,
+    process.env.VYAPARGATEWAY_SECRET,
+  ]
+    .map(cleanSecret)
+    .find(Boolean) ?? "";
 }
 
 export function isVyaparGatewayConfigured(): boolean {
@@ -136,6 +154,7 @@ export async function createVyaparOrder(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Accept: "application/json",
       "X-API-Key": apiKey,
     },
     body: JSON.stringify(payload),
@@ -185,6 +204,7 @@ export async function checkVyaparOrderStatus(orderId: string): Promise<{
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
         "X-API-Key": apiKey,
       },
       body: JSON.stringify({

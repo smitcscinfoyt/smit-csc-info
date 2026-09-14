@@ -87,6 +87,13 @@ jobs:
             echo "VYAPARGATEWAY_API_KEY=${{ secrets.VYAPAR_API_KEY }}" >> "$APP_DIR/.env"
             echo "VYAPARGATEWAY_WEBHOOK_SECRET=${{ secrets.VYAPAR_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
 
+             # Never deploy a payment build with an empty gateway key. The
+             # gateway otherwise returns a misleading HTTP 401 at wallet add.
+             if [ -z "${{ secrets.VYAPAR_API_KEY }}" ]; then
+               echo "::error::VYAPAR_API_KEY GitHub Actions secret is missing. Add the live VyaparGateway API key before deploying."
+               exit 1
+             fi
+
             # Configure system nginx
             sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
             sudo ln -sf /etc/nginx/sites-available/smit-csc-info /etc/nginx/sites-enabled/smit-csc-info
