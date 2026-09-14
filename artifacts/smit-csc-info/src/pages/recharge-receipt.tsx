@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
+import { createPortal } from "react-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -68,20 +69,24 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", "&#039;");
 }
 
+function receiptRows(rec: RechargeRecord): Array<[string, string]> {
+  return [
+    [numberLabel(rec.type), String(rec.number ?? "—")],
+    ["Service", serviceLabel(rec.type)],
+    ["Operator / Biller", String(rec.operatorName ?? "—")],
+    ["Amount", formatINR(rec.amount)],
+    ...(rec.commissionAmount > 0 ? [["Commission", `+${formatINR(rec.commissionAmount)}`] as [string, string]] : []),
+    ["Status", STATUS_LBL[rec.status]],
+    ["Transaction ID", String(rec.id ?? "—")],
+    ...(rec.providerTxnId ? [["Operator Reference", String(rec.providerTxnId)] as [string, string]] : []),
+    ["Date & Time", receiptDate(rec.createdAt)],
+  ];
+}
+
 function shareStageMarkup(rec: RechargeRecord) {
   const status = STATUS_LBL[rec.status];
   const service = serviceLabel(rec.type);
-  const rows = [
-    [numberLabel(rec.type), rec.number],
-    ["Service", service],
-    ["Operator / Biller", rec.operatorName],
-    ["Amount", formatINR(rec.amount)],
-    ...(rec.commissionAmount > 0 ? [["Commission", `+${formatINR(rec.commissionAmount)}`]] : []),
-    ["Status", status],
-    ["Transaction ID", rec.id],
-    ...(rec.providerTxnId ? [["Operator Reference", rec.providerTxnId]] : []),
-    ["Date & Time", receiptDate(rec.createdAt)],
-  ];
+  const rows = receiptRows(rec);
 
   const root = document.createElement("div");
   root.setAttribute("aria-hidden", "true");
@@ -89,9 +94,9 @@ function shareStageMarkup(rec: RechargeRecord) {
     "position:absolute",
     "left:-10000px",
     "top:0",
-    "width:900px",
+    "width:1200px",
     "box-sizing:border-box",
-    "padding:44px",
+    "padding:60px",
     "background:#eef3f8",
     "font-family:Arial,Helvetica,sans-serif",
     "color:#142033",
@@ -101,39 +106,39 @@ function shareStageMarkup(rec: RechargeRecord) {
   root.innerHTML = `
     <div style="overflow:hidden;border:1px solid #d7e0ea;border-radius:30px;background:#fff;box-shadow:0 18px 50px rgba(20,32,51,.12)">
       <div style="height:14px;background:linear-gradient(90deg,#0b8f67,#15b77e,#f2b544)"></div>
-      <div style="padding:38px 42px 34px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:28px;border-bottom:1px solid #e5eaf0">
-          <div style="display:flex;align-items:center;gap:20px">
-            <img src="/logo.png" alt="" style="width:78px;height:78px;border-radius:22px;object-fit:contain;border:1px solid #e1e8ef;background:#fff" />
+      <div style="padding:44px 48px 40px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:28px;padding-bottom:32px;border-bottom:1px solid #e5eaf0">
+            <div style="display:flex;align-items:center;gap:24px;min-width:0">
+            <img src="/logo.png" alt="" style="width:88px;height:88px;border-radius:24px;object-fit:contain;border:1px solid #e1e8ef;background:#fff;flex:0 0 auto" />
             <div>
-              <div style="font-size:29px;font-weight:800;letter-spacing:-.6px;color:#12264a">Smit CSC Info</div>
-              <div style="margin-top:5px;font-size:16px;color:#536275">Digital Service Center · Gujarat</div>
-              <div style="margin-top:3px;font-size:14px;color:#8190a2">smitcscinfo.com</div>
+              <div style="font-size:32px;font-weight:800;letter-spacing:-.6px;color:#12264a">Smit CSC Info</div>
+              <div style="margin-top:6px;font-size:18px;color:#536275">Digital Service Center · Gujarat</div>
+              <div style="margin-top:4px;font-size:16px;color:#8190a2">smitcscinfo.com</div>
             </div>
           </div>
-          <div style="padding:10px 16px;border-radius:999px;background:#eefbf6;color:#087451;font-size:14px;font-weight:700;white-space:nowrap">PAYMENT RECEIPT</div>
+          <div style="padding:12px 18px;border-radius:999px;background:#eefbf6;color:#087451;font-size:16px;font-weight:700;white-space:nowrap;flex:0 0 auto">PAYMENT RECEIPT</div>
         </div>
 
-        <div style="padding:34px 0 30px;text-align:center">
-          <div style="margin:0 auto 14px;width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#e8faf3;border:2px solid #0aa873;color:#07825a;font-size:36px;font-weight:700">✓</div>
-          <div style="font-size:26px;font-weight:800;color:#13213a">${escapeHtml(status)}</div>
-          <div style="margin-top:8px;font-size:46px;line-height:1;font-weight:800;letter-spacing:-1.5px;color:#0c1830">${escapeHtml(formatINR(rec.amount))}</div>
-          <div style="margin-top:15px;font-size:17px;color:#516175"><strong>${escapeHtml(rec.operatorName)}</strong><span style="padding:0 10px;color:#a3adba">·</span>${escapeHtml(service)}</div>
+          <div style="padding:42px 0 36px;text-align:center">
+          <div style="margin:0 auto 16px;width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#e8faf3;border:2px solid #0aa873;color:#07825a;font-size:40px;font-weight:700">✓</div>
+          <div style="font-size:30px;font-weight:800;color:#13213a">${escapeHtml(status)}</div>
+          <div style="margin-top:10px;font-size:52px;line-height:1;font-weight:800;letter-spacing:-1.5px;color:#0c1830">${escapeHtml(formatINR(rec.amount))}</div>
+          <div style="margin-top:17px;font-size:19px;color:#516175"><strong>${escapeHtml(rec.operatorName)}</strong><span style="padding:0 12px;color:#a3adba">·</span>${escapeHtml(service)}</div>
         </div>
 
         <div style="border:1px solid #e1e8ef;border-radius:20px;overflow:hidden">
           ${rows.map(([label, value], index) => `
-            <div style="display:grid;grid-template-columns:38% 62%;gap:18px;padding:17px 20px;background:${index % 2 === 0 ? "#f8fafc" : "#fff"};border-bottom:${index === rows.length - 1 ? "0" : "1px solid #e8edf2"}">
-              <div style="font-size:15px;color:#718096">${escapeHtml(label)}</div>
-              <div style="font-size:16px;font-weight:700;text-align:right;overflow-wrap:anywhere;color:#1c293d">${escapeHtml(value)}</div>
+             <div style="display:grid;grid-template-columns:minmax(0,34fr) minmax(0,66fr);gap:24px;min-width:0;padding:19px 24px;background:${index % 2 === 0 ? "#f8fafc" : "#fff"};border-bottom:${index === rows.length - 1 ? "0" : "1px solid #e8edf2"}">
+              <div style="min-width:0;font-size:17px;color:#718096">${escapeHtml(label)}</div>
+              <div style="min-width:0;font-size:18px;font-weight:700;text-align:right;overflow-wrap:anywhere;word-break:break-word;color:#1c293d">${escapeHtml(value)}</div>
             </div>
           `).join("")}
         </div>
 
-        <div style="margin-top:26px;padding:16px 20px;border:1px solid #b9edd8;border-radius:14px;background:#effcf6;text-align:center;color:#087451;font-size:15px;font-weight:700">
+        <div style="margin-top:30px;padding:18px 24px;border:1px solid #b9edd8;border-radius:16px;background:#effcf6;text-align:center;color:#087451;font-size:17px;font-weight:700">
           ${rec.status === "success" ? "✓ Payment completed successfully. Thank you!" : escapeHtml(status)}
         </div>
-        <div style="margin-top:28px;padding-top:22px;border-top:1px solid #e5eaf0;text-align:center;color:#7b8795;font-size:13px;line-height:1.7">
+        <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e5eaf0;text-align:center;color:#7b8795;font-size:15px;line-height:1.7">
           This is a system-generated receipt.<br />
           For support: smitcscinfo.com · Mon–Sat, 10 AM – 6 PM<br />
           <span style="color:#a3adba">© Smit CSC Info · Gujarat, India</span>
@@ -179,10 +184,11 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 
 async function fallbackReceiptCanvas(rec: RechargeRecord) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1000;
-  canvas.height = 1400;
+  canvas.width = 1600;
+  canvas.height = 2240;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is not available");
+  ctx.scale(1.6, 1.6);
 
   ctx.fillStyle = "#eef3f8";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -241,19 +247,9 @@ async function fallbackReceiptCanvas(rec: RechargeRecord) {
   ctx.fillText(`${rec.operatorName} · ${serviceLabel(rec.type)}`, 500, 462);
   ctx.textAlign = "left";
 
-  const rows = [
-    [numberLabel(rec.type), rec.number],
-    ["Service", serviceLabel(rec.type)],
-    ["Operator / Biller", rec.operatorName],
-    ["Amount", formatINR(rec.amount)],
-    ...(rec.commissionAmount > 0 ? [["Commission", `+${formatINR(rec.commissionAmount)}`]] : []),
-    ["Status", STATUS_LBL[rec.status]],
-    ["Transaction ID", rec.id],
-    ...(rec.providerTxnId ? [["Operator Reference", rec.providerTxnId]] : []),
-    ["Date & Time", receiptDate(rec.createdAt)],
-  ];
+  const rows = receiptRows(rec);
   let y = 510;
-  const rowHeight = 61;
+  const rowHeight = 66;
   ctx.strokeStyle = "#e1e8ef";
   ctx.lineWidth = 1;
   ctx.strokeRect(78, y, 844, rowHeight * rows.length);
@@ -273,10 +269,10 @@ async function fallbackReceiptCanvas(rec: RechargeRecord) {
     ctx.fillText(label, 98, y + index * rowHeight + 37);
     ctx.fillStyle = "#1c293d";
     ctx.font = "700 16px Arial";
-    const lines = wrapText(ctx, value, 485);
-    lines.slice(0, 2).forEach((line, lineIndex) => {
+    const lines = wrapText(ctx, value, 515);
+    lines.slice(0, 3).forEach((line, lineIndex) => {
       ctx.textAlign = "right";
-      ctx.fillText(line, 900, y + index * rowHeight + 29 + lineIndex * 19);
+      ctx.fillText(line, 900, y + index * rowHeight + 27 + lineIndex * 18);
       ctx.textAlign = "left";
     });
   });
@@ -320,7 +316,7 @@ async function prepareReceiptImage(rec: RechargeRecord) {
     })));
     const canvas = await html2canvas(stage, {
       backgroundColor: "#eef3f8",
-      scale: Math.min(2, Math.max(1.5, window.devicePixelRatio || 1)),
+      scale: 3,
       logging: false,
       useCORS: true,
       allowTaint: false,
@@ -341,54 +337,109 @@ export default function RechargeReceipt() {
   const qc = useQueryClient();
   const [isSharing, setIsSharing] = useState(false);
   const [shareNotice, setShareNotice] = useState("");
+  const [printRoot, setPrintRoot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     const style = document.createElement("style");
     style.id = "receipt-print-styles";
     style.innerHTML = `
+      .receipt-print-sheet,
+      #receipt-print-root {
+        display: none;
+      }
       @media print {
-        @page { size: A4 portrait; margin: 10mm; }
+        @page { size: A4 portrait; margin: 0; }
         html, body {
+          width: 210mm !important;
+          min-height: 297mm !important;
           background: #fff !important;
           margin: 0 !important;
           padding: 0 !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        body * { visibility: hidden !important; }
-        #print-receipt, #print-receipt * { visibility: visible !important; }
-        #print-receipt {
-          position: absolute !important;
-          inset: 0 auto auto 0 !important;
-          width: 100% !important;
-          max-width: none !important;
+        body > * {
+          display: none !important;
+        }
+        body > #receipt-print-root,
+        #receipt-print-root .receipt-print-sheet {
+          display: block !important;
+        }
+        #receipt-print-root {
+          width: 210mm !important;
+          min-height: 297mm !important;
           margin: 0 !important;
-          transform: none !important;
-          zoom: 1 !important;
+          padding: 0 !important;
+        }
+        .receipt-screen {
+          display: none !important;
+        }
+        .receipt-print-sheet {
+          width: 210mm !important;
+          min-height: 297mm !important;
+          box-sizing: border-box !important;
+          padding: 12mm !important;
+          background: #fff !important;
+          break-after: avoid !important;
+          page-break-after: avoid !important;
+          overflow: visible !important;
+        }
+        .receipt-print-card {
+          width: 100% !important;
+          box-sizing: border-box !important;
+          margin: 0 !important;
           box-shadow: none !important;
           overflow: visible !important;
           break-inside: avoid !important;
           page-break-inside: avoid !important;
         }
-        #print-receipt .receipt-card-content { padding: 28px !important; }
-        #print-receipt .receipt-details { font-size: 13px !important; }
-        #print-receipt .receipt-details-row {
-          display: grid !important;
-          grid-template-columns: 38% 62% !important;
-          align-items: start !important;
+        .receipt-print-card-content {
+          padding: 8mm !important;
         }
-        #print-receipt .receipt-details-row > :last-child {
+        .receipt-print-details-row {
+          display: grid !important;
+          grid-template-columns: minmax(0, 36fr) minmax(0, 64fr) !important;
+          gap: 4mm !important;
+          min-width: 0 !important;
+          align-items: start !important;
+          padding: 3mm 4mm !important;
+          break-inside: avoid !important;
+          page-break-inside: avoid !important;
+        }
+        .receipt-print-details-row > * {
+          min-width: 0 !important;
           overflow-wrap: anywhere !important;
           word-break: break-word !important;
         }
-        #print-receipt .receipt-status-icon { width: 48px !important; height: 48px !important; }
-        #print-receipt .receipt-amount { font-size: 34px !important; }
-        #print-receipt .receipt-footer { font-size: 10px !important; line-height: 1.35 !important; }
-        #print-receipt .no-print, .no-print { display: none !important; }
+        .receipt-print-details-row > :last-child {
+          text-align: right !important;
+        }
+        .receipt-print-header { padding-bottom: 5mm !important; }
+        .receipt-print-logo { width: 18mm !important; height: 18mm !important; }
+        .receipt-print-brand { font-size: 16pt !important; }
+        .receipt-print-subtitle { font-size: 8.5pt !important; }
+        .receipt-print-site { font-size: 7.5pt !important; }
+        .receipt-print-status { padding: 7mm 0 6mm !important; }
+        .receipt-print-status-icon { width: 14mm !important; height: 14mm !important; }
+        .receipt-print-status-label { font-size: 15pt !important; }
+        .receipt-print-amount { font-size: 25pt !important; }
+        .receipt-print-meta { font-size: 9pt !important; }
+        .receipt-print-details-row > :first-child { font-size: 8.5pt !important; }
+        .receipt-print-details-row > :last-child { font-size: 9pt !important; }
+        .receipt-print-notice { margin-top: 6mm !important; padding: 3mm 4mm !important; font-size: 8.5pt !important; }
+        .receipt-print-footer { margin-top: 6mm !important; padding-top: 5mm !important; font-size: 7.5pt !important; line-height: 1.45 !important; }
       }
     `;
     document.head.appendChild(style);
     return () => document.getElementById("receipt-print-styles")?.remove();
+  }, []);
+
+  useEffect(() => {
+    const root = document.createElement("div");
+    root.id = "receipt-print-root";
+    document.body.appendChild(root);
+    setPrintRoot(root);
+    return () => root.remove();
   }, []);
 
   const { data: rec, isLoading } = useQuery({
@@ -454,7 +505,8 @@ export default function RechargeReceipt() {
   };
 
   return (
-    <div className="flex-1 py-8 px-4 bg-slate-50">
+    <>
+    <div className="receipt-screen flex-1 py-8 px-4 bg-slate-50">
       <div className="container mx-auto max-w-md">
         <Link href="/recharge/history">
           <Button variant="ghost" size="sm" className="mb-4 no-print">
@@ -571,6 +623,80 @@ export default function RechargeReceipt() {
             </div>
           </CardContent>
         </Card>
+      </div>
+    </div>
+    {printRoot ? createPortal(<PrintableReceipt rec={rec} />, printRoot) : null}
+    </>
+  );
+}
+
+function PrintableReceipt({ rec }: { rec: RechargeRecord }) {
+  const StatusIcon = rec.status === "success"
+    ? CheckCircle2
+    : (rec.status === "failed" || rec.status === "refunded") ? XCircle : Clock;
+  const Icon = ICONS[rec.type] ?? Receipt;
+
+  return (
+    <div className="receipt-print-sheet" aria-hidden="true">
+      <div className="receipt-print-card overflow-hidden border border-slate-200 border-t-8 border-t-emerald-500 bg-white rounded-2xl">
+        <div className="receipt-print-card-content p-6">
+          <div className="receipt-print-header flex items-center justify-between gap-4 border-b pb-5">
+            <div className="flex items-center gap-4 min-w-0">
+              <img src="/logo.png" alt="" className="receipt-print-logo h-16 w-16 rounded-2xl object-contain border border-slate-100 bg-white shrink-0" />
+              <div className="min-w-0">
+                <div className="receipt-print-brand text-xl font-extrabold tracking-tight text-slate-900">Smit CSC Info</div>
+                <div className="receipt-print-subtitle text-xs text-slate-500">Digital Service Center · Gujarat</div>
+                <div className="receipt-print-site text-[11px] text-slate-400 mt-1">smitcscinfo.com</div>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold tracking-[0.16em] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-full px-3 py-1.5 whitespace-nowrap">PAYMENT RECEIPT</span>
+          </div>
+
+          <div className="receipt-print-status text-center py-7">
+            <div className="receipt-print-status-icon mx-auto rounded-full border-2 flex items-center justify-center bg-white text-emerald-600 border-current">
+              <StatusIcon className="h-9 w-9" />
+            </div>
+            <div className="receipt-print-status-label text-2xl font-extrabold mt-3 text-slate-900">{STATUS_LBL[rec.status]}</div>
+            <div className="receipt-print-amount text-5xl font-extrabold tracking-tight mt-2 text-slate-950">{formatINR(rec.amount)}</div>
+            <div className="receipt-print-meta flex items-center justify-center gap-2 mt-3 text-sm text-slate-500">
+              <Icon className="h-4 w-4 text-emerald-600" />
+              <span className="font-bold text-slate-700">{rec.operatorName}</span>
+              <span className="text-slate-300">·</span>
+              <span>{serviceLabel(rec.type)}</span>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            {receiptRows(rec).map(([label, value], index) => (
+              <div key={`${label}-${index}`} className="receipt-print-details-row grid gap-4 items-start px-4 py-3 text-sm even:bg-slate-50 border-b last:border-b-0 border-slate-100">
+                <span className="text-slate-500">{label}</span>
+                <span className="font-semibold text-right text-slate-800 break-words [overflow-wrap:anywhere]">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          {rec.failureReason && (
+            <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+              <b>Reason:</b> {rec.failureReason}
+            </div>
+          )}
+          {rec.refundedAt && (
+            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+              {formatINR(rec.amount)} refunded to wallet on {receiptDate(rec.refundedAt)}.
+            </div>
+          )}
+          {rec.status === "success" && (
+            <div className="receipt-print-notice mt-5 bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-700 text-center font-medium">
+              ✓ Payment completed successfully. Thank you!
+            </div>
+          )}
+
+          <div className="receipt-print-footer text-center text-[10px] text-slate-500 leading-relaxed mt-5 pt-4 border-t">
+            This is a system-generated receipt.<br />
+            For support: smitcscinfo.com · Mon–Sat, 10 AM – 6 PM<br />
+            <span className="text-slate-400">© Smit CSC Info · Gujarat, India</span>
+          </div>
+        </div>
       </div>
     </div>
   );
