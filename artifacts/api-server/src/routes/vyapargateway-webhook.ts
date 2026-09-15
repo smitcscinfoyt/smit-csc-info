@@ -300,7 +300,7 @@ export async function reconcileVyaparRecharge(
 /**
  * Main Webhook Handler: POST /api/webhook/vyapargateway
  */
-router.post("/webhook/vyapargateway", async (req: Request, res: Response): Promise<void> => {
+async function handleVyaparWebhook(req: Request, res: Response): Promise<void> {
   try {
     const timestamp = (req.headers["x-vyapargateway-timestamp"] as string) || "";
     const signature = (req.headers["x-vyapargateway-signature"] as string) || "";
@@ -355,7 +355,12 @@ router.post("/webhook/vyapargateway", async (req: Request, res: Response): Promi
     console.error("[vyapargateway-webhook] Error processing webhook:", err);
     res.status(200).json({ status: true, msg: "Error logged" }); // Always ACK with 200
   }
-});
+}
+
+// Support both spellings so an already-configured provider webhook keeps
+// working while the canonical URL remains /api/webhook/vyapargateway.
+router.post("/webhook/vyapargateway", handleVyaparWebhook);
+router.post("/webhooks/vyapargateway", handleVyaparWebhook);
 
 /**
  * Universal Polling / Status Check endpoint: POST /api/vyapargateway/check-status
