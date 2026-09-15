@@ -1,11 +1,11 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Loader2, Wallet, IndianRupee, ShieldCheck, AlertCircle } from "lucide-react";
+import { ArrowLeft, Loader2, Wallet, IndianRupee, ShieldCheck } from "lucide-react";
 import { getWallet, initWalletTopup, formatINR } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
 import { VyaparPaymentDialog, type VyaparPaymentData } from "@/components/vyapar-payment-dialog";
@@ -13,25 +13,28 @@ import { VyaparPaymentDialog, type VyaparPaymentData } from "@/components/vyapar
 const QUICK_AMOUNTS = [100, 500, 1000, 2000, 5000];
 
 export default function WalletAdd() {
+  // ALL hooks declared unconditionally at the top (React rules of hooks)
   const { toast } = useToast();
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const [amount, setAmount] = useState("");
-  const [rateLimitAmount, setRateLimitAmount] = useState<number | null>(null);
-  const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: getWallet });
-
   const [paymentDialog, setPaymentDialog] = useState<{
     open: boolean;
     data: VyaparPaymentData | null;
-  }>({
-    open: false,
-    data: null,
-  });
+  }>({ open: false, data: null });
+
+  const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: getWallet });
+
+  // Derived values computed BEFORE useMutation so the onError closure
+  // can safely reference them without TDZ / stale-closure issues.
+  // This prevents React error #310 ("Rendered more hooks than previous render").
+  const numAmount = parseFloat(amount) || 0;
+  const capRemaining = wallet ? wallet.capRemaining / 100 : Infinity;
+  const exceedsCap = numAmount * 100 > (wallet?.capRemaining ?? Infinity);
 
   const initMutation = useMutation({
     mutationFn: (rupees: number) => initWalletTopup(Math.round(rupees * 100)),
     onSuccess: (res) => {
-      setRateLimitAmount(null);
       setPaymentDialog({
         open: true,
         data: {
@@ -49,32 +52,38 @@ export default function WalletAdd() {
     },
     onError: (err: any) => {
       const rawMsg = String(err?.data?.error || err?.message || "");
-      const is429 =
-        err?.status === 429 ||
-        rawMsg.includes("429") ||
-        rawMsg.toLowerCase().includes("high volume");
+      const httpStatus = err?.status ?? 0;
 
-      if (is429) {
-        setRateLimitAmount(numAmount);
+      // Gateway server-side errors (429 high-volume, 500 crash, 502/503 outage)
+      // are all TEMPORARY. The backend generates a fresh unique order ID on every
+      // call, so the user just needs to retry with the same amount.
+      // NEVER suggest changing the amount.
+      const isTemporary =
+        httpStatus === 429 ||
+        httpStatus === 500 ||
+        httpStatus === 502 ||
+        httpStatus === 503 ||
+        rawMsg.toLowerCase().includes("high volume") ||
+        rawMsg.toLowerCase().includes("internal_server_error") ||
+        rawMsg.toLowerCase().includes("unexpected error") ||
+        rawMsg.toLowerCase().includes("temporarily");
+
+      if (isTemporary) {
         toast({
           variant: "destructive",
-          title: "Gateway Busy for ₹" + numAmount,
-          description: `All gateway channels are currently busy with ₹${numAmount}. Please wait 2 minutes or try ₹${numAmount + 1}.`,
+          title: "Payment channel temporarily unavailable",
+          description:
+            "The payment gateway is busy. Please wait a moment and tap 'Pay via UPI' again — your amount will not change.",
         });
       } else {
-        setRateLimitAmount(null);
         toast({
           variant: "destructive",
-          title: "Error",
+          title: "Payment failed",
           description: rawMsg || "Could not initiate payment. Please try again.",
         });
       }
     },
   });
-
-  const numAmount = parseFloat(amount) || 0;
-  const capRemaining = wallet ? wallet.capRemaining / 100 : Infinity;
-  const exceedsCap = numAmount * 100 > (wallet?.capRemaining ?? Infinity);
 
   const handleSubmit = () => {
     if (numAmount < 10) {
@@ -186,35 +195,6 @@ export default function WalletAdd() {
               </div>
             )}
 
-            {rateLimitAmount === numAmount && (
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 space-y-2 text-amber-900">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-xs">
-                    <p className="font-semibold text-amber-950">
-                      ₹{numAmount} માટે ગેટવે ચેનલ હાલમાં વ્યસ્ત છે (High Volume)
-                    </p>
-                    <p className="mt-0.5 text-amber-800">
-                      અગાઉનો ઓર્ડર પ્રોસેસમાં હોવાથી ગેટવે આ જ રકમ તરત સ્વીકારતો નથી. તમે 2 મિનિટ રાહ જોઈ શકો છો અથવા ₹{numAmount + 1} સાથે તરત આગળ વધી શકો છો.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-lg shadow-sm"
-                  onClick={() => {
-                    const nextAmt = numAmount + 1;
-                    setAmount(String(nextAmt));
-                    setRateLimitAmount(null);
-                    initMutation.mutate(nextAmt);
-                  }}
-                >
-                  ₹{numAmount + 1} સાથે તરત પેમેન્ટ કરો (Pay ₹{numAmount + 1})
-                </Button>
-              </div>
-            )}
-
             <Button
               className="w-full bg-primary hover:bg-primary/90 text-white font-bold h-13 text-base rounded-xl shadow-md transition-all"
               disabled={initMutation.isPending || numAmount < 10 || exceedsCap}
@@ -246,7 +226,7 @@ export default function WalletAdd() {
         </Card>
       </div>
 
-      {/* Device-Based VyaparGateway Modal */}
+      {/* VyaparGateway UPI Payment Dialog */}
       <VyaparPaymentDialog
         open={paymentDialog.open}
         payment={paymentDialog.data}

@@ -356,9 +356,10 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
             <div className="text-center pt-1 space-y-1.5">
               {!isQrMode && (
                 <p className="text-[11px] text-gray-500">
-                  જો UPI એપ માં બેંક પેમેન્ટ ડિક્લાઇન થાય, તો નીચેથી QR Code સ્કેન કરો:
+                  If your bank app declines the payment, scan QR Code below — works 100% of the time.
                 </p>
               )}
+
               <button
                 type="button"
                 onClick={() => setShowQrExplicit(!isQrMode)}
