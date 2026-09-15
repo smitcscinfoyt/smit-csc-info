@@ -74,6 +74,31 @@ export function isVyaparGatewayConfigured(): boolean {
   return !!getVyaparApiKey();
 }
 
+async function getVyaparEgressIpHint(): Promise<string> {
+  const endpoints = [
+    { label: "IPv4", url: "https://api.ipify.org" },
+    { label: "IPv6", url: "https://api64.ipify.org" },
+  ];
+
+  const results = await Promise.all(
+    endpoints.map(async ({ label, url }) => {
+      try {
+        const response = await fetch(url, {
+          signal: AbortSignal.timeout(3_000),
+          headers: { Accept: "text/plain" },
+        });
+        if (!response.ok) return null;
+        const ip = (await response.text()).trim();
+        return ip ? `${label} ${ip}` : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return results.filter((value): value is string => Boolean(value)).join(", ");
+}
+
 /**
  * Resolve public base URL for webhook callbacks and redirects.
  */
@@ -185,6 +210,12 @@ export async function createVyaparOrder(
       else if (errorText) errMsg += `: ${errorText}`;
     } catch {
       if (errorText) errMsg += `: ${errorText}`;
+    }
+    if (res.status === 403) {
+      const egressIp = await getVyaparEgressIpHint();
+      if (egressIp) {
+        errMsg += `. Server egress IP(s): ${egressIp}`;
+      }
     }
     throw new Error(errMsg);
   }
