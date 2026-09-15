@@ -26,15 +26,28 @@ export function getVyaparBaseUrl(): string {
  * a trailing newline. Both make an otherwise valid gateway key fail with 401.
  */
 function cleanSecret(value: string | undefined): string {
-  const trimmed = String(value ?? "").trim();
-  if (trimmed.length >= 2) {
-    const first = trimmed[0];
-    const last = trimmed[trimmed.length - 1];
-    if ((first === "'" || first === '"') && last === first) {
-      return trimmed.slice(1, -1).trim();
+  let cleaned = String(value ?? "").trim();
+
+  // Accept the raw token as well as values copied from cURL/API docs:
+  //   "vg_live_...", Bearer vg_live_..., X-API-Key: vg_live_...
+  for (let i = 0; i < 2; i += 1) {
+    if (cleaned.length >= 2) {
+      const first = cleaned[0];
+      const last = cleaned[cleaned.length - 1];
+      if ((first === "'" || first === '"') && last === first) {
+        cleaned = cleaned.slice(1, -1).trim();
+      }
     }
   }
-  return trimmed;
+
+  cleaned = cleaned
+    .replace(/^(?:bearer\s+)+/i, "")
+    .replace(/^(?:x-api-key|api-key|key)\s*:\s*/i, "")
+    .replace(/^(?:VYAPAR_API_KEY|VYAPARGATEWAY_API_KEY)\s*=\s*/i, "")
+    .replace(/\s+/g, "")
+    .trim();
+
+  return cleaned;
 }
 
 export function getVyaparApiKey(): string {

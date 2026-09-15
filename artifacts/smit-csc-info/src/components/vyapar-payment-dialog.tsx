@@ -43,7 +43,9 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
   const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
   const [statusState, setStatusState] = useState<"pending" | "success" | "failed">("pending");
-  const [showQrExplicit, setShowQrExplicit] = useState(false);
+  // Mobile defaults to UPI app intents; desktop defaults to QR. A null value
+  // means "use the device default", while a boolean is an explicit toggle.
+  const [showQrExplicit, setShowQrExplicit] = useState<boolean | null>(null);
   const [pollingError, setPollingError] = useState<string | null>(null);
 
   // Device detection: tablets (iPad/Android) and mobile phones use Intent flow; desktop uses QR flow
@@ -138,7 +140,7 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
     } catch {}
   };
 
-  const isQrMode = !isMobileDevice ? !showQrExplicit === false : showQrExplicit;
+  const isQrMode = showQrExplicit ?? !isMobileDevice;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel(); }}>
