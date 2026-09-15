@@ -172,19 +172,38 @@ export async function createVyaparOrder(
   const callbackUrl = params.callbackUrl || `${base}/api/webhook/vyapargateway`;
   const redirectUrl = params.redirectUrl || `${base}/wallet`;
 
+  const cleanName = (params.customerName || "Customer")
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .trim()
+    .slice(0, 40) || "Customer";
+
+  const rawMobile = (params.customerMobile || "").replace(/\D/g, "");
+  const cleanMobile = rawMobile.length >= 10 ? rawMobile.slice(-10) : "9999999999";
+
+  const cleanEmail =
+    params.customerEmail && params.customerEmail.includes("@")
+      ? params.customerEmail.trim().slice(0, 60)
+      : "noreply@smitcscinfo.com";
+
+  const cleanProductInfo = (params.productInfo || "Recharge or Wallet Payment")
+    .replace(/₹/g, "INR ")
+    .replace(/[^a-zA-Z0-9 _-]/g, "")
+    .trim()
+    .slice(0, 50) || "Recharge or Wallet Payment";
+
   const payload = {
     key: apiKey,
     client_txn_id: params.clientTxnId,
     amount: Number(params.amountRupees.toFixed(2)),
-    p_info: params.productInfo || "Recharge / Wallet Payment",
-    customer_name: params.customerName || "Customer",
-    customer_mobile: params.customerMobile || "9999999999",
-    customer_email: params.customerEmail || "noreply@smitcscinfo.com",
+    p_info: cleanProductInfo,
+    customer_name: cleanName,
+    customer_mobile: cleanMobile,
+    customer_email: cleanEmail,
     callback_url: callbackUrl,
     redirect_url: redirectUrl,
-    udf1: params.udf1 || "",
-    udf2: params.udf2 || "",
-    udf3: params.udf3 || "",
+    udf1: (params.udf1 || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 50),
+    udf2: (params.udf2 || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 50),
+    udf3: (params.udf3 || "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 50),
   };
 
   const baseUrl = getVyaparBaseUrl();
@@ -204,18 +223,28 @@ export async function createVyaparOrder(
     let errMsg = `VyaparGateway HTTP ${res.status}`;
     try {
       const parsed = JSON.parse(errorText);
-      if (parsed.detail) errMsg += `: ${parsed.detail}`;
-      else if (parsed.msg) errMsg += `: ${parsed.msg}`;
-      else if (parsed.message) errMsg += `: ${parsed.message}`;
-      else if (errorText) errMsg += `: ${errorText}`;
+      const specific =
+        parsed.error?.message ||
+        parsed.detail ||
+        parsed.msg ||
+        parsed.message;
+      if (specific) {
+        errMsg += `: ${specific}`;
+      } else if (errorText) {
+        errMsg += `: ${errorText.length > 200 ? errorText.slice(0, 200) : errorText}`;
+      }
     } catch {
-      if (errorText) errMsg += `: ${errorText}`;
+      if (errorText) {
+        errMsg += `: ${errorText.length > 200 ? errorText.slice(0, 200) : errorText}`;
+      }
     }
     if (res.status === 403) {
       const egressIp = await getVyaparEgressIpHint();
       if (egressIp) {
         errMsg += `. Server egress IP(s): ${egressIp}`;
       }
+    } else if (res.status === 500) {
+      errMsg += " (Gateway upstream temporary failure. Please retry in 1-2 minutes or verify gateway status)";
     }
     throw new Error(errMsg);
   }

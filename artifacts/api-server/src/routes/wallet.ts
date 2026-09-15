@@ -209,7 +209,7 @@ router.post("/wallet/topup/init", requireAuth, async (req: AuthRequest, res): Pr
       customerName: user?.name || "User",
       customerMobile: user?.mobile || undefined,
       customerEmail: user?.email || undefined,
-      productInfo: `Wallet Top-up ₹${amountPaise / 100}`,
+      productInfo: `Wallet Top-up INR ${amountPaise / 100}`,
       callbackUrl,
       redirectUrl,
     });
