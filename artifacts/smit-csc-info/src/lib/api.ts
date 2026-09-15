@@ -14,13 +14,13 @@ function friendlyMessage(status: number, serverMsg?: string): string {
   // (i.e. doesn't look like a raw status code or stack trace).
   if (
     serverMsg &&
-    serverMsg.length < 200 &&
-    !/^HTTP\s*\d+/i.test(serverMsg) &&
-    !/\bFetch\b/i.test(serverMsg) &&
+    serverMsg.length < 300 &&
+    !/^\d{3}\s/i.test(serverMsg) &&
     !/\bError\b.*at\s+\w/i.test(serverMsg)
   ) {
     return serverMsg;
   }
+
   if (status === 0) return "No internet connection. Please check your network and try again.";
   if (status >= 500) return "Something went wrong on our end. Please try again later.";
   if (status === 429) return "Too many requests. Please slow down and try again in a moment.";

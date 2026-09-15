@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -72,9 +72,11 @@ export default function WalletAdd() {
         toast({
           variant: "destructive",
           title: "Payment channel temporarily unavailable",
-          description:
-            "The payment gateway is busy. Please wait a moment and tap 'Pay via UPI' again — your amount will not change.",
+          description: rawMsg
+            ? `Gateway error: ${rawMsg.slice(0, 150)}`
+            : "The payment gateway is busy. Please wait a moment and try again.",
         });
+
       } else {
         toast({
           variant: "destructive",

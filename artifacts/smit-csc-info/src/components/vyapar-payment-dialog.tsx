@@ -110,37 +110,36 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
     return () => clearInterval(interval);
   }, [open, payment, statusState]);
 
-  if (!payment) return null;
-
-  const orderRef = payment.clientTxnId || payment.orderId;
-  const formattedAmount = `₹${payment.amountRupees.toFixed(2)}`;
-
-  // Parse raw parameters from VyaparGateway's upiString
-  const rawUpiString = payment.upiString || "";
+  // Detailed console logging for debugging bank decline
+  // IMPORTANT: This hook MUST be called before any early return to avoid
+  // React error #310 ("Rendered more hooks than during the previous render").
+  const rawUpiString = payment?.upiString || "";
   const upiQueryString = rawUpiString.includes("?") ? rawUpiString.split("?")[1] : "";
   const upiParams = new URLSearchParams(upiQueryString);
 
-  // If mc is missing from provider's string but MCC is known (e.g. 5541 from merchant settings),
-  // we can append it so NPCI recognizes it as a merchant intent instead of untrusted P2P.
+  // Append mc (merchant category code) if missing from the gateway response
   let effectiveUpiString = rawUpiString;
   if (effectiveUpiString && !upiParams.has("mc")) {
     const sep = effectiveUpiString.includes("?") ? "&" : "?";
     effectiveUpiString = `${effectiveUpiString}${sep}mc=5541`;
   }
 
-  const upiUri =
-    effectiveUpiString ||
-    `upi://pay?pa=bharatpe2y0k0y6a1u09381@unitype&pn=Mr%20SAGAR%20DEVASHIBHAI%20KINDARAKHEDIYA&mc=5541&am=${payment.amountRupees}&cu=INR&tr=${orderRef}`;
+  const orderRef = payment?.clientTxnId || payment?.orderId || "";
+  const upiUri = payment
+    ? effectiveUpiString ||
+      `upi://pay?pa=bharatpe2y0k0y6a1u09381@unitype&pn=Mr%20SAGAR%20DEVASHIBHAI%20KINDARAKHEDIYA&mc=5541&am=${payment.amountRupees}&cu=INR&tr=${orderRef}`
+    : "";
 
-  const intentLinks = {
-    phonepe: payment.upiIntent?.phonepe_link || upiUri.replace(/^upi:/, "phonepe:"),
-    gpay: payment.upiIntent?.gpay_link || upiUri.replace(/^upi:/, "tez:"),
-    paytm: payment.upiIntent?.paytm_link || upiUri.replace(/^upi:/, "paytmmp:"),
-    bhim: payment.upiIntent?.bhim_link || upiUri,
-    other: upiUri,
-  };
+  const intentLinks = payment
+    ? {
+        phonepe: payment.upiIntent?.phonepe_link || upiUri.replace(/^upi:/, "phonepe:"),
+        gpay: payment.upiIntent?.gpay_link || upiUri.replace(/^upi:/, "tez:"),
+        paytm: payment.upiIntent?.paytm_link || upiUri.replace(/^upi:/, "paytmmp:"),
+        bhim: payment.upiIntent?.bhim_link || upiUri,
+        other: upiUri,
+      }
+    : { phonepe: "", gpay: "", paytm: "", bhim: "", other: "" };
 
-  // Detailed console logging requested for debugging bank decline
   useEffect(() => {
     if (!open || !payment) return;
     console.group("🔍 [VyaparGateway UPI Intent URI Diagnostic]");
@@ -158,6 +157,12 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
     console.log("Paytm Intent Link:", intentLinks.paytm);
     console.groupEnd();
   }, [open, payment, upiUri]);
+
+  // NOW safe to early-return — all hooks have been called above
+  if (!payment) return null;
+
+  const formattedAmount = `₹${payment.amountRupees.toFixed(2)}`;
+
 
   const handleAppTap = (url: string) => {
     window.location.href = url;
