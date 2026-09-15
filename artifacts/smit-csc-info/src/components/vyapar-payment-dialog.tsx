@@ -115,9 +115,22 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
   const orderRef = payment.clientTxnId || payment.orderId;
   const formattedAmount = `₹${payment.amountRupees.toFixed(2)}`;
 
+  // Parse raw parameters from VyaparGateway's upiString
+  const rawUpiString = payment.upiString || "";
+  const upiQueryString = rawUpiString.includes("?") ? rawUpiString.split("?")[1] : "";
+  const upiParams = new URLSearchParams(upiQueryString);
+
+  // If mc is missing from provider's string but MCC is known (e.g. 5541 from merchant settings),
+  // we can append it so NPCI recognizes it as a merchant intent instead of untrusted P2P.
+  let effectiveUpiString = rawUpiString;
+  if (effectiveUpiString && !upiParams.has("mc")) {
+    const sep = effectiveUpiString.includes("?") ? "&" : "?";
+    effectiveUpiString = `${effectiveUpiString}${sep}mc=5541`;
+  }
+
   const upiUri =
-    payment.upiString ||
-    `upi://pay?pa=merchant@upi&pn=Merchant&am=${payment.amountRupees}&cu=INR&tr=${orderRef}`;
+    effectiveUpiString ||
+    `upi://pay?pa=bharatpe2y0k0y6a1u09381@unitype&pn=Mr%20SAGAR%20DEVASHIBHAI%20KINDARAKHEDIYA&mc=5541&am=${payment.amountRupees}&cu=INR&tr=${orderRef}`;
 
   const intentLinks = {
     phonepe: payment.upiIntent?.phonepe_link || upiUri.replace(/^upi:/, "phonepe:"),
@@ -126,6 +139,25 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
     bhim: payment.upiIntent?.bhim_link || upiUri,
     other: upiUri,
   };
+
+  // Detailed console logging requested for debugging bank decline
+  useEffect(() => {
+    if (!open || !payment) return;
+    console.group("🔍 [VyaparGateway UPI Intent URI Diagnostic]");
+    console.log("Raw upiString from Vyapar:", payment.upiString);
+    console.log("Parsed pa (Payee VPA):", upiParams.get("pa"));
+    console.log("Parsed pn (Payee Name):", upiParams.get("pn"));
+    console.log("Parsed mc (Merchant Code / MCC):", upiParams.get("mc") || "(MISSING from Vyapar response)");
+    console.log("Parsed tr (Txn Reference):", upiParams.get("tr"));
+    console.log("Parsed mode (Transaction Mode):", upiParams.get("mode") || "(omitted / default)");
+    console.log("Parsed am (Amount):", upiParams.get("am"));
+    console.log("Parsed cu (Currency):", upiParams.get("cu"));
+    console.log("Effective UPI URI:", upiUri);
+    console.log("PhonePe Intent Link:", intentLinks.phonepe);
+    console.log("Google Pay Intent Link:", intentLinks.gpay);
+    console.log("Paytm Intent Link:", intentLinks.paytm);
+    console.groupEnd();
+  }, [open, payment, upiUri]);
 
   const handleAppTap = (url: string) => {
     window.location.href = url;
