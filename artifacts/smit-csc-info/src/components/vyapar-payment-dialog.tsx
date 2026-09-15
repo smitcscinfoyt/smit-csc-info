@@ -353,11 +353,16 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
             )}
 
             {/* Toggle view button (Switch between QR & Intent) */}
-            <div className="text-center pt-1">
+            <div className="text-center pt-1 space-y-1.5">
+              {!isQrMode && (
+                <p className="text-[11px] text-gray-500">
+                  જો UPI એપ માં બેંક પેમેન્ટ ડિક્લાઇન થાય, તો નીચેથી QR Code સ્કેન કરો:
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => setShowQrExplicit(!isQrMode)}
-                className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1.5"
+                className="text-xs text-primary font-semibold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/5 border border-primary/20"
               >
                 {isQrMode ? (
                   <>
@@ -365,7 +370,7 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
                   </>
                 ) : (
                   <>
-                    <QrCode className="h-3.5 w-3.5" /> Show QR Code instead
+                    <QrCode className="h-3.5 w-3.5 text-primary" /> Show QR Code instead (100% Success)
                   </>
                 )}
               </button>

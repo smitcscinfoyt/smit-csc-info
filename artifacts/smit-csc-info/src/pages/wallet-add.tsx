@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Loader2, Wallet, IndianRupee, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Loader2, Wallet, IndianRupee, ShieldCheck, AlertCircle } from "lucide-react";
 import { getWallet, initWalletTopup, formatINR } from "@/lib/recharge-api";
 import { useToast } from "@/hooks/use-toast";
 import { VyaparPaymentDialog, type VyaparPaymentData } from "@/components/vyapar-payment-dialog";
@@ -17,6 +17,7 @@ export default function WalletAdd() {
   const qc = useQueryClient();
   const [, setLocation] = useLocation();
   const [amount, setAmount] = useState("");
+  const [rateLimitAmount, setRateLimitAmount] = useState<number | null>(null);
   const { data: wallet } = useQuery({ queryKey: ["wallet"], queryFn: getWallet });
 
   const [paymentDialog, setPaymentDialog] = useState<{
@@ -30,6 +31,7 @@ export default function WalletAdd() {
   const initMutation = useMutation({
     mutationFn: (rupees: number) => initWalletTopup(Math.round(rupees * 100)),
     onSuccess: (res) => {
+      setRateLimitAmount(null);
       setPaymentDialog({
         open: true,
         data: {
@@ -46,11 +48,27 @@ export default function WalletAdd() {
       });
     },
     onError: (err: any) => {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: err?.data?.error || err?.message || "Could not initiate payment. Please try again.",
-      });
+      const rawMsg = String(err?.data?.error || err?.message || "");
+      const is429 =
+        err?.status === 429 ||
+        rawMsg.includes("429") ||
+        rawMsg.toLowerCase().includes("high volume");
+
+      if (is429) {
+        setRateLimitAmount(numAmount);
+        toast({
+          variant: "destructive",
+          title: "Gateway Busy for ₹" + numAmount,
+          description: `All gateway channels are currently busy with ₹${numAmount}. Please wait 2 minutes or try ₹${numAmount + 1}.`,
+        });
+      } else {
+        setRateLimitAmount(null);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: rawMsg || "Could not initiate payment. Please try again.",
+        });
+      }
     },
   });
 
@@ -165,6 +183,35 @@ export default function WalletAdd() {
                 <Link href="/kyc" className="underline font-semibold">
                   Complete KYC
                 </Link>
+              </div>
+            )}
+
+            {rateLimitAmount === numAmount && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 space-y-2 text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-semibold text-amber-950">
+                      ₹{numAmount} માટે ગેટવે ચેનલ હાલમાં વ્યસ્ત છે (High Volume)
+                    </p>
+                    <p className="mt-0.5 text-amber-800">
+                      અગાઉનો ઓર્ડર પ્રોસેસમાં હોવાથી ગેટવે આ જ રકમ તરત સ્વીકારતો નથી. તમે 2 મિનિટ રાહ જોઈ શકો છો અથવા ₹{numAmount + 1} સાથે તરત આગળ વધી શકો છો.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-lg shadow-sm"
+                  onClick={() => {
+                    const nextAmt = numAmount + 1;
+                    setAmount(String(nextAmt));
+                    setRateLimitAmount(null);
+                    initMutation.mutate(nextAmt);
+                  }}
+                >
+                  ₹{numAmount + 1} સાથે તરત પેમેન્ટ કરો (Pay ₹{numAmount + 1})
+                </Button>
               </div>
             )}
 

@@ -16,8 +16,12 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error("[ErrorBoundary]", error, info);
   }
 
+  handleRetry = () => {
+    this.setState({ hasError: false, message: undefined });
+  };
+
   handleReset = () => {
-    this.setState({ hasError: false });
+    this.setState({ hasError: false, message: undefined });
     window.location.href = "/";
   };
 
@@ -30,20 +34,29 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle className="h-8 w-8 text-amber-600" />
           </div>
           <h1 className="text-xl font-bold text-purple-950 mb-2">Something went wrong</h1>
-          <p className="text-sm text-gray-600 mb-6">
-            Please try again later. If the problem continues, refresh the page or return to the home page.
+          <p className="text-sm text-gray-600 mb-4">
+            An unexpected error occurred. Please try again or return to the home page.
           </p>
-          {import.meta.env.DEV && this.state.message && (
+          {this.state.message && (
             <p className="text-xs text-left text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-6 font-mono break-words">
               {this.state.message}
             </p>
           )}
-          <Button
-            onClick={this.handleReset}
-            className="w-full bg-gradient-to-r from-amber-400 to-yellow-600 hover:from-amber-500 hover:to-yellow-700 text-purple-950 font-semibold border-0"
-          >
-            Go to Home
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={this.handleRetry}
+              variant="outline"
+              className="flex-1 border-purple-900 text-purple-950 font-semibold"
+            >
+              Try Again
+            </Button>
+            <Button
+              onClick={this.handleReset}
+              className="flex-1 bg-gradient-to-r from-amber-400 to-yellow-600 hover:from-amber-500 hover:to-yellow-700 text-purple-950 font-semibold border-0"
+            >
+              Go to Home
+            </Button>
+          </div>
         </div>
       </div>
     );
