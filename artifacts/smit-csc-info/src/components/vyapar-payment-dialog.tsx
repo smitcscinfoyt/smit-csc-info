@@ -110,43 +110,68 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
     return () => clearInterval(interval);
   }, [open, payment, statusState]);
 
+  // Target merchant details (Paytm Business / VyaparGateway)
+  const TARGET_MERCHANT_VPA = "paytmqr281005050101f0aayjcaro8y@paytm";
+  const TARGET_MERCHANT_NAME = payment?.merchantName || "Smit CSC Info";
+  const TARGET_MCC = "5541";
+
   // Detailed console logging for debugging bank decline
   // IMPORTANT: This hook MUST be called before any early return to avoid
   // React error #310 ("Rendered more hooks than during the previous render").
   const rawUpiString = payment?.upiString || "";
-  const upiQueryString = rawUpiString.includes("?") ? rawUpiString.split("?")[1] : "";
-  const upiParams = new URLSearchParams(upiQueryString);
+  const orderRef = payment?.clientTxnId || payment?.orderId || "";
 
-  // Append mc (merchant category code) if missing from the gateway response
-  let effectiveUpiString = rawUpiString;
-  if (effectiveUpiString && !upiParams.has("mc")) {
-    const sep = effectiveUpiString.includes("?") ? "&" : "?";
-    effectiveUpiString = `${effectiveUpiString}${sep}mc=5541`;
+  // Sanitize UPI intent links to ensure no stale BharatPe VPA leaks and mc=5541 is always present
+  const sanitizeUpiLink = (url: string | undefined) => {
+    if (!url) return "";
+    let cleaned = url;
+    // Replace old BharatPe VPA if returned by gateway cache or stale settings
+    cleaned = cleaned.replace(/bharatpe2y0k0y6a1u09381@unitype/gi, TARGET_MERCHANT_VPA);
+    cleaned = cleaned.replace(/[\w.-]+@unitype/gi, TARGET_MERCHANT_VPA);
+    cleaned = cleaned.replace(/Mr%20SAGAR%20DEVASHIBHAI%20KINDARAKHEDIYA/gi, encodeURIComponent(TARGET_MERCHANT_NAME));
+
+    // If pa is missing, add target VPA
+    if (!cleaned.includes("pa=")) {
+      const sep = cleaned.includes("?") ? "&" : "?";
+      cleaned = `${cleaned}${sep}pa=${TARGET_MERCHANT_VPA}`;
+    }
+
+    // Append mc (merchant category code) if missing
+    if (!cleaned.includes("mc=")) {
+      const sep = cleaned.includes("?") ? "&" : "?";
+      cleaned = `${cleaned}${sep}mc=${TARGET_MCC}`;
+    }
+    return cleaned;
+  };
+
+  let effectiveUpiString = sanitizeUpiLink(rawUpiString);
+  if (!effectiveUpiString || !effectiveUpiString.includes("pa=")) {
+    effectiveUpiString = `upi://pay?pa=${TARGET_MERCHANT_VPA}&pn=${encodeURIComponent(TARGET_MERCHANT_NAME)}&mc=${TARGET_MCC}&am=${payment?.amountRupees || 0}&cu=INR&tr=${orderRef}`;
   }
 
-  const orderRef = payment?.clientTxnId || payment?.orderId || "";
-  const upiUri = payment
-    ? effectiveUpiString ||
-      `upi://pay?pa=bharatpe2y0k0y6a1u09381@unitype&pn=Mr%20SAGAR%20DEVASHIBHAI%20KINDARAKHEDIYA&mc=5541&am=${payment.amountRupees}&cu=INR&tr=${orderRef}`
-    : "";
+  const upiUri = payment ? effectiveUpiString : "";
 
   const intentLinks = payment
     ? {
-        phonepe: payment.upiIntent?.phonepe_link || upiUri.replace(/^upi:/, "phonepe:"),
-        gpay: payment.upiIntent?.gpay_link || upiUri.replace(/^upi:/, "tez:"),
-        paytm: payment.upiIntent?.paytm_link || upiUri.replace(/^upi:/, "paytmmp:"),
-        bhim: payment.upiIntent?.bhim_link || upiUri,
+        phonepe: sanitizeUpiLink(payment.upiIntent?.phonepe_link) || upiUri.replace(/^upi:/, "phonepe:"),
+        gpay: sanitizeUpiLink(payment.upiIntent?.gpay_link) || upiUri.replace(/^upi:/, "tez:"),
+        paytm: sanitizeUpiLink(payment.upiIntent?.paytm_link) || upiUri.replace(/^upi:/, "paytmmp:"),
+        bhim: sanitizeUpiLink(payment.upiIntent?.bhim_link) || upiUri,
         other: upiUri,
       }
     : { phonepe: "", gpay: "", paytm: "", bhim: "", other: "" };
+
+  const upiQueryString = upiUri.includes("?") ? upiUri.split("?")[1] : "";
+  const upiParams = new URLSearchParams(upiQueryString);
 
   useEffect(() => {
     if (!open || !payment) return;
     console.group("🔍 [VyaparGateway UPI Intent URI Diagnostic]");
     console.log("Raw upiString from Vyapar:", payment.upiString);
+    console.log("Target Merchant VPA:", TARGET_MERCHANT_VPA);
     console.log("Parsed pa (Payee VPA):", upiParams.get("pa"));
     console.log("Parsed pn (Payee Name):", upiParams.get("pn"));
-    console.log("Parsed mc (Merchant Code / MCC):", upiParams.get("mc") || "(MISSING from Vyapar response)");
+    console.log("Parsed mc (Merchant Code / MCC):", upiParams.get("mc") || "(MISSING)");
     console.log("Parsed tr (Txn Reference):", upiParams.get("tr"));
     console.log("Parsed mode (Transaction Mode):", upiParams.get("mode") || "(omitted / default)");
     console.log("Parsed am (Amount):", upiParams.get("am"));
@@ -162,6 +187,7 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
   if (!payment) return null;
 
   const formattedAmount = `₹${payment.amountRupees.toFixed(2)}`;
+
 
 
   const handleAppTap = (url: string) => {
@@ -259,10 +285,16 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
                 <div className="text-xs font-medium text-gray-700">
                   Open any UPI app (GPay / PhonePe / Paytm) and scan this QR code
                 </div>
+                {isMobileDevice && (
+                  <div className="text-[11px] text-primary/90 bg-primary/5 border border-primary/10 rounded-lg p-2 font-medium">
+                    💡 Tip: Take a screenshot of this QR and scan it via &quot;Upload from Gallery&quot; in PhonePe, GPay, or Paytm.
+                  </div>
+                )}
                 <div className="flex items-center justify-center gap-1.5 pt-1">
                   <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                   <span className="text-[11px] text-gray-500">Auto-detecting payment in background...</span>
                 </div>
+
               </div>
             ) : (
               /* Mobile / Tablet: UPI Intent app-chooser list strictly matching mockup */

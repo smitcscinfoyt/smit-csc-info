@@ -70,9 +70,20 @@ export function getVyaparWebhookSecret(): string {
     .find(Boolean) ?? "";
 }
 
+export function getVyaparMerchantId(): string {
+  return [
+    process.env.VYAPAR_MERCHANT_ID,
+    process.env.VYAPARGATEWAY_MERCHANT_ID,
+    "HljqpO78478209015081",
+  ]
+    .map(cleanSecret)
+    .find(Boolean) ?? "HljqpO78478209015081";
+}
+
 export function isVyaparGatewayConfigured(): boolean {
   return !!getVyaparApiKey();
 }
+
 
 async function getVyaparEgressIpHint(): Promise<string> {
   const endpoints = [
