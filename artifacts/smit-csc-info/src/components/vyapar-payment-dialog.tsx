@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import * as QRCode from "qrcode";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -112,57 +113,77 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
 
   // Target merchant details (Paytm Business / VyaparGateway)
   const TARGET_MERCHANT_VPA = "paytmqr281005050101f0aayjcaro8y@paytm";
-  const TARGET_MERCHANT_NAME = payment?.merchantName || "Smit CSC Info";
+  const TARGET_MERCHANT_NAME = "Smit CSC Info";
   const TARGET_MCC = "5541";
 
   // Detailed console logging for debugging bank decline
-  // IMPORTANT: This hook MUST be called before any early return to avoid
-  // React error #310 ("Rendered more hooks than during the previous render").
+  // IMPORTANT: All hooks MUST be called before any early return to avoid React error #310.
   const rawUpiString = payment?.upiString || "";
   const orderRef = payment?.clientTxnId || payment?.orderId || "";
 
-  // Sanitize UPI intent links to ensure no stale BharatPe VPA leaks and mc=5541 is always present
-  const sanitizeUpiLink = (url: string | undefined) => {
-    if (!url) return "";
-    let cleaned = url;
-    // Replace old BharatPe VPA if returned by gateway cache or stale settings
-    cleaned = cleaned.replace(/bharatpe2y0k0y6a1u09381@unitype/gi, TARGET_MERCHANT_VPA);
-    cleaned = cleaned.replace(/[\w.-]+@unitype/gi, TARGET_MERCHANT_VPA);
-    cleaned = cleaned.replace(/Mr%20SAGAR%20DEVASHIBHAI%20KINDARAKHEDIYA/gi, encodeURIComponent(TARGET_MERCHANT_NAME));
+  // Strictly format amount to exactly two decimal places (e.g. 19.00), required by NPCI & PhonePe
+  const decimalAmount = (Number(payment?.amountRupees) || 0).toFixed(2);
 
-    // If pa is missing, add target VPA
-    if (!cleaned.includes("pa=")) {
-      const sep = cleaned.includes("?") ? "&" : "?";
-      cleaned = `${cleaned}${sep}pa=${TARGET_MERCHANT_VPA}`;
+  // Build canonical UPI query parameters ensuring no stale VPA, missing mc, or malformed amounts
+  const buildCanonicalQuery = () => {
+    const params = new URLSearchParams();
+
+    // Preserve any gateway extra params if present (e.g. mode, orgid), but never stale payment params
+    if (rawUpiString && rawUpiString.includes("?")) {
+      const rawQuery = rawUpiString.split("?")[1] || "";
+      const parsed = new URLSearchParams(rawQuery);
+      for (const [key, val] of parsed.entries()) {
+        const lk = key.toLowerCase();
+        if (!["pa", "pn", "mc", "am", "cu", "tr", "tn"].includes(lk)) {
+          params.set(key, val);
+        }
+      }
     }
 
-    // Append mc (merchant category code) if missing
-    if (!cleaned.includes("mc=")) {
-      const sep = cleaned.includes("?") ? "&" : "?";
-      cleaned = `${cleaned}${sep}mc=${TARGET_MCC}`;
-    }
-    return cleaned;
+    // Always enforce authoritative merchant parameters
+    params.set("pa", TARGET_MERCHANT_VPA);
+    params.set("pn", TARGET_MERCHANT_NAME);
+    params.set("mc", TARGET_MCC);
+    params.set("tr", orderRef);
+    params.set("am", decimalAmount);
+    params.set("cu", "INR");
+    params.set("tn", (payment?.title || "Recharge Shortfall").slice(0, 30));
+
+    return params.toString();
   };
 
-  let effectiveUpiString = sanitizeUpiLink(rawUpiString);
-  if (!effectiveUpiString || !effectiveUpiString.includes("pa=")) {
-    effectiveUpiString = `upi://pay?pa=${TARGET_MERCHANT_VPA}&pn=${encodeURIComponent(TARGET_MERCHANT_NAME)}&mc=${TARGET_MCC}&am=${payment?.amountRupees || 0}&cu=INR&tr=${orderRef}`;
-  }
+  const canonicalQuery = payment ? buildCanonicalQuery() : "";
+  const upiUri = canonicalQuery ? `upi://pay?${canonicalQuery}` : "";
 
-  const upiUri = payment ? effectiveUpiString : "";
-
-  const intentLinks = payment
+  // All per-app intent links are derived from the EXACT SAME canonical query string:
+  // - PhonePe: phonepe://pay?<query>
+  // - Google Pay: tez://upi/pay?<query> (tez://upi/pay is the correct Android intent filter)
+  // - Paytm: paytmmp://pay?<query>
+  // - BHIM / Other: upi://pay?<query>
+  const intentLinks = canonicalQuery
     ? {
-        phonepe: sanitizeUpiLink(payment.upiIntent?.phonepe_link) || upiUri.replace(/^upi:/, "phonepe:"),
-        gpay: sanitizeUpiLink(payment.upiIntent?.gpay_link) || upiUri.replace(/^upi:/, "tez:"),
-        paytm: sanitizeUpiLink(payment.upiIntent?.paytm_link) || upiUri.replace(/^upi:/, "paytmmp:"),
-        bhim: sanitizeUpiLink(payment.upiIntent?.bhim_link) || upiUri,
-        other: upiUri,
+        phonepe: `phonepe://pay?${canonicalQuery}`,
+        gpay: `tez://upi/pay?${canonicalQuery}`,
+        paytm: `paytmmp://pay?${canonicalQuery}`,
+        bhim: `upi://pay?${canonicalQuery}`,
+        other: `upi://pay?${canonicalQuery}`,
       }
     : { phonepe: "", gpay: "", paytm: "", bhim: "", other: "" };
 
-  const upiQueryString = upiUri.includes("?") ? upiUri.split("?")[1] : "";
-  const upiParams = new URLSearchParams(upiQueryString);
+  const [generatedQr, setGeneratedQr] = useState<string>("");
+
+  useEffect(() => {
+    if (!upiUri) return;
+    QRCode.toDataURL(upiUri, {
+      margin: 1,
+      scale: 8,
+      errorCorrectionLevel: "M",
+    })
+      .then((url: string) => setGeneratedQr(url))
+      .catch(() => {});
+  }, [upiUri]);
+
+  const upiParams = new URLSearchParams(canonicalQuery);
 
   useEffect(() => {
     if (!open || !payment) return;
@@ -171,7 +192,7 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
     console.log("Target Merchant VPA:", TARGET_MERCHANT_VPA);
     console.log("Parsed pa (Payee VPA):", upiParams.get("pa"));
     console.log("Parsed pn (Payee Name):", upiParams.get("pn"));
-    console.log("Parsed mc (Merchant Code / MCC):", upiParams.get("mc") || "(MISSING)");
+    console.log("Parsed mc (Merchant Code / MCC):", upiParams.get("mc"));
     console.log("Parsed tr (Txn Reference):", upiParams.get("tr"));
     console.log("Parsed mode (Transaction Mode):", upiParams.get("mode") || "(omitted / default)");
     console.log("Parsed am (Amount):", upiParams.get("am"));
@@ -269,10 +290,10 @@ export function VyaparPaymentDialog({ open, payment, onSuccess, onCancel }: Prop
             {isQrMode ? (
               /* Desktop / QR Mode */
               <div className="bg-gray-50/70 border border-gray-100 rounded-xl p-4 text-center space-y-3">
-                {payment.qrCode ? (
+                {(generatedQr || payment.qrCode) ? (
                   <div className="bg-white p-3 rounded-xl inline-block border shadow-sm mx-auto">
                     <img
-                      src={payment.qrCode.startsWith("data:") ? payment.qrCode : `data:image/png;base64,${payment.qrCode}`}
+                      src={generatedQr || (payment.qrCode?.startsWith("data:") ? payment.qrCode : `data:image/png;base64,${payment.qrCode}`)}
                       alt="UPI QR Code"
                       className="w-52 h-52 object-contain mx-auto"
                     />

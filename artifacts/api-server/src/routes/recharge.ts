@@ -734,7 +734,7 @@ router.post("/recharge/init-shortfall", requireAuth, async (req: AuthRequest, re
     await holdWalletBalance(userId, walletDebitPaise);
   }
 
-  const requestId = genReqId(userId, type);
+  const requestId = genReqId();
   let rechargeRow;
   try {
     [rechargeRow] = await db.insert(rechargesTable).values({

