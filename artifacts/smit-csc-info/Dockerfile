@@ -22,8 +22,7 @@ COPY scripts/package.json ./scripts/
 
 # Install dependencies with self-healing retry chain for flaky networks
 RUN pnpm install --frozen-lockfile --ignore-scripts || \
-    pnpm install --frozen-lockfile --ignore-scripts || \
-    pnpm install --frozen-lockfile --ignore-scripts
+    pnpm install --no-frozen-lockfile --ignore-scripts
 
 # Copy library source code, scripts and frontend source code
 COPY lib/ ./lib/

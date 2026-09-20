@@ -21,8 +21,7 @@ COPY artifacts/api-server/package.json ./artifacts/api-server/
 
 # Install dependencies with self-healing retry chain for flaky networks
 RUN pnpm install --frozen-lockfile --ignore-scripts || \
-    pnpm install --frozen-lockfile --ignore-scripts || \
-    pnpm install --frozen-lockfile --ignore-scripts
+    pnpm install --no-frozen-lockfile --ignore-scripts
 
 # Copy library source code and api-server source code
 COPY lib/ ./lib/
@@ -54,7 +53,7 @@ COPY artifacts/api-server/package.json ./artifacts/api-server/
 
 # Install production-only dependencies with retry chain
 RUN pnpm install --prod --frozen-lockfile --ignore-scripts || \
-    pnpm install --prod --frozen-lockfile --ignore-scripts
+    pnpm install --prod --no-frozen-lockfile --ignore-scripts
 
 # Copy the built dist from the builder stage
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist

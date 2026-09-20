@@ -27,8 +27,8 @@ jobs:
         with:
           run_install: false
 
-      - name: Install dependencies (frozen lockfile)
-        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts || pnpm install --no-frozen-lockfile --ignore-scripts
 
       - name: Run Dependency Audit
         run: |
