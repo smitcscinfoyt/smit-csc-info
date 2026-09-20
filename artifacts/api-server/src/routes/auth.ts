@@ -11,7 +11,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from "../lib/mailer";
 import { createRateLimiter, clientIp } from "../lib/rate-limit";
 import { logger } from "../lib/logger";
 
-const PENDING_REG_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
+const PENDING_REG_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET || "dev-secret-change-me";
 type PendingRegistration = {
   type: "pending_registration";
   name: string;

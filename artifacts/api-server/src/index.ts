@@ -3,6 +3,41 @@ import { logger } from "./lib/logger";
 import { startPrimeReminderScheduler, stopPrimeReminderScheduler } from "./lib/prime-reminders";
 import { syncYoutubeChannel } from "./lib/youtube-sync";
 
+const KNOWN_BAD_SECRETS = new Set([
+  "dev-secret-change-me",
+  "dev-session-secret-change-me",
+  "secure_db_password",
+  "CHANGE_ME",
+  "CHANGE_ME_DB_PASSWORD",
+]);
+
+function validateRequiredEnv(): void {
+  const required: Record<string, string> = {
+    DATABASE_URL: process.env.DATABASE_URL ?? "",
+    SESSION_SECRET: process.env.SESSION_SECRET ?? "",
+  };
+
+  if (process.env.JWT_SECRET) {
+    required.JWT_SECRET = process.env.JWT_SECRET;
+  }
+
+  for (const [name, value] of Object.entries(required)) {
+    if (!value) {
+      throw new Error(`[Startup Error] Required environment variable ${name} is not set. See OWNER_ACTIONS.md.`);
+    }
+    if (KNOWN_BAD_SECRETS.has(value) || value.includes("secure_db_password") || value.includes("dev-secret-change-me")) {
+      throw new Error(
+        `[Startup Error] ${name} is set to a known insecure placeholder ("${value}"). Please update it before deploying. See OWNER_ACTIONS.md.`
+      );
+    }
+  }
+}
+
+// Enforce required secrets validation in production
+if (process.env.NODE_ENV === "production") {
+  validateRequiredEnv();
+}
+
 // PORT in .env is the Vite dev server; API_PORT is the Express listener.
 const rawPort = process.env["API_PORT"] ?? process.env["PORT"];
 

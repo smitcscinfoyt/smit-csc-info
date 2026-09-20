@@ -125,7 +125,7 @@ nano .env
 ```
 
 > [!NOTE]
-> Make sure to leave `DATABASE_URL=postgresql://csc_admin:secure_db_password@localhost:5432/smit_csc` in `.env`.
+> Make sure to configure `DATABASE_URL=postgresql://csc_admin:<YOUR_STRONG_PASSWORD>@localhost:5432/smit_csc` in `.env`.
 > The backend container will automatically connect using the internal `db` host, but keeping `localhost` in `.env` allows you to run migrations from the VM host shell!
 
 #### Step 3: Build & Launch the Containers
@@ -147,7 +147,7 @@ To bypass any global `pnpm` workspace constraints or script approvals on the VM,
 cd lib/db
 
 # Push the schema to the running database container
-DATABASE_URL=postgresql://csc_admin:secure_db_password@localhost:5432/smit_csc npx -y drizzle-kit push --config ./drizzle.config.ts
+DATABASE_URL=postgresql://csc_admin:<YOUR_STRONG_PASSWORD>@localhost:5432/smit_csc npx -y drizzle-kit push --config ./drizzle.config.ts
 
 # Return to the root folder
 cd ../..
