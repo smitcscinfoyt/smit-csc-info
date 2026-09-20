@@ -46,7 +46,17 @@ router.get("/content", optionalAuth, async (req: AuthRequest, res): Promise<void
     query = query.where(and(...conditions));
   }
 
-  const items = await query.orderBy(contentTable.createdAt);
+  let items = await query.orderBy(contentTable.createdAt);
+
+  if (items.length === 0 && !category && !type && isPrime === undefined) {
+    try {
+      const { syncYoutubeChannel } = await import("../lib/youtube-sync");
+      await syncYoutubeChannel();
+      items = await db.select().from(contentTable).orderBy(contentTable.createdAt);
+    } catch {
+      // Continue with empty array if sync fails
+    }
+  }
 
   res.json(
     GetContentResponse.parse(

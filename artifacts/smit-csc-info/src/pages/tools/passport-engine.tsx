@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import Cropper, { type Area } from "react-easy-crop";
-import { removeBackground } from "@imgly/background-removal";
 import { PrimeToolShell, GoldButton, GoldLoader } from "@/components/tools/prime-tool-shell";
 import { getTool } from "@/components/tools/tools-data";
 import { loadImage, canvasToBlob, MM_TO_PX_300 } from "@/lib/tools/canvas";
@@ -146,7 +145,13 @@ function applyBg(canvas: HTMLCanvasElement, bg: BgChoice): HTMLCanvasElement {
 }
 
 function entryFinalCanvas(e: PhotoEntry): HTMLCanvasElement {
-  return applyBg(e.bgRemoved ?? e.photoCanvas, e.bg);
+  if (e.bg === "none") {
+    return e.photoCanvas;
+  }
+  if (e.bgRemoved) {
+    return applyBg(e.bgRemoved, e.bg);
+  }
+  return e.photoCanvas;
 }
 
 export default function PassportEnginePage() {
@@ -374,81 +379,109 @@ export default function PassportEnginePage() {
 
   const IMGLY_CDN = "https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/";
 
-  async function handleRemoveBg(entryId: string) {
+  async function performBackgroundRemoval(entryId: string, targetBg: BgChoice = "white") {
     const entry = entries.find((e) => e.id === entryId);
     if (!entry || entry.bgRemoving) return;
-    updateEntry(entryId, { bgRemoving: true });
+
+    // Immediately mark as removing with the selected targetBg
+    updateEntry(entryId, { bgRemoving: true, bg: targetBg });
+
     try {
       const blob = await canvasToBlob(entry.photoCanvas, "image/png");
-      const gpu = typeof (navigator as any)?.gpu?.requestAdapter === "function";
+      const { removeBackground } = await import("@imgly/background-removal");
       let out: Blob;
+
       try {
-        out = await removeBackground(blob, {
-          publicPath: IMGLY_CDN,
-          device: gpu ? "gpu" : "cpu",
-          model: gpu ? "isnet_fp16" : "isnet_quint8",
-          output: { format: "image/png", quality: 1.0 },
-        } as any);
-      } catch (gpuErr) {
-        // Fallback to CPU + quantized model if WebGPU fails
         out = await removeBackground(blob, {
           publicPath: IMGLY_CDN,
           device: "cpu",
           model: "isnet_quint8",
           output: { format: "image/png", quality: 1.0 },
         } as any);
+      } catch (errCpu) {
+        console.warn("Primary background removal failed, retrying with default settings", errCpu);
+        out = await removeBackground(blob, {
+          publicPath: IMGLY_CDN,
+          output: { format: "image/png", quality: 1.0 },
+        } as any);
       }
+
       const img = await loadImage(out);
-      const c = document.createElement("canvas");
-      c.width = entry.photoCanvas.width;
-      c.height = entry.photoCanvas.height;
-      const ctx = c.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, c.width, c.height);
-      // Refresh finalUrl so the new bg-removed pixels show up in preview/PDF.
-      // Note we read latest entry from setEntries' prev snapshot to avoid
-      // stale closures if user fired the action twice quickly.
-      setEntries((prev) =>
-        prev.map((e) => {
-          if (e.id !== entryId) return e;
-          if (e.finalUrl) URL.revokeObjectURL(e.finalUrl);
-          const merged: PhotoEntry = {
-            ...e,
-            bgRemoved: c,
-            bg: e.bg === "none" ? "white" : e.bg,
-            bgRemoving: false,
-            finalUrl: "", // placeholder; real URL set below
-          };
-          const finalCanvas = entryFinalCanvas(merged);
-          finalCanvas.toBlob((blob2) => {
-            if (!blob2) return;
-            const url = URL.createObjectURL(blob2);
-            updateEntry(entryId, { finalUrl: url });
-          }, "image/jpeg", 0.97);
-          return merged;
-        }),
-      );
-    } catch (err) {
+      const transparentCanvas = document.createElement("canvas");
+      transparentCanvas.width = entry.photoCanvas.width;
+      transparentCanvas.height = entry.photoCanvas.height;
+      const ctx = transparentCanvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, transparentCanvas.width, transparentCanvas.height);
+
+      const finalCanvas = applyBg(transparentCanvas, targetBg);
+      const finalBlob = await canvasToBlob(finalCanvas, "image/jpeg", 0.97);
+      const finalUrl = URL.createObjectURL(finalBlob);
+
+      if (entry.finalUrl) {
+        URL.revokeObjectURL(entry.finalUrl);
+      }
+
+      updateEntry(entryId, {
+        bgRemoved: transparentCanvas,
+        bg: targetBg,
+        bgRemoving: false,
+        finalUrl,
+      });
+    } catch (err: any) {
       console.error("Passport background removal error:", err);
       updateEntry(entryId, { bgRemoving: false });
-      window.alert("બેકગ્રાઉન્ડ રિમૂવ નિષ્ફળ રહ્યું. કૃપા કરીને ફરી પ્રયાસ કરો. (Background removal failed, please try again.)");
+      window.alert(
+        "બેકગ્રાઉન્ડ રિમૂવ નિષ્ફળ રહ્યું. કૃપા કરીને ફરી પ્રયાસ કરો. (Background removal failed. Please try again.)"
+      );
     }
+  }
+
+  async function handleRemoveBg(entryId: string) {
+    const entry = entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const target = entry.bg === "none" ? "white" : entry.bg;
+    await performBackgroundRemoval(entryId, target);
   }
 
   function setEntryBg(entryId: string, bg: BgChoice) {
     const entry = entries.find((e) => e.id === entryId);
     if (!entry) return;
-    if (entry.finalUrl) URL.revokeObjectURL(entry.finalUrl);
-    const merged: PhotoEntry = { ...entry, bg, finalUrl: "" };
-    const finalCanvas = entryFinalCanvas(merged);
-    finalCanvas.toBlob(
-      (blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        updateEntry(entryId, { bg, finalUrl: url });
-      },
-      "image/jpeg",
-      0.97,
-    );
+
+    if (bg === "none") {
+      if (entry.finalUrl) URL.revokeObjectURL(entry.finalUrl);
+      const merged: PhotoEntry = { ...entry, bg: "none", finalUrl: "" };
+      const finalCanvas = entryFinalCanvas(merged);
+      finalCanvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          updateEntry(entryId, { bg: "none", finalUrl: url });
+        },
+        "image/jpeg",
+        0.97,
+      );
+      return;
+    }
+
+    // User selected "white" or "blue"
+    if (entry.bgRemoved) {
+      if (entry.finalUrl) URL.revokeObjectURL(entry.finalUrl);
+      const merged: PhotoEntry = { ...entry, bg, finalUrl: "" };
+      const finalCanvas = entryFinalCanvas(merged);
+      finalCanvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          updateEntry(entryId, { bg, finalUrl: url });
+        },
+        "image/jpeg",
+        0.97,
+      );
+      return;
+    }
+
+    // Background has not yet been removed — trigger removal automatically!
+    void performBackgroundRemoval(entryId, bg);
   }
 
   const layout = useMemo(() => {
@@ -664,6 +697,12 @@ export default function PassportEnginePage() {
                                 className="w-full h-full object-cover bg-white"
                               />
                             )}
+                            {e.bgRemoving && (
+                              <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex flex-col items-center justify-center text-amber-200 z-10">
+                                <Loader2 className="h-4 w-4 animate-spin text-amber-300 mb-0.5" />
+                                <span className="text-[8px] font-bold">Removing…</span>
+                              </div>
+                            )}
                             <div className="absolute top-0.5 left-0.5 px-1 rounded bg-black/65 text-amber-200 text-[9px] font-bold leading-none py-0.5">
                               P{idx + 1}
                             </div>
@@ -856,13 +895,17 @@ export default function PassportEnginePage() {
                             <button
                               key={b}
                               onClick={() => setEntryBg(activeEntry.id, b)}
-                              className={`rounded-lg py-1.5 font-bold text-[11px] transition-all capitalize ${
+                              disabled={activeEntry.bgRemoving}
+                              className={`rounded-lg py-1.5 font-bold text-[11px] transition-all capitalize inline-flex items-center justify-center gap-1.5 ${
                                 activeEntry.bg === b
                                   ? "bg-gradient-to-br from-amber-300 to-yellow-500 text-purple-950 shadow"
                                   : "bg-white/5 text-amber-100 hover:bg-white/10 border border-amber-300/20"
-                              }`}
+                              } ${activeEntry.bgRemoving && activeEntry.bg === b ? "opacity-90" : ""}`}
                               data-testid={`btn-bg-${b}`}
                             >
+                              {activeEntry.bgRemoving && activeEntry.bg === b && (
+                                <Loader2 className="h-3 w-3 animate-spin text-purple-950" />
+                              )}
                               {b === "none" ? "Original" : b}
                             </button>
                           ))}
