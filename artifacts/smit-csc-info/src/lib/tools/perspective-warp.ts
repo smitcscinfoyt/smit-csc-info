@@ -100,12 +100,27 @@ export function quadArea(q: Quad): number {
 }
 
 /**
- * Helper to check if quad corners are sufficiently close to an axis-aligned
- * rectangle (within ~1.8% of edge length). For flat document scans and digital
- * e-Aadhaar PDFs, bypassing the triangular mesh completely preserves 100% of
- * native resolution and eliminates 100% of triangle seam artifacts.
+ * Snaps quad corners into a clean orthogonal axis-aligned bounding rectangle.
  */
-export function isAxisAlignedRect(corners: Quad, toleranceRatio = 0.018): boolean {
+export function orthogonalizeQuad(corners: Quad): Quad {
+  const [tl, tr, br, bl] = corners;
+  const minX = Math.min(tl.x, bl.x);
+  const maxX = Math.max(tr.x, br.x);
+  const minY = Math.min(tl.y, tr.y);
+  const maxY = Math.max(bl.y, br.y);
+  return [
+    { x: minX, y: minY },
+    { x: maxX, y: minY },
+    { x: maxX, y: maxY },
+    { x: minX, y: maxY },
+  ];
+}
+
+/**
+ * Helper to check if quad corners are sufficiently close to an axis-aligned
+ * rectangle (within ~2.5% of edge length).
+ */
+export function isAxisAlignedRect(corners: Quad, toleranceRatio = 0.025): boolean {
   const [tl, tr, br, bl] = corners;
   const w = Math.max(1, Math.abs(tr.x - tl.x));
   const h = Math.max(1, Math.abs(bl.y - tl.y));
@@ -122,21 +137,20 @@ export function isAxisAlignedRect(corners: Quad, toleranceRatio = 0.018): boolea
 }
 
 /**
- * Warp the source quadrilateral defined by `srcCorners` (in pixel
- * coordinates of `srcImage`) into a `dstW` × `dstH` rectangle. Returns
- * a freshly-allocated canvas filled with the warped result.
+ * Warp the source quadrilateral defined by `srcCorners` into a `dstW` × `dstH` rectangle.
+ * Returns a freshly-allocated canvas filled with the warped result.
  *
- * For axis-aligned crops (99% of scanned cards and e-Aadhaar PDFs), it uses
- * a direct single-pass drawImage, producing zero seam lines and 100% sharpness.
- * For perspective-skewed quads, it applies subpixel-padded triangle subdivision
- * to prevent antialiasing seams.
+ * Guaranteed 100% seam-free:
+ * - When axis-aligned: direct single-pass `drawImage`.
+ * - When perspective-skewed: projective inverse homography with subpixel bilinear filtering.
  */
 export function warpQuadToRect(
   srcImage: CanvasImageSource & { width: number; height: number },
   srcCorners: Quad,
   dstW: number,
   dstH: number,
-  gridN = 24,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _gridN?: number,
 ): HTMLCanvasElement {
   const dst = document.createElement("canvas");
   dst.width = dstW;
@@ -147,11 +161,16 @@ export function warpQuadToRect(
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
+  const isAxisAligned = isAxisAlignedRect(srcCorners);
+  console.log("[WARP-ENGINE] Executing warp:", {
+    dstW,
+    dstH,
+    isAxisAligned,
+    corners: srcCorners,
+  });
+
   // ── FAST PATH: Axis-aligned rectangular crop ────────────────────────
-  // When the card is already flat and straight, do NOT subdivide into
-  // triangles. A direct 2D drawImage preserves 100% native sharpness,
-  // causes 0 seam lines, and runs instantaneously.
-  if (isAxisAlignedRect(srcCorners)) {
+  if (isAxisAligned) {
     const [tl, tr, br, bl] = srcCorners;
     const sx = Math.max(0, Math.min(tl.x, bl.x));
     const sy = Math.max(0, Math.min(tl.y, tr.y));
@@ -163,112 +182,114 @@ export function warpQuadToRect(
     }
   }
 
-  const [tl, tr, br, bl] = srcCorners;
+  // ── SEAM-FREE HOMOGRAPHY PATH: Projective Inverse Mapping ───────────
+  const srcW = srcImage.width;
+  const srcH = srcImage.height;
+  let srcCanvas: HTMLCanvasElement;
+  let srcCtx: CanvasRenderingContext2D;
 
-  // Bilinear interpolation: (u, v) ∈ [0, 1]² → source-pixel point.
-  // u = 0 ⇒ left edge (TL→BL), u = 1 ⇒ right edge (TR→BR).
-  // v = 0 ⇒ top edge (TL→TR),  v = 1 ⇒ bottom edge (BL→BR).
-  function bilerp(u: number, v: number): Corner {
-    const tx = tl.x + (tr.x - tl.x) * u;
-    const ty = tl.y + (tr.y - tl.y) * u;
-    const bx = bl.x + (br.x - bl.x) * u;
-    const by = bl.y + (br.y - bl.y) * u;
-    return { x: tx + (bx - tx) * v, y: ty + (by - ty) * v };
+  if (typeof HTMLCanvasElement !== "undefined" && srcImage instanceof HTMLCanvasElement) {
+    srcCanvas = srcImage;
+    srcCtx = srcCanvas.getContext("2d")!;
+  } else {
+    srcCanvas = document.createElement("canvas");
+    srcCanvas.width = srcW;
+    srcCanvas.height = srcH;
+    srcCtx = srcCanvas.getContext("2d")!;
+    srcCtx.drawImage(srcImage, 0, 0);
   }
 
-  const cellW = dstW / gridN;
-  const cellH = dstH / gridN;
+  const srcImgData = srcCtx.getImageData(0, 0, srcW, srcH);
+  const srcBuf = new Uint32Array(srcImgData.data.buffer);
 
-  for (let i = 0; i < gridN; i++) {
-    for (let j = 0; j < gridN; j++) {
-      const u0 = i / gridN;
-      const u1 = (i + 1) / gridN;
-      const v0 = j / gridN;
-      const v1 = (j + 1) / gridN;
+  const dstImgData = ctx.createImageData(dstW, dstH);
+  const dstBuf = new Uint32Array(dstImgData.data.buffer);
 
-      const s00 = bilerp(u0, v0);
-      const s10 = bilerp(u1, v0);
-      const s11 = bilerp(u1, v1);
-      const s01 = bilerp(u0, v1);
+  // Paul Heckbert Projective Transform (Unit Square [0,1]² → Source Quad)
+  const [p0, p1, p2, p3] = srcCorners;
+  const dx1 = p1.x - p2.x;
+  const dx2 = p3.x - p2.x;
+  const sx = p0.x - p1.x + p2.x - p3.x;
+  const dy1 = p1.y - p2.y;
+  const dy2 = p3.y - p2.y;
+  const sy = p0.y - p1.y + p2.y - p3.y;
 
-      const d00x = i * cellW;
-      const d00y = j * cellH;
-      const d10x = (i + 1) * cellW;
-      const d10y = j * cellH;
-      const d11x = (i + 1) * cellW;
-      const d11y = (j + 1) * cellH;
-      const d01x = i * cellW;
-      const d01y = (j + 1) * cellH;
+  const denom = dx1 * dy2 - dy1 * dx2;
+  let g = 0, h = 0;
+  if (Math.abs(denom) > 1e-10) {
+    g = (sx * dy2 - sy * dx2) / denom;
+    h = (dx1 * sy - dy1 * sx) / denom;
+  }
+  const a = p1.x - p0.x + g * p1.x;
+  const b = p3.x - p0.x + h * p3.x;
+  const c = p0.x;
+  const d = p1.y - p0.y + g * p1.y;
+  const e = p3.y - p0.y + h * p3.y;
+  const f = p0.y;
 
-      // Two triangles per cell: (00, 10, 11) and (00, 11, 01).
-      drawAffineTriangle(
-        ctx, srcImage,
-        s00.x, s00.y, s10.x, s10.y, s11.x, s11.y,
-        d00x, d00y, d10x, d10y, d11x, d11y,
-      );
-      drawAffineTriangle(
-        ctx, srcImage,
-        s00.x, s00.y, s11.x, s11.y, s01.x, s01.y,
-        d00x, d00y, d11x, d11y, d01x, d01y,
-      );
+  // Destination [0, dstW] × [0, dstH] → Source (u, v)
+  const m00 = a / dstW, m01 = b / dstH, m02 = c;
+  const m10 = d / dstW, m11 = e / dstH, m12 = f;
+  const m20 = g / dstW, m21 = h / dstH, m22 = 1.0;
+
+  for (let y = 0; y < dstH; y++) {
+    let numX = m01 * y + m02;
+    let numY = m11 * y + m12;
+    let den  = m21 * y + m22;
+    const dstRow = y * dstW;
+
+    for (let x = 0; x < dstW; x++) {
+      const invDen = 1.0 / den;
+      const u = numX * invDen;
+      const v = numY * invDen;
+
+      const u0 = Math.floor(u);
+      const v0 = Math.floor(v);
+
+      if (u0 >= 0 && u0 < srcW - 1 && v0 >= 0 && v0 < srcH - 1) {
+        const fu = u - u0;
+        const fv = v - v0;
+
+        const idx00 = v0 * srcW + u0;
+        const c00 = srcBuf[idx00];
+        const c10 = srcBuf[idx00 + 1];
+        const c01 = srcBuf[idx00 + srcW];
+        const c11 = srcBuf[idx00 + srcW + 1];
+
+        const r00 = c00 & 0xff, g00 = (c00 >> 8) & 0xff, b00 = (c00 >> 16) & 0xff, a00 = (c00 >>> 24);
+        const r10 = c10 & 0xff, g10 = (c10 >> 8) & 0xff, b10 = (c10 >> 16) & 0xff, a10 = (c10 >>> 24);
+        const r01 = c01 & 0xff, g01 = (c01 >> 8) & 0xff, b01 = (c01 >> 16) & 0xff, a01 = (c01 >>> 24);
+        const r11 = c11 & 0xff, g11 = (c11 >> 8) & 0xff, b11 = (c11 >> 16) & 0xff, a11 = (c11 >>> 24);
+
+        const w00 = (1 - fu) * (1 - fv);
+        const w10 = fu * (1 - fv);
+        const w01 = (1 - fu) * fv;
+        const w11 = fu * fv;
+
+        const r = (r00 * w00 + r10 * w10 + r01 * w01 + r11 * w11 + 0.5) | 0;
+        const g_ = (g00 * w00 + g10 * w10 + g01 * w01 + g11 * w11 + 0.5) | 0;
+        const b_ = (b00 * w00 + b10 * w10 + b01 * w01 + b11 * w11 + 0.5) | 0;
+        const a_ = (a00 * w00 + a10 * w10 + a01 * w01 + a11 * w11 + 0.5) | 0;
+
+        dstBuf[dstRow + x] = (a_ << 24) | (b_ << 16) | (g_ << 8) | r;
+      } else if (u0 >= 0 && u0 < srcW && v0 >= 0 && v0 < srcH) {
+        dstBuf[dstRow + x] = srcBuf[v0 * srcW + u0];
+      } else {
+        dstBuf[dstRow + x] = 0xffffffff;
+      }
+
+      numX += m00;
+      numY += m10;
+      den  += m20;
     }
   }
 
+  ctx.putImageData(dstImgData, 0, 0);
+
+  if (srcCanvas !== srcImage) {
+    srcCanvas.width = 0;
+    srcCanvas.height = 0;
+  }
+
   return dst;
-}
-
-/**
- * Solve the 2×3 affine transform that maps the source triangle
- * (sx0,sy0)-(sx1,sy1)-(sx2,sy2) onto the destination triangle
- * (dx0,dy0)-(dx1,dy1)-(dx2,dy2), clip the destination triangle with 0.5px
- * subpixel padding (to eliminate antialiasing seam lines), then
- * `drawImage(srcImage, 0, 0)` so the browser samples the warped pixels.
- */
-function drawAffineTriangle(
-  ctx: CanvasRenderingContext2D,
-  srcImage: CanvasImageSource,
-  sx0: number, sy0: number,
-  sx1: number, sy1: number,
-  sx2: number, sy2: number,
-  dx0: number, dy0: number,
-  dx1: number, dy1: number,
-  dx2: number, dy2: number,
-): void {
-  const denom = (sx0 - sx2) * (sy1 - sy2) - (sx1 - sx2) * (sy0 - sy2);
-  if (Math.abs(denom) < 1e-10) return; // degenerate (collinear source points)
-
-  const a = ((dx0 - dx2) * (sy1 - sy2) - (dx1 - dx2) * (sy0 - sy2)) / denom;
-  const c = ((sx0 - sx2) * (dx1 - dx2) - (sx1 - sx2) * (dx0 - dx2)) / denom;
-  const e = dx0 - a * sx0 - c * sy0;
-  const b = ((dy0 - dy2) * (sy1 - sy2) - (dy1 - dy2) * (sy0 - sy2)) / denom;
-  const d = ((sx0 - sx2) * (dy1 - dy2) - (sx1 - sx2) * (dy0 - dy2)) / denom;
-  const f = dy0 - b * sx0 - d * sy0;
-
-  // Subpixel seam sealing: expand clip triangle vertices outward by 0.5px
-  // from their centroid so adjacent clipped triangles overlap slightly.
-  // This prevents the underlying canvas background from bleeding through.
-  const cx = (dx0 + dx1 + dx2) / 3;
-  const cy = (dy0 + dy1 + dy2) / 3;
-  const pad = (x: number, y: number): [number, number] => {
-    const vx = x - cx;
-    const vy = y - cy;
-    const len = Math.hypot(vx, vy);
-    if (len < 1e-4) return [x, y];
-    return [x + (vx / len) * 0.5, y + (vy / len) * 0.5];
-  };
-
-  const [p0x, p0y] = pad(dx0, dy0);
-  const [p1x, p1y] = pad(dx1, dy1);
-  const [p2x, p2y] = pad(dx2, dy2);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(p0x, p0y);
-  ctx.lineTo(p1x, p1y);
-  ctx.lineTo(p2x, p2y);
-  ctx.closePath();
-  ctx.clip();
-  ctx.setTransform(a, b, c, d, e, f);
-  ctx.drawImage(srcImage, 0, 0);
-  ctx.restore();
 }

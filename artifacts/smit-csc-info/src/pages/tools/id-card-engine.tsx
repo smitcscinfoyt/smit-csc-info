@@ -31,7 +31,7 @@ import "react-image-crop/dist/ReactCrop.css";
 import { PrimeToolShell, GoldButton, GoldLoader } from "@/components/tools/prime-tool-shell";
 import { getTool } from "@/components/tools/tools-data";
 import { loadImage, canvasToBlob, MM_TO_PX_300 } from "@/lib/tools/canvas";
-import { warpQuadToRect, sanitizeQuad, quadArea, type Quad, type Corner } from "@/lib/tools/perspective-warp";
+import { warpQuadToRect, sanitizeQuad, quadArea, orthogonalizeQuad, isAxisAlignedRect, type Quad, type Corner } from "@/lib/tools/perspective-warp";
 import { downloadBlob } from "@/lib/tools/file";
 import { usePrimeStatus } from "@/hooks/use-prime";
 import { useAuth } from "@/hooks/use-auth";
@@ -150,14 +150,12 @@ async function renderPdfPages(file: File): Promise<PdfPageThumb[]> {
 
   // Render scale tuning:
   // Standard A4 PDF is 595.28 × 841.89 pt.
-  // 300 DPI target for A4: 595.28 × (300 / 72) = 2480 px width, 3508 px height.
-  // Desktop: scale 4.167 gives exact 300 DPI native resolution, ensuring small
-  //   UIDAI QR codes, Gujarati text, and card details stay razor sharp.
-  // Mobile (≤ 900 px): scale 3.2 gives ~230 DPI (1905 × 2694 px), keeping memory
-  //   safe under browser limits while delivering sharp, crisp crops.
-  const isMobile =
-    typeof window !== "undefined" && window.innerWidth <= 900;
-  const renderScale = isMobile ? 3.2 : 4.167;
+  // Scale 4.166667 (300 / 72) gives exact 300 DPI native resolution:
+  // 595.28 × (300 / 72) = 2480 px width, 841.89 × (300 / 72) = 3508 px height.
+  // Rendering at exact 300 DPI ensures small UIDAI QR codes, Gujarati/Hindi fonts,
+  // Aadhaar numbers, and card text remain 100% crisp without downsampling blur.
+  const renderScale = 4.166667;
+  console.log("[ID-CARD-ENGINE] PDF Render: Scale =", renderScale, "DPI = 300, Total Pages =", pdf.numPages);
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -438,7 +436,15 @@ async function buildSideCanvasFromQuad(
       "The 4 corners are too close together. Drag each corner to a card corner so the highlighted area covers the whole card, then try again.",
     );
   }
-  return warpQuadToRect(img, srcQuad, targetW, targetH, 24);
+  const isAxisAligned = isAxisAlignedRect(srcQuad);
+  console.log("[ID-CARD-ENGINE] Capture Quad:", {
+    targetW,
+    targetH,
+    isAxisAligned,
+    mode: isAxisAligned ? "Direct Orthogonal DrawImage" : "Projective Inverse Homography (Seam-Free)",
+    srcQuad,
+  });
+  return warpQuadToRect(img, srcQuad, targetW, targetH);
 }
 
 async function rotateImageUrl(sourceUrl: string, steps: 0 | 1 | 2 | 3): Promise<string> {
@@ -1361,6 +1367,13 @@ export default function IdCardEnginePage() {
 
       const page = PAGE_DIMS_MM[pageSize];
       const orientation = page.w > page.h ? "landscape" : "portrait";
+      console.log("[ID-CARD-ENGINE] Generate PDF:", {
+        pageSize,
+        cells: layout.cells.length,
+        totalPairs: totalPairsRequested,
+        dpi: 300,
+        scale: 4.167,
+      });
       const pdf = new jsPDF({
         orientation,
         unit: "mm",
@@ -2810,6 +2823,19 @@ function Step2Crop({
           >
             <RotateCcw className="h-4 w-4" />
           </button>
+          {quad && (
+            <button
+              type="button"
+              onClick={() => onQuadChange(orthogonalizeQuad(quad))}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-sm font-bold tracking-wide transition-all border bg-white/5 border-amber-300/30 text-amber-200 hover:bg-white/10 hover:text-amber-100"
+              data-testid="btn-quad-snap"
+              aria-label="Snap corners to rectangle"
+              title="Snap corners to straight rectangle"
+            >
+              <Maximize2 className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs font-semibold">Snap Box</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onCapture(activeTarget)}
