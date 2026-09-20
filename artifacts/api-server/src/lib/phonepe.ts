@@ -416,6 +416,7 @@ async function initiateV2Payment({
 async function checkV2Status(merchantTransactionId: string): Promise<{
   success: boolean;
   state: string;
+  confirmedAmountPaise?: number;
   details?: unknown;
 }> {
   const token = await getV2AccessToken();
@@ -429,7 +430,7 @@ async function checkV2Status(merchantTransactionId: string): Promise<{
   });
 
   const rawResp = await response.text();
-  let data: { state?: string };
+  let data: { state?: string; amount?: number; paymentDetails?: Array<{ amount?: number }> };
 
   try {
     data = JSON.parse(rawResp);
@@ -441,7 +442,17 @@ async function checkV2Status(merchantTransactionId: string): Promise<{
 
   const state   = data.state ?? "FAILED";
   const success = state === "COMPLETED";
-  return { success, state, details: data };
+
+  // Extract the gateway-confirmed amount in paise for server-side validation.
+  // PhonePe v2 may return it as top-level "amount" or inside paymentDetails[0].
+  const confirmedAmountPaise: number | undefined =
+    typeof data.amount === "number"
+      ? data.amount
+      : typeof data.paymentDetails?.[0]?.amount === "number"
+        ? data.paymentDetails[0].amount
+        : undefined;
+
+  return { success, state, confirmedAmountPaise, details: data };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -472,6 +483,7 @@ export async function initiatePhonePePayment(params: {
 export async function checkPhonePeStatus(merchantTransactionId: string): Promise<{
   success: boolean;
   state: string;
+  confirmedAmountPaise?: number;
   details?: unknown;
 }> {
   if (isV1Api()) {
@@ -483,14 +495,23 @@ export async function checkPhonePeStatus(merchantTransactionId: string): Promise
 /**
  * Verify S2S callback checksum from PhonePe (v1 only).
  * Header: X-VERIFY = SHA256(responseBase64 + saltKey) + "###" + saltIndex
+ *
+ * Uses crypto.timingSafeEqual to prevent timing-based signature oracle attacks.
  */
 export function verifyV1Callback(responseBase64: string, xVerify: string): boolean {
   try {
     const saltKey   = getClientSecret();
     const saltIndex = getSaltIndex();
     const hash      = crypto.createHash("sha256").update(responseBase64 + saltKey).digest("hex");
-    return `${hash}###${saltIndex}` === xVerify;
+    const expected  = `${hash}###${saltIndex}`;
+
+    // Constant-time comparison — prevents timing oracle attacks on the checksum.
+    const expectedBuf = Buffer.from(expected, "utf8");
+    const receivedBuf = Buffer.from(xVerify, "utf8");
+    if (expectedBuf.length !== receivedBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, receivedBuf);
   } catch {
     return false;
   }
 }
+

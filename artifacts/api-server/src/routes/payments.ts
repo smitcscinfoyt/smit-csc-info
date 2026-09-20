@@ -62,14 +62,22 @@ async function handlePhonePeCallback(req: any, res: any): Promise<void> {
       })}`
     );
 
-    // v1 S2S callback: verify X-VERIFY checksum before trusting the payload
+    // v1 S2S callback: verify X-VERIFY checksum before trusting the payload.
+    // For S2S POSTs we reject immediately on mismatch — do not process.
+    // For browser GET redirects we cannot reject (user is being redirected back);
+    // we still re-verify via the status API regardless.
     const xVerify          = req.headers["x-verify"] as string | undefined;
     const callbackResponse = req.body?.response as string | undefined;
     if (callbackResponse && xVerify) {
       const valid = verifyV1Callback(callbackResponse, xVerify);
       console.log(`[PhonePe Callback] v1 X-VERIFY: ${valid ? "✅ VALID" : "❌ INVALID"}`);
+      if (!valid && isS2S) {
+        console.warn(`[PhonePe Callback] S2S checksum mismatch from IP ${req.ip} — rejected`);
+        res.status(401).json({ error: "Checksum mismatch" });
+        return;
+      }
       if (!valid) {
-        console.warn(`[PhonePe Callback] Checksum mismatch — proceeding with status API re-check.`);
+        console.warn(`[PhonePe Callback] Browser redirect checksum mismatch — re-checking via status API`);
       }
     }
 
@@ -121,13 +129,20 @@ async function handlePhonePeCallback(req: any, res: any): Promise<void> {
       return;
     }
 
-    const { success, state } = await checkPhonePeStatus(merchantTransactionId);
-    console.log(`[PhonePe Callback] state=${state}, success=${success}`);
+    const { success, state, confirmedAmountPaise } = await checkPhonePeStatus(merchantTransactionId);
+    console.log(`[PhonePe Callback] state=${state}, success=${success}, confirmedPaise=${confirmedAmountPaise ?? "unknown"}`);
 
     if (success) {
-      await activateMembership(merchantTransactionId);
+      const activated = await activateMembership(merchantTransactionId, confirmedAmountPaise);
+      if (!activated) {
+        // activateMembership returns null on amount mismatch or not-found
+        console.error(`[PhonePe Callback] activateMembership returned null for txn: ${merchantTransactionId}`);
+        if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
+        res.redirect(`${base}/payment/pending?txn=${merchantTransactionId}`);
+        return;
+      }
       console.log(`[PhonePe Callback] ✅ Membership activated for txn: ${merchantTransactionId}`);
-            if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
+      if (isS2S) { res.status(200).json({ code: "SUCCESS" }); return; }
       res.redirect(`${base}/payment/success?txn=${merchantTransactionId}`);
     } else if (state === "PENDING") {
       console.log(`[PhonePe Callback] Payment PENDING for txn: ${merchantTransactionId}`);
@@ -195,11 +210,11 @@ router.post(
 
     console.log(`[PhonePe Verify] Manual verify for txn: ${raw}`);
 
-    const { success, state } = await checkPhonePeStatus(raw);
-    console.log(`[PhonePe Verify] state=${state}, success=${success}`);
+    const { success, state, confirmedAmountPaise } = await checkPhonePeStatus(raw);
+    console.log(`[PhonePe Verify] state=${state}, success=${success}, confirmedPaise=${confirmedAmountPaise ?? "unknown"}`);
 
     if (success) {
-      const updated = await activateMembership(raw);
+      const updated = await activateMembership(raw, confirmedAmountPaise);
       if (updated) {
         res.json(
           VerifyPaymentResponse.parse({
@@ -222,7 +237,7 @@ router.post(
 );
 
 // ─── Activate Membership ──────────────────────────────────────────────────────
-async function activateMembership(transactionId: string) {
+async function activateMembership(transactionId: string, confirmedAmountPaise?: number) {
   const [payment] = await db
     .select()
     .from(paymentsTable)
@@ -235,6 +250,17 @@ async function activateMembership(transactionId: string) {
   if (payment.status === "success") {
     console.log(`[activateMembership] Already activated: ${transactionId}`);
     return payment;
+  }
+
+  // Server-side amount check: verify gateway reported amount matches expected price
+  if (typeof confirmedAmountPaise === "number") {
+    const expectedPaise = payment.amount * 100;
+    if (confirmedAmountPaise < expectedPaise) {
+      console.error(
+        `[activateMembership] Amount mismatch: expected ${expectedPaise} paise, confirmed ${confirmedAmountPaise} paise for txn: ${transactionId}`
+      );
+      return null;
+    }
   }
 
   const days       = PLAN_DURATIONS[payment.plan] ?? 30;

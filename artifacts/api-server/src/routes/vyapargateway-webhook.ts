@@ -69,6 +69,16 @@ export async function reconcileVyaparTopup(
   }
 
   if (isSuccess) {
+    // Server-side amount validation: ensure gateway reported amount matches expected topup
+    const gatewayAmountPaise = orderData?.amount ? Math.round(Number(orderData.amount) * 100) : undefined;
+    const expectedPaise = Number(topup.amountPaise);
+    if (typeof gatewayAmountPaise === "number" && !isNaN(gatewayAmountPaise) && gatewayAmountPaise > 0) {
+      if (gatewayAmountPaise < expectedPaise) {
+        console.error(`[reconcileVyaparTopup] Amount mismatch: expected ${expectedPaise} paise, gateway reported ${gatewayAmountPaise} paise for txn: ${txnOrOrderId}`);
+        return { status: "amount_mismatch", error: "Paid amount less than expected" };
+      }
+    }
+
     const [updated] = await db
       .update(walletTopupsTable)
       .set({
@@ -175,6 +185,16 @@ export async function reconcileVyaparOperatorMembership(
   }
 
   if (isSuccess) {
+    // Server-side amount validation: ensure gateway reported amount matches expected tier price
+    const gatewayAmountPaise = orderData?.amount ? Math.round(Number(orderData.amount) * 100) : undefined;
+    const expectedPaise = Number(payment.amountPaise);
+    if (typeof gatewayAmountPaise === "number" && !isNaN(gatewayAmountPaise) && gatewayAmountPaise > 0) {
+      if (gatewayAmountPaise < expectedPaise) {
+        console.error(`[reconcileVyaparOperatorMembership] Amount mismatch: expected ${expectedPaise} paise, gateway reported ${gatewayAmountPaise} paise for txn: ${txnOrOrderId}`);
+        return { status: "amount_mismatch", error: "Paid amount less than expected" };
+      }
+    }
+
     const [updated] = await db
       .update(operatorMembershipPaymentsTable)
       .set({
@@ -280,6 +300,16 @@ export async function reconcileVyaparRecharge(
   }
 
   if (isSuccess) {
+    // Server-side amount validation: ensure gateway reported amount matches expected shortfall
+    const gatewayAmountPaise = orderData?.amount ? Math.round(Number(orderData.amount) * 100) : undefined;
+    const expectedPaise = Number(recharge.gatewayShortfallPaise ?? 0);
+    if (typeof gatewayAmountPaise === "number" && !isNaN(gatewayAmountPaise) && gatewayAmountPaise > 0) {
+      if (gatewayAmountPaise < expectedPaise) {
+        console.error(`[reconcileVyaparRecharge] Amount mismatch: expected ${expectedPaise} paise, gateway reported ${gatewayAmountPaise} paise for txn: ${reqIdOrOrderId}`);
+        return { status: "amount_mismatch", error: "Paid amount less than expected" };
+      }
+    }
+
     // Update vyaparStatus = "success"
     await db
       .update(rechargesTable)
