@@ -442,6 +442,10 @@ export const GetDocumentsResponseItem = zod.object({
   fileType: zod.string(),
   category: zod.string(),
   isPrime: zod.boolean(),
+  accessLevel: zod.string().optional(),
+  groupId: zod.string().nullish(),
+  wordUrl: zod.string().nullish(),
+  wordFileName: zod.string().nullish(),
   createdAt: zod.string(),
 });
 export const GetDocumentsResponse = zod.array(GetDocumentsResponseItem);
@@ -457,6 +461,10 @@ export const AdminCreateDocumentBody = zod.object({
   fileType: zod.string(),
   category: zod.string().optional(),
   isPrime: zod.boolean().optional(),
+  accessLevel: zod.string().optional(),
+  groupId: zod.string().nullish(),
+  wordUrl: zod.string().nullish(),
+  wordFileName: zod.string().nullish(),
 });
 
 /**

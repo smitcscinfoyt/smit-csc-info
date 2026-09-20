@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { db, documentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import fs from "node:fs";
+import path from "node:path";
 import { requireAdminOrManager, optionalAuth, type AuthRequest } from "../lib/auth";
 import { getActivePrime } from "./credits";
+import { addWatermarkToPdf } from "../lib/pdf-watermark";
 import {
   GetDocumentsResponse,
   GetDocumentsResponseItem,
@@ -12,20 +15,48 @@ import {
 
 const router = Router();
 
-router.get("/documents", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
-  const requesterIsPrime = req.userId ? !!(await getActivePrime(req.userId)) : false;
+function getAttachedAssetsDir(): string {
+  const candidate1 = path.resolve(process.cwd(), "attached_assets");
+  if (fs.existsSync(candidate1)) return candidate1;
+  const candidate2 = path.resolve(process.cwd(), "..", "..", "attached_assets");
+  if (fs.existsSync(candidate2)) return candidate2;
+  return candidate1;
+}
 
+export async function getDocumentBuffer(urlOrPath: string): Promise<Buffer> {
+  if (!urlOrPath.startsWith("http://") && !urlOrPath.startsWith("https://")) {
+    const assetsDir = getAttachedAssetsDir();
+    const cleanRel = urlOrPath.replace(/^\/?(attached_assets\/|api\/storage\/)?/, "");
+    const possiblePaths = [
+      path.resolve(assetsDir, cleanRel),
+      path.resolve(assetsDir, "documents", cleanRel),
+      path.resolve(assetsDir, "documents", path.basename(cleanRel)),
+      path.resolve(process.cwd(), urlOrPath),
+    ];
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        return fs.promises.readFile(p);
+      }
+    }
+  }
+
+  const resp = await fetch(urlOrPath);
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch file from ${urlOrPath}: ${resp.statusText}`);
+  }
+  const arrayBuf = await resp.arrayBuffer();
+  return Buffer.from(arrayBuf);
+}
+
+router.get("/documents", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   let query = db.select().from(documentsTable).$dynamic();
 
   const conditions = [];
-  if (req.query.category) {
+  if (req.query.category && req.query.category !== "All") {
     conditions.push(eq(documentsTable.category, req.query.category as string));
   }
   if (req.query.isPrime !== undefined) {
     conditions.push(eq(documentsTable.isPrime, req.query.isPrime === "true"));
-  }
-  if (!requesterIsPrime) {
-    conditions.push(eq(documentsTable.isPrime, false));
   }
 
   if (conditions.length > 0) {
@@ -45,10 +76,111 @@ router.get("/documents", optionalAuth, async (req: AuthRequest, res): Promise<vo
         fileType: d.fileType,
         category: d.category,
         isPrime: d.isPrime,
+        accessLevel: d.accessLevel ?? (d.isPrime ? "prime_only" : "public"),
+        groupId: d.groupId ?? null,
+        wordUrl: d.wordUrl ?? null,
+        wordFileName: d.wordFileName ?? null,
         createdAt: d.createdAt.toISOString(),
       }))
     )
   );
+});
+
+router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
+  const docId = Number(req.params.id);
+  if (Number.isNaN(docId)) {
+    res.status(400).json({ error: "Invalid document ID" });
+    return;
+  }
+
+  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, docId)).limit(1);
+  if (!doc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
+  // 1. Logged-out users must log in to view preview (Section 4)
+  if (!req.userId) {
+    res.status(401).json({ error: "login_required", message: "Please log in to preview this document." });
+    return;
+  }
+
+  const requesterIsPrime = !!(await getActivePrime(req.userId));
+
+  try {
+    const pdfBuffer = await getDocumentBuffer(doc.fileUrl);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(doc.fileName)}"`);
+
+    if (requesterIsPrime) {
+      // Prime user: serve clean PDF without watermark
+      res.send(pdfBuffer);
+    } else {
+      // Free user: dynamically stamp diagonal "Smit CSC Info" watermark
+      const watermarked = await addWatermarkToPdf(pdfBuffer, "Smit CSC Info");
+      res.send(watermarked);
+    }
+  } catch (err: any) {
+    req.log.error({ err, docId: doc.id }, "Failed to generate document preview");
+    res.status(500).json({ error: "Failed to generate preview" });
+  }
+});
+
+router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
+  const docId = Number(req.params.id);
+  if (Number.isNaN(docId)) {
+    res.status(400).json({ error: "Invalid document ID" });
+    return;
+  }
+
+  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, docId)).limit(1);
+  if (!doc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
+  // Logged-out users cannot download
+  if (!req.userId) {
+    res.status(401).json({ error: "login_required", message: "Please log in to download." });
+    return;
+  }
+
+  const requesterIsPrime = !!(await getActivePrime(req.userId));
+
+  // Check if document requires Prime to download
+  const isPrimeGated =
+    doc.isPrime ||
+    doc.accessLevel === "prime_only" ||
+    doc.accessLevel === "login_required" ||
+    ["Affidavits", "Forms"].includes(doc.category);
+
+  if (isPrimeGated && !requesterIsPrime) {
+    res.status(403).json({ error: "prime_required", message: "Prime membership required to download." });
+    return;
+  }
+
+  const format = (req.query.format as string)?.toLowerCase() === "word" ? "word" : "pdf";
+  const targetUrl = format === "word" ? (doc.wordUrl || doc.fileUrl) : doc.fileUrl;
+  const targetName =
+    format === "word"
+      ? (doc.wordFileName || doc.fileName.replace(/\.pdf$/i, ".docx"))
+      : doc.fileName;
+
+  try {
+    const fileBuf = await getDocumentBuffer(targetUrl);
+    const contentType =
+      format === "word"
+        ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        : "application/pdf";
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(targetName)}"`);
+    res.send(fileBuf);
+  } catch (err: any) {
+    req.log.error({ err, docId: doc.id }, "Failed to download document");
+    res.status(500).json({ error: "Failed to download document" });
+  }
 });
 
 router.post("/admin/documents", requireAdminOrManager, async (req, res): Promise<void> => {
@@ -58,12 +190,21 @@ router.post("/admin/documents", requireAdminOrManager, async (req, res): Promise
     return;
   }
 
-  const { title, description, fileUrl, fileName, fileType, category, isPrime } = parsed.data;
+  const {
+    title,
+    description,
+    fileUrl,
+    fileName,
+    fileType,
+    category,
+    isPrime,
+    accessLevel,
+    groupId,
+    wordUrl,
+    wordFileName,
+  } = parsed.data;
 
-  // Reject anything that isn't a plain http(s) URL. Without this guard
-  // the column accepts arbitrary strings (javascript:, data:, file:,
-  // chrome:, etc.), and every place that renders <a href={doc.fileUrl}>
-  // would become a stored-XSS / local-file disclosure sink.
+  // Validate URL/path safety
   try {
     const u = new URL(fileUrl);
     if (u.protocol !== "http:" && u.protocol !== "https:") {
@@ -71,8 +212,10 @@ router.post("/admin/documents", requireAdminOrManager, async (req, res): Promise
       return;
     }
   } catch {
-    res.status(400).json({ error: "fileUrl is not a valid URL" });
-    return;
+    if (!fileUrl.startsWith("/") && !fileUrl.startsWith("attached_assets/")) {
+      res.status(400).json({ error: "fileUrl is not a valid URL or path" });
+      return;
+    }
   }
 
   const [doc] = await db
@@ -85,6 +228,10 @@ router.post("/admin/documents", requireAdminOrManager, async (req, res): Promise
       fileType,
       category: category ?? "General",
       isPrime: isPrime ?? false,
+      accessLevel: accessLevel ?? (isPrime ? "prime_only" : "login_required"),
+      groupId: groupId ?? null,
+      wordUrl: wordUrl ?? null,
+      wordFileName: wordFileName ?? null,
     })
     .returning();
 
@@ -98,6 +245,10 @@ router.post("/admin/documents", requireAdminOrManager, async (req, res): Promise
       fileType: doc.fileType,
       category: doc.category,
       isPrime: doc.isPrime,
+      accessLevel: doc.accessLevel,
+      groupId: doc.groupId,
+      wordUrl: doc.wordUrl,
+      wordFileName: doc.wordFileName,
       createdAt: doc.createdAt.toISOString(),
     })
   );

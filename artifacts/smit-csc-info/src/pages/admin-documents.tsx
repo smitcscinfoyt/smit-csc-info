@@ -35,13 +35,14 @@ const ALLOWED_TYPES: Record<string, string> = {
   "image/png": "Image",
 };
 
-const CATEGORIES = ["General", "Schemes", "Forms", "Tutorials", "Guidelines", "Notifications"];
+const CATEGORIES = ["General", "Schemes", "Forms", "Affidavits", "Tutorials", "Guidelines", "Notifications"];
 
 const docSchema = z.object({
   title: z.string().min(1, "Title required"),
   description: z.string().optional().nullable(),
   category: z.string().min(1, "Category required"),
   isPrime: z.boolean().default(false),
+  accessLevel: z.enum(["public", "login_required", "prime_only"]).default("login_required"),
 });
 
 type DocFormValues = z.infer<typeof docSchema>;
@@ -134,15 +135,18 @@ export default function AdminDocuments() {
   const [isOpen, setIsOpen] = useState(false);
   const [uploadMode, setUploadMode] = useState<"file" | "link">("file");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedWordFile, setSelectedWordFile] = useState<File | null>(null);
   const [linkUrl, setLinkUrl] = useState("");
+  const [wordLinkUrl, setWordLinkUrl] = useState("");
   const [linkType, setLinkType] = useState<typeof FILE_TYPE_OPTIONS[number]>("Link");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wordFileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: documents, isLoading } = useGetDocuments({
+  const { data: documents, isLoading } = useGetDocuments(undefined, {
     query: { queryKey: getGetDocumentsQueryKey() },
   });
 
@@ -151,7 +155,7 @@ export default function AdminDocuments() {
 
   const form = useForm<DocFormValues>({
     resolver: zodResolver(docSchema),
-    defaultValues: { title: "", description: "", category: "General", isPrime: false },
+    defaultValues: { title: "", description: "", category: "Affidavits", isPrime: false, accessLevel: "login_required" },
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,9 +171,21 @@ export default function AdminDocuments() {
     }
   };
 
+  const handleWordFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.match(/\.(docx?|doc)$/i)) {
+      toast({ title: "Word file પસંદ કરો", description: ".docx અથવા .doc ફાઈલ હોવી જોઈએ", variant: "destructive" });
+      return;
+    }
+    setSelectedWordFile(file);
+  };
+
   const resetDialog = () => {
     setSelectedFile(null);
+    setSelectedWordFile(null);
     setLinkUrl("");
+    setWordLinkUrl("");
     setLinkType("Link");
     setUploadMode("file");
     form.reset();
@@ -199,18 +215,26 @@ export default function AdminDocuments() {
       let fileUrl: string;
       let fileName: string;
       let fileType: string;
+      let wordUrl: string | undefined;
+      let wordFileName: string | undefined;
 
       if (uploadMode === "file" && selectedFile) {
         setUploadProgress(30);
         const objectPath = await uploadToStorage(selectedFile);
-        setUploadProgress(70);
+        setUploadProgress(60);
         fileUrl = `${API_BASE}/api/storage${objectPath}`;
         fileName = selectedFile.name;
         fileType = ALLOWED_TYPES[selectedFile.type] ?? "File";
+
+        if (selectedWordFile) {
+          setUploadProgress(75);
+          const wordObj = await uploadToStorage(selectedWordFile);
+          wordUrl = `${API_BASE}/api/storage${wordObj}`;
+          wordFileName = selectedWordFile.name;
+        }
       } else {
         setUploadProgress(50);
         fileUrl = normalizeShareUrl(linkUrl);
-        // Derive a friendly filename from URL pathname when blank.
         try {
           const u = new URL(fileUrl);
           const last = u.pathname.split("/").filter(Boolean).pop() ?? u.hostname;
@@ -219,6 +243,11 @@ export default function AdminDocuments() {
           fileName = data.title;
         }
         fileType = linkType === "Link" ? guessTypeFromUrl(fileUrl) : linkType;
+
+        if (wordLinkUrl.trim()) {
+          wordUrl = normalizeShareUrl(wordLinkUrl.trim());
+          wordFileName = `${data.title}.docx`;
+        }
       }
 
       await createMutation.mutateAsync({
@@ -229,7 +258,10 @@ export default function AdminDocuments() {
           fileName,
           fileType,
           category: data.category,
-          isPrime: data.isPrime,
+          isPrime: data.isPrime || data.accessLevel === "prime_only",
+          accessLevel: data.accessLevel,
+          wordUrl,
+          wordFileName,
         },
       });
 
@@ -306,9 +338,9 @@ export default function AdminDocuments() {
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="file" className="mt-3">
+                  <TabsContent value="file" className="mt-3 space-y-3">
                     <div
-                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                      className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-5 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <input
@@ -325,13 +357,55 @@ export default function AdminDocuments() {
                           <p className="text-xs text-muted-foreground">
                             {(selectedFile.size / 1024 / 1024).toFixed(2)} MB · {ALLOWED_TYPES[selectedFile.type]}
                           </p>
-                          <p className="text-xs text-primary">Click to change</p>
+                          <p className="text-xs text-primary font-medium">Click to change primary file</p>
                         </div>
                       ) : (
-                        <div className="space-y-2">
-                          <Upload className="h-10 w-10 text-muted-foreground mx-auto" />
-                          <p className="font-medium">File select કરો</p>
+                        <div className="space-y-1.5">
+                          <Upload className="h-8 w-8 text-muted-foreground mx-auto" />
+                          <p className="font-medium text-sm">Primary File પસંદ કરો (PDF, etc.)</p>
                           <p className="text-xs text-muted-foreground">PDF · Word · PPT · JPG · PNG</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Companion Word file input */}
+                    <div
+                      className="border border-dashed border-blue-300/80 bg-blue-50/40 rounded-lg p-3 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/70 transition-colors"
+                      onClick={() => wordFileInputRef.current?.click()}
+                    >
+                      <input
+                        ref={wordFileInputRef}
+                        type="file"
+                        accept=".doc,.docx"
+                        onChange={handleWordFileSelect}
+                        className="hidden"
+                      />
+                      {selectedWordFile ? (
+                        <div className="flex items-center justify-between px-2">
+                          <div className="flex items-center gap-2 text-left">
+                            <span className="text-xl">📝</span>
+                            <div>
+                              <p className="font-semibold text-xs text-blue-900">{selectedWordFile.name}</p>
+                              <p className="text-[10px] text-blue-700">Companion Word File જોડાયેલ છે</p>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs text-destructive hover:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedWordFile(null);
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2 text-blue-800 text-xs py-1">
+                          <span>📝</span>
+                          <span className="font-medium">+ Companion Word (.docx) File ઉમેરો (Optional)</span>
                         </div>
                       )}
                     </div>
@@ -343,14 +417,13 @@ export default function AdminDocuments() {
                         <Link2 className="h-8 w-8" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Document URL</label>
+                        <label className="text-sm font-medium">Primary Document URL</label>
                         <Input
                           type="url"
                           placeholder="https://drive.google.com/file/d/..."
                           value={linkUrl}
                           onChange={(e) => {
                             setLinkUrl(e.target.value);
-                            // Auto-suggest type & title when user pastes a link
                             if (e.target.value && !form.getValues("title")) {
                               try {
                                 const u = new URL(e.target.value);
@@ -370,10 +443,18 @@ export default function AdminDocuments() {
                           }}
                           data-testid="input-document-url"
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Google Drive, Dropbox, અથવા external https:// URL paste કરો. Drive share-links automatically convert થશે.
-                        </p>
                       </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Companion Word URL (Optional)</label>
+                        <Input
+                          type="url"
+                          placeholder="https://drive.google.com/file/d/... (Word version)"
+                          value={wordLinkUrl}
+                          onChange={(e) => setWordLinkUrl(e.target.value)}
+                        />
+                      </div>
+
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Type</label>
                         <select
@@ -389,26 +470,6 @@ export default function AdminDocuments() {
                           ))}
                         </select>
                       </div>
-                      {linkUrl.trim() && (() => {
-                        // Only render an <a href> when the URL is a
-                        // plain http(s) URL — never `javascript:` or
-                        // `data:`. Otherwise show a disabled hint.
-                        const safe = safeHttpUrl(normalizeShareUrl(linkUrl));
-                        return safe ? (
-                          <a
-                            href={safe}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            <ExternalLink className="h-3 w-3" /> Preview link
-                          </a>
-                        ) : (
-                          <span className="text-xs text-destructive">
-                            URL valid નથી (https:// જરૂરી)
-                          </span>
-                        );
-                      })()}
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -466,6 +527,34 @@ export default function AdminDocuments() {
                           {CATEGORIES.map((c) => (
                             <option key={c} value={c}>{c}</option>
                           ))}
+                        </select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="accessLevel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Access Tier (3-Tier Access Control)</FormLabel>
+                      <FormControl>
+                        <select
+                          className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                          {...field}
+                          value={field.value ?? "login_required"}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            if (e.target.value === "prime_only") {
+                              form.setValue("isPrime", true);
+                            }
+                          }}
+                        >
+                          <option value="login_required">Login Required (Free Preview, Prime Download)</option>
+                          <option value="prime_only">Prime Only (Preview & Download for Prime)</option>
+                          <option value="public">Public (Open for all)</option>
                         </select>
                       </FormControl>
                       <FormMessage />
@@ -536,19 +625,34 @@ export default function AdminDocuments() {
                 </TableCell>
                 <TableCell>
                   <div>
-                    <p className="font-medium text-sm">{doc.title}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-medium text-sm">{doc.title}</p>
+                      {doc.wordUrl && (
+                        <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                          PDF + Word
+                        </Badge>
+                      )}
+                    </div>
                     {doc.description && <p className="text-xs text-muted-foreground">{doc.description}</p>}
                     <p className="text-xs text-muted-foreground mt-0.5">{doc.fileName}</p>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{doc.category}</Badge>
+                  {doc.category === "Affidavits" ? (
+                    <Badge className="bg-purple-100 text-purple-800 border border-purple-300 font-semibold hover:bg-purple-200">
+                      Affidavits
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">{doc.category}</Badge>
+                  )}
                 </TableCell>
                 <TableCell>
-                  {doc.isPrime ? (
-                    <Badge className="bg-yellow-500 text-white"><Lock className="h-3 w-3 mr-1" />Prime</Badge>
+                  {doc.accessLevel === "login_required" ? (
+                    <Badge className="bg-indigo-600 text-white text-[10px]">Free Preview / Prime DL</Badge>
+                  ) : doc.isPrime || doc.accessLevel === "prime_only" ? (
+                    <Badge className="bg-yellow-500 text-white text-[10px]"><Lock className="h-3 w-3 mr-1" />Prime</Badge>
                   ) : (
-                    <Badge variant="outline">Free</Badge>
+                    <Badge variant="outline" className="text-[10px]">Public</Badge>
                   )}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -557,7 +661,7 @@ export default function AdminDocuments() {
                 <TableCell className="text-right">
                   <div className="flex gap-2 justify-end">
                     <Button variant="ghost" size="icon" asChild>
-                      <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={`/api/documents/${doc.id}/preview`} target="_blank" rel="noopener noreferrer" title="Preview document">
                         <FileText className="h-4 w-4" />
                       </a>
                     </Button>

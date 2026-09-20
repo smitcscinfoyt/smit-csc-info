@@ -11,6 +11,10 @@ export const documentsTable = pgTable("documents", {
   fileType: text("file_type").notNull(),
   category: text("category").notNull().default("General"),
   isPrime: boolean("is_prime").notNull().default(false),
+  accessLevel: text("access_level").notNull().default("login_required"),
+  groupId: text("group_id").unique(),
+  wordUrl: text("word_url"),
+  wordFileName: text("word_file_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

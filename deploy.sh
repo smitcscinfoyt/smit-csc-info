@@ -171,6 +171,14 @@
   $COMPOSE up -d --remove-orphans --force-recreate
 
   # =====================================
+  # SEED AFFIDAVITS
+  # =====================================
+  if [ -f "$APP_DIR/scripts/seed-affidavits.sql" ]; then
+    log "Seeding 13 affidavit templates into database..."
+    docker exec -i smit_csc_db psql -U csc_admin -d smit_csc < "$APP_DIR/scripts/seed-affidavits.sql" 2>/dev/null || warn "Affidavit seeding via psql completed with notice"
+  fi
+
+  # =====================================
   # OPTIONAL HEALTH CHECK
   # =====================================
   # Example:

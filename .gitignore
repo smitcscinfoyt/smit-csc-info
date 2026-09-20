@@ -54,4 +54,5 @@ Thumbs.db
 .env.*.local
 
 # User uploaded assets (KYC, payments, etc.)
-/attached_assets/
+/attached_assets/*
+!/attached_assets/documents/

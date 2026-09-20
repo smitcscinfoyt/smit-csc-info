@@ -16,5 +16,9 @@ export interface DocumentItem {
   fileType: string;
   category: string;
   isPrime: boolean;
+  accessLevel?: string;
+  groupId?: string | null;
+  wordUrl?: string | null;
+  wordFileName?: string | null;
   createdAt: string;
 }
