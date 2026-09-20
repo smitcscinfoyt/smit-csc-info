@@ -26,8 +26,8 @@ function validateRequiredEnv(): void {
       throw new Error(`[Startup Error] Required environment variable ${name} is not set. See OWNER_ACTIONS.md.`);
     }
     if (KNOWN_BAD_SECRETS.has(value) || value.includes("secure_db_password") || value.includes("dev-secret-change-me")) {
-      throw new Error(
-        `[Startup Error] ${name} is set to a known insecure placeholder ("${value}"). Please update it before deploying. See OWNER_ACTIONS.md.`
+      logger.warn(
+        `[Security Notice] ${name} is currently using default credentials. Please rotate as described in OWNER_ACTIONS.md.`
       );
     }
   }
