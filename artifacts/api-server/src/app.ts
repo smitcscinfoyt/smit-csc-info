@@ -1,18 +1,13 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import helmet from "helmet";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
 
-// We sit behind Replit's edge proxy (single hop). Tell Express to honour
-// only the first proxy in the chain so `req.ip` reflects the real client
-// instead of the loopback that the proxy connects from. Crucially, this
-// prevents IP-spoofing of our per-IP rate limiters: setting `trust proxy`
-// to a *count* (not `true`) tells Express to drop any extra entries an
-// attacker may have prepended to `X-Forwarded-For` and use only the
-// right-most one (i.e. the IP added by our trusted proxy).
+// We sit behind Replit's edge proxy or system Nginx (single hop).
 app.set("trust proxy", 1);
 
 app.use(
@@ -34,7 +29,38 @@ app.use(
     },
   }),
 );
-app.use(cors());
+
+// Security Headers via Helmet (CSP managed by Nginx)
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// Restricted CORS Allowlist
+const ALLOWED_ORIGINS = [
+  "https://smitcscinfo.com",
+  "https://www.smitcscinfo.com",
+  process.env.SITE_URL,
+  process.env.APP_URL,
+].filter((o): o is string => Boolean(o));
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      if (process.env.NODE_ENV !== "production") {
+        if (/^http:\/\/localhost(:\d+)?$/.test(origin) || /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) {
+          return callback(null, true);
+        }
+      }
+      return callback(new Error(`CORS: Origin ${origin} not allowed by policy`));
+    },
+    credentials: true,
+  })
+);
 // Bumped from the express default (~100KB) so the Vision OCR proxy can
 // accept base64-encoded crops up to ~12MB raw. The vision route enforces
 // its own per-request cap; this just keeps express from rejecting them
