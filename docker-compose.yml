@@ -6,7 +6,9 @@ services:
     environment:
       POSTGRES_DB: smit_csc
       POSTGRES_USER: csc_admin
-      POSTGRES_PASSWORD: secure_db_password
+      # ⚠️  Set POSTGRES_PASSWORD in .env or as an environment variable on the host.
+      # See OWNER_ACTIONS.md § "Rotate DB Password" before deploying.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — see OWNER_ACTIONS.md}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +27,8 @@ services:
     container_name: smit_csc_migrate
     command: sh -c "pnpm --filter @workspace/db run push --force"
     environment:
-      DATABASE_URL: postgresql://csc_admin:secure_db_password@db:5432/smit_csc
+      # DATABASE_URL must be set in .env on the host — see OWNER_ACTIONS.md
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required — see OWNER_ACTIONS.md}
     depends_on:
       db:
         condition: service_healthy
@@ -40,12 +43,16 @@ services:
     container_name: smit_csc_api
     restart: always
     ports:
-      - "5000:5000"
+      # Bind to loopback only — external traffic must go through the system
+      # Nginx reverse proxy (system-nginx.conf → localhost:3000 → frontend).
+      # Direct access to port 5000 from the internet is now blocked.
+      - "127.0.0.1:5000:5000"
     env_file:
       - .env
     environment:
       PORT: "5000"
-      DATABASE_URL: postgresql://csc_admin:secure_db_password@db:5432/smit_csc
+      # DATABASE_URL in .env overrides this; kept for docker-compose up without .env
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required — see OWNER_ACTIONS.md}
       NODE_ENV: production
       PUBLIC_OBJECT_SEARCH_PATHS: "/tmp"
       PRIVATE_OBJECT_DIR: "/tmp"
@@ -59,6 +66,13 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    healthcheck:
+      # /api/healthz is served by the health router (routes/health.ts)
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - csc_network
       - proxy-net
@@ -70,7 +84,10 @@ services:
     container_name: smit_csc_frontend
     restart: always
     ports:
-      - "3000:80"
+      # Bind to loopback only.
+      # system-nginx.conf uses "proxy_pass http://localhost:3000" which resolves
+      # to 127.0.0.1:3000 on the host — this is safe and the site remains accessible.
+      - "127.0.0.1:3000:80"
     volumes:
       # NOTE: ./attached_assets is intentionally NOT mounted here.
       # KYC documents (PAN, Aadhaar, selfies) must never be served as static
@@ -79,6 +96,12 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - csc_network
       - proxy-net

@@ -64,5 +64,10 @@ EXPOSE 5000
 
 ENV PORT=5000
 
+# Drop privileges — run as the built-in non-root "node" user (UID 1000).
+# node:24-slim ships with this user. Running as root is unnecessary and
+# increases the blast radius if the process is ever compromised.
+USER node
+
 # Start Express server
 CMD ["node", "--enable-source-maps", "./artifacts/api-server/dist/index.mjs"]
