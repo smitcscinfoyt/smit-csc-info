@@ -24,13 +24,14 @@ router.get("/content/categories", async (_req, res): Promise<void> => {
   res.json(GetContentCategoriesResponse.parse(categories));
 });
 
-router.get("/content", async (req, res): Promise<void> => {
+router.get("/content", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const parsed = GetContentQueryParams.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
+  const requesterIsPrime = await isRequesterPrime(req);
   const { category, type, isPrime } = parsed.data;
 
   let query = db.select().from(contentTable).$dynamic();
@@ -49,27 +50,30 @@ router.get("/content", async (req, res): Promise<void> => {
 
   res.json(
     GetContentResponse.parse(
-      items.map((i) => ({
-        id: i.id,
-        title: i.title,
-        titleGu: i.titleGu,
-        category: i.category,
-        type: i.type,
-        link: i.link,
-        description: i.description,
-        isPrime: i.isPrime,
-        thumbnailUrl: i.thumbnailUrl,
-        youtubeVideoId: i.youtubeVideoId ?? null,
-        playlistId: i.playlistId ?? null,
-        playlistTitle: i.playlistTitle ?? null,
-        publishedAt: i.publishedAt ? i.publishedAt.toISOString() : null,
-        createdAt: i.createdAt.toISOString(),
-      }))
+      items.map((i) => {
+        const isLocked = i.isPrime && !requesterIsPrime;
+        return {
+          id: i.id,
+          title: i.title,
+          titleGu: i.titleGu,
+          category: i.category,
+          type: i.type,
+          link: isLocked ? "" : i.link,
+          description: i.description,
+          isPrime: i.isPrime,
+          thumbnailUrl: i.thumbnailUrl,
+          youtubeVideoId: isLocked ? null : (i.youtubeVideoId ?? null),
+          playlistId: isLocked ? null : (i.playlistId ?? null),
+          playlistTitle: i.playlistTitle ?? null,
+          publishedAt: i.publishedAt ? i.publishedAt.toISOString() : null,
+          createdAt: i.createdAt.toISOString(),
+        };
+      })
     )
   );
 });
 
-router.get("/content/:id", async (req, res): Promise<void> => {
+router.get("/content/:id", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(rawId, 10);
   if (isNaN(id)) {
@@ -83,6 +87,9 @@ router.get("/content/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const requesterIsPrime = await isRequesterPrime(req);
+  const isLocked = item.isPrime && !requesterIsPrime;
+
   res.json(
     GetContentItemResponse.parse({
       id: item.id,
@@ -90,10 +97,14 @@ router.get("/content/:id", async (req, res): Promise<void> => {
       titleGu: item.titleGu,
       category: item.category,
       type: item.type,
-      link: item.link,
+      link: isLocked ? "" : item.link,
       description: item.description,
       isPrime: item.isPrime,
       thumbnailUrl: item.thumbnailUrl,
+      youtubeVideoId: isLocked ? null : (item.youtubeVideoId ?? null),
+      playlistId: isLocked ? null : (item.playlistId ?? null),
+      playlistTitle: item.playlistTitle ?? null,
+      publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
       createdAt: item.createdAt.toISOString(),
     })
   );

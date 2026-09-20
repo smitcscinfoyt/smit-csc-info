@@ -1,8 +1,11 @@
 import { Router, type IRouter } from "express";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { getActivePrime } from "./credits";
+import { createRateLimiter } from "../lib/rate-limit";
 
 const router: IRouter = Router();
+const visionRateLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
 
 const VISION_URL = "https://vision.googleapis.com/v1/images:annotate";
 // Cap base64 payload at ~12MB. Vision itself accepts up to 20MB, but
@@ -26,6 +29,26 @@ router.post(
   "/tools/vision-ocr",
   requireAuth,
   async (req: AuthRequest, res): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const prime = await getActivePrime(req.userId);
+    if (!prime) {
+      res.status(403).json({ error: "Prime membership required for Vision OCR" });
+      return;
+    }
+
+    const rl = visionRateLimiter(`user:${req.userId}`);
+    if (!rl.ok) {
+      res.status(429).json({
+        error: "Rate limit exceeded. Please wait a moment before trying again.",
+        retryAfter: rl.retryAfter,
+      });
+      return;
+    }
+
     const apiKey = process.env.GOOGLE_VISION_API_KEY;
     if (!apiKey) {
       res.status(503).json({

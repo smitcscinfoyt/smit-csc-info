@@ -6,8 +6,10 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { requireAuth, type AuthRequest } from "../lib/auth";
+import { createRateLimiter, clientIp } from "../lib/rate-limit";
 
 const router: IRouter = Router();
+const uploadRateLimiter = createRateLimiter({ windowMs: 60_000, max: 25 });
 const objectStorageService = new ObjectStorageService();
 const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_UPLOAD_NAME_LENGTH = 255;
@@ -33,7 +35,17 @@ router.post(
   "/storage/uploads/request-url",
   requireAuth,
   async (req: AuthRequest, res: Response) => {
-  const parsed = RequestUploadUrlBody.safeParse(req.body);
+    const rateLimitKey = req.userId ? `user:${req.userId}` : `ip:${clientIp(req)}`;
+    const rl = uploadRateLimiter(rateLimitKey);
+    if (!rl.ok) {
+      res.status(429).json({
+        error: "Rate limit exceeded. Please wait a moment before requesting another upload.",
+        retryAfter: rl.retryAfter,
+      });
+      return;
+    }
+
+    const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });
     return;

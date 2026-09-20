@@ -3,9 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { TOOLS_BY_CATEGORY, type ToolMeta } from "@/components/tools/tools-data";
 import { Sparkles, Wrench, Crown, ShieldCheck, ArrowRight, BadgeCheck, Flame, Star } from "lucide-react";
 import { motion } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import { useAuth } from "@/hooks/use-auth";
+import { usePrimeStatus } from "@/hooks/use-prime";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -176,15 +174,7 @@ function PrimeBanner({ subtitle }: { subtitle: string }) {
 
 export default function ToolsPage() {
   const categories = Object.entries(TOOLS_BY_CATEGORY);
-  const { user, membership } = useAuth();
-  const { data: status } = useQuery<{ is_prime: boolean }>({
-    queryKey: ["user-status"],
-    queryFn: () => apiFetch<{ is_prime: boolean }>("/api/user/status"),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-  const isActiveMember = membership?.status === "active";
-  const isPrime = !!status?.is_prime || isActiveMember;
+  const { isPrime } = usePrimeStatus();
 
   if (!isPrime) {
     // ─── Free / standard view (unchanged) ───────────────────────────────

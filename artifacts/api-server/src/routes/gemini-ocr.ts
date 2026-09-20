@@ -2,8 +2,11 @@ import { Router, type IRouter } from "express";
 import sharp from "sharp";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { getActivePrime } from "./credits";
+import { createRateLimiter } from "../lib/rate-limit";
 
 const router: IRouter = Router();
+const ocrRateLimiter = createRateLimiter({ windowMs: 60_000, max: 20 });
 
 const MAX_BASE64_LEN = 8 * 1024 * 1024;
 // Resize the long edge of the page to this size before OCR. ~2000 px
@@ -179,6 +182,26 @@ router.post(
   "/tools/gemini-ocr",
   requireAuth,
   async (req: AuthRequest, res): Promise<void> => {
+    if (!req.userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const prime = await getActivePrime(req.userId);
+    if (!prime) {
+      res.status(403).json({ error: "Prime membership required for Smart OCR" });
+      return;
+    }
+
+    const rl = ocrRateLimiter(`user:${req.userId}`);
+    if (!rl.ok) {
+      res.status(429).json({
+        error: "Rate limit exceeded. Please wait a moment before trying again.",
+        retryAfter: rl.retryAfter,
+      });
+      return;
+    }
+
     const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
     const apiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
     if (!baseUrl || !apiKey) {

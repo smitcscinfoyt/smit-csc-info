@@ -148,18 +148,16 @@ async function renderPdfPages(file: File): Promise<PdfPageThumb[]> {
   const pdf = await pdfjs.getDocument({ data: buf }).promise;
   const pages: PdfPageThumb[] = [];
 
-  // Render scale tuning (REVISED 2026-04-30 after a mobile-Firefox user
-  // reported the page "reloading" after PDF upload — the actual cause
-  // was Android killing the tab during high-memory PDF rasterisation).
-  //
-  // Mobile (≤ 900 px viewport): scale 1.8 (~130 DPI) — enough pixels
-  //   for high-quality 300-DPI card crops while staying under ~10 MB.
-  // Desktop: scale 2.5 (~180 DPI) — high-quality source for 300-DPI
-  //   card crops (86×56 mm = 1016×661 px target). Higher scale means
-  //   less upscaling in the crop step → sharper output PDF.
+  // Render scale tuning:
+  // Standard A4 PDF is 595.28 × 841.89 pt.
+  // 300 DPI target for A4: 595.28 × (300 / 72) = 2480 px width, 3508 px height.
+  // Desktop: scale 4.167 gives exact 300 DPI native resolution, ensuring small
+  //   UIDAI QR codes, Gujarati text, and card details stay razor sharp.
+  // Mobile (≤ 900 px): scale 3.2 gives ~230 DPI (1905 × 2694 px), keeping memory
+  //   safe under browser limits while delivering sharp, crisp crops.
   const isMobile =
     typeof window !== "undefined" && window.innerWidth <= 900;
-  const renderScale = isMobile ? 1.8 : 2.5;
+  const renderScale = isMobile ? 3.2 : 4.167;
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -169,7 +167,8 @@ async function renderPdfPages(file: File): Promise<PdfPageThumb[]> {
     canvas.height = viewport.height;
     const ctx = canvas.getContext("2d")!;
     await page.render({ canvasContext: ctx, viewport }).promise;
-    const blob = await canvasToBlob(canvas, "image/jpeg", 0.97);
+    // Lossless PNG preserves text sharp edges, barcodes, and QR codes without JPEG artifacts
+    const blob = await canvasToBlob(canvas, "image/png");
     // Explicitly free the page-level pdf.js internals + zero out the
     // canvas so the browser can GC them BEFORE we render the next
     // page. Without this, multi-page PDFs accumulate memory and
@@ -889,13 +888,25 @@ export default function IdCardEnginePage() {
   // ─── Step 1 → Step 2: handle file upload ──────────────────────
   async function handleFile(file: File | null) {
     if (!file) return;
+
+    // Security & file-integrity validation: only allow images and PDFs up to 25 MB
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const isImage = /^image\/(jpe?g|png|webp)$/i.test(file.type) || /\.(jpe?g|png|webp)$/i.test(file.name);
+    if (!isPdf && !isImage) {
+      setUploadError("Invalid file type. Please upload a PDF, JPG, PNG, or WebP document.");
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setUploadError("File size is too large. Maximum supported size is 25 MB.");
+      return;
+    }
+
     // Persist the uploaded source so a mobile-browser refresh during the
     // PDF rasterise step (Android Chrome will kill a tab using >150 MB
     // of canvas memory) doesn't lose the user's chosen file.
     void saveBlob("id-card:source", file);
     saveDraft("id-card:source-meta", { name: file.name, type: file.type });
     const myToken = ++uploadTokenRef.current;
-    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
     setPdfLoading(isPdf);
     try {
       let source: DraftSource;
@@ -1304,6 +1315,9 @@ export default function IdCardEnginePage() {
     freeDraftSource(draftSource);
     if (draftFrontUrl) URL.revokeObjectURL(draftFrontUrl);
     if (draftBackUrl) URL.revokeObjectURL(draftBackUrl);
+    // Purge sensitive files from IndexedDB and storage
+    void clearBlob("id-card:source").catch(() => {});
+    try { clearDraft("id-card:source-meta"); } catch {}
     setCards([]);
     setActiveCardId(null);
     setDraftSource(null);
@@ -1400,6 +1414,9 @@ export default function IdCardEnginePage() {
       const blob = pdf.output("blob");
       const cardSuffix = cards.length > 1 ? `-${cards.length}cards` : "";
       downloadBlob(blob, `id-card-sheet-${pageSize}-${totalPairsRequested}pairs${cardSuffix}.pdf`);
+      // Privacy: automatically purge uploaded sensitive IDs from client-side IndexedDB after download
+      void clearBlob("id-card:source").catch(() => {});
+      try { clearDraft("id-card:source-meta"); } catch {}
       setPdfProgress(100);
       setTimeout(() => {
         setPdfBusy(false);
@@ -1439,6 +1456,9 @@ export default function IdCardEnginePage() {
       ctx.drawImage(card.backCanvas, cw + gap, 0);
       const blob = await canvasToBlob(out, "image/jpeg", 0.97);
       downloadBlob(blob, `id-card-${CARD_W_MM}x${CARD_H_MM}mm-pair.jpg`);
+      // Privacy: purge uploaded sensitive ID from client-side IndexedDB
+      void clearBlob("id-card:source").catch(() => {});
+      try { clearDraft("id-card:source-meta"); } catch {}
     });
   }
 

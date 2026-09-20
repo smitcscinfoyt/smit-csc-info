@@ -134,19 +134,33 @@ const L = (lang: Lang, k: keyof typeof T) => T[k][lang];
 
 // ---------------- Background-removal engine -------------------------
 async function preResize(file: File): Promise<File> {
-  // Aggressive pre-resize so the in-browser model doesn't lock up the
-  // main thread on large phone photos (10+ MP). Anything over ~3 MB or
-  // beyond 1600px on the longest edge gets shrunk before processing.
-  if (file.size <= 3 * 1024 * 1024) return file;
+  // Pre-resize large phone photos (10+ MP) and files over ~2 MB so the
+  // in-browser ONNX model doesn't freeze the main thread or crash browser tabs.
   try {
     const { default: imageCompression } = await import("browser-image-compression");
-    const compressed = await imageCompression(file, {
-      maxSizeMB: 3,
-      maxWidthOrHeight: 1600,
-      useWebWorker: true,
-      initialQuality: 0.92,
-    });
-    return new File([compressed], file.name, { type: compressed.type || file.type });
+    // If over 2MB or large photo, resize to max 1600px edge
+    if (file.size > 2 * 1024 * 1024) {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 2,
+        maxWidthOrHeight: 1600,
+        useWebWorker: true,
+        initialQuality: 0.92,
+      });
+      return new File([compressed], file.name, { type: compressed.type || file.type });
+    }
+
+    // Quick dimension check for high-res lightweight images (e.g. 4000x3000 WebP/JPG under 2MB)
+    const img = await loadImage(file);
+    if (img.naturalWidth > 2000 || img.naturalHeight > 2000) {
+      const compressed = await imageCompression(file, {
+        maxSizeMB: 2,
+        maxWidthOrHeight: 1800,
+        useWebWorker: true,
+        initialQuality: 0.92,
+      });
+      return new File([compressed], file.name, { type: compressed.type || file.type });
+    }
+    return file;
   } catch {
     return file;
   }
@@ -406,14 +420,13 @@ export default function BackgroundRemover() {
       }
     }
     if (token !== runTokenRef.current) return; // stale
-    setBusy("none");
     const msg = (lastErr?.message || String(lastErr || "")).toLowerCase();
-    if (msg.includes("network") || msg.includes("fetch") || msg.includes("load")) {
-      setError("Couldn't load the in-browser AI model. Check your connection or try FHD.");
+    if (msg.includes("network") || msg.includes("fetch") || msg.includes("load") || msg.includes("failed to fetch")) {
+      setError("AI મોડેલ લોડ કરવામાં સમસ્યા આવી. કૃપા કરીને ફરી પ્રયત્ન કરો અથવા FHD વાપરો. (Network error loading AI model. Please try again or use FHD.)");
     } else if (msg.includes("memory") || msg.includes("oom")) {
-      setError("Image is too large for in-browser processing. Use a smaller photo or try FHD.");
+      setError("ઈમેજ ઘણી મોટી છે. કૃપા કરીને નાની સાઇઝની ફોટો પસંદ કરી ફરી પ્રયત્ન કરો. (Image is too large for in-browser memory. Please try with a smaller image or use FHD.)");
     } else {
-      setError(`Engine failed: ${lastErr?.message || "unknown error"}.`);
+      setError("બેકગ્રાઉન્ડ દૂર કરવામાં સમસ્યા આવી. કૃપા કરીને ફરી પ્રયત્ન કરો. (Background removal failed. Please try again.)");
     }
   };
 

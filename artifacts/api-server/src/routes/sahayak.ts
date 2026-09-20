@@ -1,8 +1,12 @@
 import { Router, type IRouter } from "express";
 import { SAHAYAK_KNOWLEDGE } from "../lib/sahayak-knowledge";
 import { logger } from "../lib/logger";
+import { optionalAuth, type AuthRequest } from "../lib/auth";
+import { getActivePrime } from "./credits";
+import { createRateLimiter, clientIp } from "../lib/rate-limit";
 
 const router: IRouter = Router();
+const sahayakRateLimiter = createRateLimiter({ windowMs: 60_000, max: 15 });
 
 const SYSTEM_PROMPT = `You are "Smit AI Sahayak" - the AI assistant for Smit CSC Info.
   You help CSC operators and rural citizens in Gujarat. Always respond in Gujarati.
@@ -35,16 +39,34 @@ interface ChatMessage {
 //   0. NEXT_PUBLIC_CHAT_API_URL â external Sahayak AI server (proxy)
 //   1. SAMBANOVA_API_KEY        â SambaNova OpenAI-compatible API
 //   2. AI_INTEGRATIONS_GEMINI_API_KEY â Gemini REST API (fallback)
-router.post("/sahayak/chat", async (req, res): Promise<void> => {
+router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   try {
+    // Determine real Prime status server-side from DB — never trust client-provided isPrime flag.
+    let isPrime = false;
+    if (req.userId) {
+      const activePrime = await getActivePrime(req.userId);
+      isPrime = !!activePrime;
+    }
+
+    // Rate-limit: 60 req/min for authenticated Prime users, 15 req/min for unauthenticated/free users
+    const rateLimitKey = req.userId ? `user:${req.userId}` : `ip:${clientIp(req)}`;
+    const maxReqs = isPrime ? 60 : 15;
+    const rl = sahayakRateLimiter(rateLimitKey, maxReqs);
+    if (!rl.ok) {
+      res.status(429).json({
+        error: "Rate limit exceeded. Please wait a moment before sending another message.",
+        retryAfter: rl.retryAfter,
+      });
+      return;
+    }
+
     const externalUrl = (process.env.NEXT_PUBLIC_CHAT_API_URL ?? "").replace(/\/+$/, "");
     const sambaKey = process.env.SAMBANOVA_API_KEY;
     const geminiKey = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
 
-    const { message, history = [], isPrime = false } = req.body as {
+    const { message, history = [] } = req.body as {
       message?: string;
       history?: ChatMessage[];
-      isPrime?: boolean;
     };
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {

@@ -193,6 +193,14 @@ export default function PassportEnginePage() {
 
   function openNewCrop(f: File | null) {
     if (!f) return;
+    if (!/^image\/(jpe?g|png|webp)$/i.test(f.type) && !/\.(jpe?g|png|webp)$/i.test(f.name)) {
+      window.alert("Please select a JPG, PNG, or WebP photo.");
+      return;
+    }
+    if (f.size > 20 * 1024 * 1024) {
+      window.alert("Photo size too large (max 20 MB).");
+      return;
+    }
     if (pendingImageUrl) URL.revokeObjectURL(pendingImageUrl);
     const url = URL.createObjectURL(f);
     setPendingImageUrl(url);
@@ -288,11 +296,13 @@ export default function PassportEnginePage() {
         // Create a new entry from the pending image.
         // First entry defaults to 12 copies (typical sheet); subsequent
         // entries default to 5 (a common per-person request).
-        const newEntry: PhotoEntry = {
-          id: typeof crypto !== "undefined" && crypto.randomUUID
+        const id =
+          typeof crypto !== "undefined" && crypto.randomUUID
             ? crypto.randomUUID()
-            : `e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          originalImageUrl: pendingImageUrl!,
+            : `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const newEntry: PhotoEntry = {
+          id,
+          originalImageUrl: cropSourceUrl,
           photoCanvas: c,
           finalUrl,
           copies: entries.length === 0 ? 12 : 5,
@@ -301,19 +311,23 @@ export default function PassportEnginePage() {
           bgRemoving: false,
         };
         setEntries((prev) => [...prev, newEntry]);
-        // Newly added photo becomes the focused one in the shared panel.
-        setActiveEntryId(newEntry.id);
-        // Ownership of pendingImageUrl now belongs to the entry; clear pointer
-        // so we don't accidentally revoke it.
-        setPendingImageUrl(null);
+        setActiveEntryId(id);
+        setPendingImageUrl(null); // entry now owns this URL
       } else {
-        // Update existing entry's crop. Re-crop invalidates any background
-        // removal because that was computed from the old crop.
+        // Re-cropping an existing entry — replace its photoCanvas and finalUrl,
+        // but preserve its copy count and current bg selection.
+        const targetId = cropTargetId;
         setEntries((prev) =>
           prev.map((e) => {
-            if (e.id !== cropTargetId) return e;
-            if (e.finalUrl) URL.revokeObjectURL(e.finalUrl);
-            return { ...e, photoCanvas: c, finalUrl, bgRemoved: null };
+            if (e.id !== targetId) return e;
+            URL.revokeObjectURL(e.finalUrl);
+            const merged: PhotoEntry = {
+              ...e,
+              photoCanvas: c,
+              bgRemoved: null, // old bg cutouts no longer align
+              finalUrl,
+            };
+            return merged;
           }),
         );
       }
@@ -358,13 +372,32 @@ export default function PassportEnginePage() {
     });
   }
 
+  const IMGLY_CDN = "https://staticimgly.com/@imgly/background-removal-data/1.7.0/dist/";
+
   async function handleRemoveBg(entryId: string) {
     const entry = entries.find((e) => e.id === entryId);
     if (!entry || entry.bgRemoving) return;
     updateEntry(entryId, { bgRemoving: true });
     try {
       const blob = await canvasToBlob(entry.photoCanvas, "image/png");
-      const out = await removeBackground(blob);
+      const gpu = typeof (navigator as any)?.gpu?.requestAdapter === "function";
+      let out: Blob;
+      try {
+        out = await removeBackground(blob, {
+          publicPath: IMGLY_CDN,
+          device: gpu ? "gpu" : "cpu",
+          model: gpu ? "isnet_fp16" : "isnet_quint8",
+          output: { format: "image/png", quality: 1.0 },
+        } as any);
+      } catch (gpuErr) {
+        // Fallback to CPU + quantized model if WebGPU fails
+        out = await removeBackground(blob, {
+          publicPath: IMGLY_CDN,
+          device: "cpu",
+          model: "isnet_quint8",
+          output: { format: "image/png", quality: 1.0 },
+        } as any);
+      }
       const img = await loadImage(out);
       const c = document.createElement("canvas");
       c.width = entry.photoCanvas.width;
@@ -395,8 +428,9 @@ export default function PassportEnginePage() {
         }),
       );
     } catch (err) {
-      console.error(err);
+      console.error("Passport background removal error:", err);
       updateEntry(entryId, { bgRemoving: false });
+      window.alert("બેકગ્રાઉન્ડ રિમૂવ નિષ્ફળ રહ્યું. કૃપા કરીને ફરી પ્રયાસ કરો. (Background removal failed, please try again.)");
     }
   }
 

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, paymentsTable, userCreditsTable, creditTransactionsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import multer from "multer";
 import { logger } from "../lib/logger";

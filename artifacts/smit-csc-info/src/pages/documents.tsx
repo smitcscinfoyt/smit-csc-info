@@ -9,9 +9,7 @@ import { FileText, Search, Lock, Download, ExternalLink, Crown, ShieldCheck, Bad
 import { motion, AnimatePresence } from "framer-motion";
 import { FadeInUp } from "@/components/motion";
 import { useLanguage } from "@/lib/i18n";
-import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { usePrimeStatus } from "@/hooks/use-prime";
 import { LiveDataDashboard } from "@/components/live-data/LiveDataDashboard";
 import { NewsPanel } from "@/components/news/NewsPanel";
 
@@ -94,20 +92,8 @@ function PrimeDocumentsHero() {
   );
 }
 
-function useIsPrimeUser() {
-  const { user, membership } = useAuth();
-  const { data: status } = useQuery<{ is_prime: boolean }>({
-    queryKey: ["user-status"],
-    queryFn: () => apiFetch<{ is_prime: boolean }>("/api/user/status"),
-    enabled: !!user,
-    staleTime: 60_000,
-  });
-  const isActiveMember = membership?.status === "active";
-  return !!user && (!!status?.is_prime || isActiveMember);
-}
-
 export default function Documents() {
-  const isPrime = useIsPrimeUser();
+  const { isPrime } = usePrimeStatus();
 
   const stickyBarCls = isPrime
     ? "sticky top-0 z-20 bg-purple-950/95 backdrop-blur-md border-b border-amber-400/30 shadow-sm"
