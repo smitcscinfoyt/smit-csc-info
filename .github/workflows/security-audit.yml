@@ -1,0 +1,39 @@
+name: Security Audit & Dependency Check
+
+on:
+  push:
+    branches: [ main, upgrade/* ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run weekly on Monday at 05:00 UTC
+    - cron: '0 5 * * 1'
+
+jobs:
+  audit:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run Dependency Audit
+        run: |
+          echo "Running pnpm audit for high/critical vulnerabilities..."
+          pnpm audit --audit-level high || {
+            echo "::warning::High or critical security vulnerabilities detected. Review pnpm audit report."
+            exit 0
+          }
