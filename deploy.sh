@@ -82,6 +82,9 @@
   # =====================================
   # FETCH LATEST CODE
   # =====================================
+  sudo chown -R $(whoami):$(whoami) "$APP_DIR" 2>/dev/null || true
+  sudo chmod -R u+rwX "$APP_DIR" 2>/dev/null || true
+
   log "Fetching latest code..."
 
   git fetch origin

@@ -39,6 +39,8 @@ jobs:
             fi
 
             cd "$APP_DIR"
+            sudo chown -R $(whoami):$(whoami) "$APP_DIR" 2>/dev/null || true
+            sudo chmod -R u+rwX "$APP_DIR" 2>/dev/null || true
             git fetch origin
             git reset --hard origin/main
             git clean -fd --exclude=.env
