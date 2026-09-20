@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { Readable } from "stream";
+import { or, eq } from "drizzle-orm";
 import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
@@ -7,6 +8,7 @@ import {
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { requireAuth, type AuthRequest } from "../lib/auth";
 import { createRateLimiter, clientIp } from "../lib/rate-limit";
+import { db, kycRecordsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 const uploadRateLimiter = createRateLimiter({ windowMs: 60_000, max: 25 });
@@ -132,54 +134,82 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 });
 
 /**
- * GET /storage/objects/*
+ * GET /storage/objects/*path
  *
- * Serve object entities from PRIVATE_OBJECT_DIR.
- * These are served from a separate path from /public-objects and can optionally
- * be protected with authentication or ACL checks based on the use case.
+ * Serve private object entities from PRIVATE_OBJECT_DIR.
+ *
+ * Access rules:
+ *  - Must be authenticated (valid JWT).
+ *  - Admin / manager roles can access any object.
+ *  - Regular users can only access objects whose path appears in their own
+ *    KYC record (panImageUrl, aadhaarFrontUrl, aadhaarBackUrl, selfieUrl).
+ *
+ * OWNER NOTE: Before redeploying this change, ensure all KYC files previously
+ * served via the ./attached_assets Nginx static mount are copied to the GCS
+ * private bucket. See OWNER_ACTIONS.md § "KYC File Backup".
  */
-router.get("/storage/objects/*path", async (req: Request, res: Response) => {
-  try {
-    const raw = req.params.path;
-    const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
-    const objectPath = `/objects/${wildcardPath}`;
-    const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+router.get(
+  "/storage/objects/*path",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const raw = req.params.path;
+      const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
+      const objectPath = `/objects/${wildcardPath}`;
 
-    // --- Protected route example (uncomment when using replit-auth) ---
-    // if (!req.isAuthenticated()) {
-    //   res.status(401).json({ error: "Unauthorized" });
-    //   return;
-    // }
-    // const canAccess = await objectStorageService.canAccessObjectEntity({
-    //   userId: req.user.id,
-    //   objectFile,
-    //   requestedPermission: ObjectPermission.READ,
-    // });
-    // if (!canAccess) {
-    //   res.status(403).json({ error: "Forbidden" });
-    //   return;
-    // }
+      const requestingUserId = req.userId!;
+      const isPrivileged =
+        req.userRole === "admin" || req.userRole === "manager";
 
-    const response = await objectStorageService.downloadObject(objectFile);
+      if (!isPrivileged) {
+        // Ownership check: the requested path must appear in one of the four
+        // KYC document URL columns for the requesting user's KYC record.
+        const [record] = await db
+          .select({ userId: kycRecordsTable.userId })
+          .from(kycRecordsTable)
+          .where(
+            or(
+              eq(kycRecordsTable.panImageUrl, objectPath),
+              eq(kycRecordsTable.aadhaarFrontUrl, objectPath),
+              eq(kycRecordsTable.aadhaarBackUrl, objectPath),
+              eq(kycRecordsTable.selfieUrl, objectPath),
+            ),
+          )
+          .limit(1);
 
-    res.status(response.status);
-    response.headers.forEach((value, key) => res.setHeader(key, value));
+        if (!record) {
+          // Path not found in any KYC record — deny without revealing existence.
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
+        if (record.userId !== requestingUserId) {
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
+      }
 
-    if (response.body) {
-      const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
-      nodeStream.pipe(res);
-    } else {
-      res.end();
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+      const response = await objectStorageService.downloadObject(objectFile);
+
+      res.status(response.status);
+      response.headers.forEach((value, key) => res.setHeader(key, value));
+
+      if (response.body) {
+        const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
+        nodeStream.pipe(res);
+      } else {
+        res.end();
+      }
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        req.log.warn({ err: error }, "Object not found");
+        res.status(404).json({ error: "Object not found" });
+        return;
+      }
+      req.log.error({ err: error }, "Error serving object");
+      res.status(500).json({ error: "Failed to serve object" });
     }
-  } catch (error) {
-    if (error instanceof ObjectNotFoundError) {
-      req.log.warn({ err: error }, "Object not found");
-      res.status(404).json({ error: "Object not found" });
-      return;
-    }
-    req.log.error({ err: error }, "Error serving object");
-    res.status(500).json({ error: "Failed to serve object" });
-  }
-});
+  },
+);
 
 export default router;

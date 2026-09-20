@@ -72,7 +72,10 @@ services:
     ports:
       - "3000:80"
     volumes:
-      - ./attached_assets:/usr/share/nginx/html/attached_assets:ro
+      # NOTE: ./attached_assets is intentionally NOT mounted here.
+      # KYC documents (PAN, Aadhaar, selfies) must never be served as static
+      # files. They are served exclusively via the authenticated
+      # GET /api/storage/objects/* endpoint. See OWNER_ACTIONS.md § KYC Backup.
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api
