@@ -302,7 +302,7 @@ export async function reconcileVyaparRecharge(
   if (isSuccess) {
     // Server-side amount validation: ensure gateway reported amount matches expected shortfall
     const gatewayAmountPaise = orderData?.amount ? Math.round(Number(orderData.amount) * 100) : undefined;
-    const expectedPaise = Number(recharge.gatewayShortfallPaise ?? 0);
+    const expectedPaise = Number(recharge.upiPaidPaise ?? 0);
     if (typeof gatewayAmountPaise === "number" && !isNaN(gatewayAmountPaise) && gatewayAmountPaise > 0) {
       if (gatewayAmountPaise < expectedPaise) {
         console.error(`[reconcileVyaparRecharge] Amount mismatch: expected ${expectedPaise} paise, gateway reported ${gatewayAmountPaise} paise for txn: ${reqIdOrOrderId}`);
