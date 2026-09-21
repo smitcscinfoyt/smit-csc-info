@@ -179,6 +179,26 @@
   }
 }
 
+/* ─── Documents Phase 2: Theme Variables ───────────────────────────── */
+.docs-theme-prime {
+  --docs-bg-start: #1a0938;
+  --docs-bg-mid: #2d0a5b;
+  --docs-bg-end: #0f172a;
+  
+  --docs-border-color: rgba(218, 165, 32, 0.25);
+  --docs-border-hover: rgba(218, 165, 32, 0.5);
+  
+  --docs-accent-gold: #daa520;
+  --docs-accent-purple: #7e22ce;
+  
+  --docs-text-primary: #f8fafc;
+  --docs-text-muted: #cbd5e1;
+  
+  --docs-card-bg: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
+  --docs-card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --docs-card-border: 1px solid var(--docs-border-color);
+}
+
 /* ─── Prime Member Premium Utilities ───────────────────────────── */
 /* Glass-morphism cards with golden borders */
 .prime-card {

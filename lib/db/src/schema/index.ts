@@ -1,4 +1,5 @@
 export * from "./users";
+export * from "./documentAccessLog";
 export * from "./payments";
 export * from "./payment-reminders";
 export * from "./content";

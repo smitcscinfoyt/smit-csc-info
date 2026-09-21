@@ -164,9 +164,9 @@ queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
                   <Button className="w-full h-12 text-lg">{t.paymentSuccess.goDashboard}</Button>
                 </motion.div>
               </Link>
-              <Link href="/content" className="w-full">
+              <Link href="/documents" className="w-full">
                 <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Button variant="outline" className="w-full h-12 text-lg">{t.paymentSuccess.browseContent}</Button>
+                  <Button variant="outline" className="w-full h-12 text-lg">દસ્તાવેજો જુઓ (Return to Documents)</Button>
                 </motion.div>
               </Link>
             </motion.div>

@@ -89,3 +89,15 @@ export async function getPrimeStatus(userId: number): Promise<PrimeStatus> {
 export function hasPrimeAccess(s: PrimeStatus): boolean {
   return s.isActive || s.isInGracePeriod;
 }
+
+/** 
+ * Centralized Prime checking for documents. 
+ * Admins/Managers always get access. Otherwise checks active Prime status (including 3-day grace).
+ */
+export async function canAccessPrimeDocuments(userId: number, role?: string): Promise<boolean> {
+  if (role === "admin" || role === "manager") {
+    return true;
+  }
+  const status = await getPrimeStatus(userId);
+  return hasPrimeAccess(status);
+}
