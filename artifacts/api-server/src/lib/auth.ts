@@ -109,42 +109,6 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
   next();
 }
 
-/** 
- * Header-only auth wrapper for new documents endpoints. 
- * Explicitly rejects ?token= to prevent URL leaking.
- */
-export function headerOnlyAuth(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (req.query.token) {
-    res.status(401).json({ error: "Tokens in URL are strictly forbidden on this endpoint." });
-    return;
-  }
-  
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  
-  const token = header.slice(7);
-  const payload = verifyToken(token);
-  if (!payload) {
-    res.status(401).json({ error: "Invalid or expired token" });
-    return;
-  }
-  
-  isUserDeleted(payload.userId)
-    .then((deleted) => {
-      if (deleted) {
-        res.status(401).json({ error: "Account deactivated", code: "account_deleted" });
-        return;
-      }
-      req.userId = payload.userId;
-      req.userRole = payload.role;
-      next();
-    })
-    .catch(next);
-}
-
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   requireAuth(req, res, () => {
     if (req.userRole !== "admin") {

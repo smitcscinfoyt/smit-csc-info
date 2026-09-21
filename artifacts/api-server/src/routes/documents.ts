@@ -1,15 +1,11 @@
 import { Router } from "express";
-import { db, documentsTable, documentAccessLogTable } from "@workspace/db";
+import { db, documentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
-import rateLimit from "express-rate-limit";
-import { requireAdminOrManager, optionalAuth, headerOnlyAuth, type AuthRequest } from "../lib/auth";
+import { requireAdminOrManager, optionalAuth, type AuthRequest } from "../lib/auth";
 import { getActivePrime } from "./credits";
-import { canAccessPrimeDocuments } from "../lib/prime-status";
 import { addWatermarkToPdf } from "../lib/pdf-watermark";
-import { generatePdfPreview } from "../lib/pdf-preview";
 import {
   GetDocumentsResponse,
   GetDocumentsResponseItem,
@@ -18,10 +14,6 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
-
-const previewLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 30 });
-const downloadLimiter = rateLimit({ windowMs: 1 * 60 * 1000, max: 10 });
-const downloadTickets = new Map<string, { docId: number, format: 'pdf'|'word', userId: number, expires: number }>();
 
 function getAttachedAssetsDir(): string {
   const candidate1 = path.resolve(process.cwd(), "attached_assets");
@@ -73,33 +65,20 @@ router.get("/documents", optionalAuth, async (req: AuthRequest, res): Promise<vo
 
   const docs = await query.orderBy(documentsTable.createdAt);
 
-  const upgradeEnabled = process.env.DOCS_UPGRADE_ENABLED === "true";
-  let isPrimeAccess = false;
-
-  if (upgradeEnabled && req.userId) {
-    const { canAccessPrimeDocuments } = await import("../lib/prime-status");
-    isPrimeAccess = await canAccessPrimeDocuments(req.userId, req.userRole);
-  } else if (!upgradeEnabled && req.userId) {
-    const { getActivePrime } = await import("./credits");
-    isPrimeAccess = !!(await getActivePrime(req.userId));
-  }
-  
-  const canSeeUrls = !upgradeEnabled || isPrimeAccess;
-
   res.json(
     GetDocumentsResponse.parse(
       docs.map((d) => ({
         id: d.id,
         title: d.title,
         description: d.description,
-        fileUrl: canSeeUrls ? d.fileUrl : "",
+        fileUrl: d.fileUrl,
         fileName: d.fileName,
         fileType: d.fileType,
         category: d.category,
         isPrime: d.isPrime,
         accessLevel: d.accessLevel ?? (d.isPrime ? "prime_only" : "public"),
         groupId: d.groupId ?? null,
-        wordUrl: canSeeUrls ? (d.wordUrl ?? null) : null,
+        wordUrl: d.wordUrl ?? null,
         wordFileName: d.wordFileName ?? null,
         createdAt: d.createdAt.toISOString(),
       }))
@@ -126,16 +105,9 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
     return;
   }
 
-  const requesterIsPrime = await canAccessPrimeDocuments(req.userId, req.userRole);
+  const requesterIsPrime = !!(await getActivePrime(req.userId));
 
   try {
-    if (process.env.DOCS_UPGRADE_ENABLED === "true") {
-      if (!requesterIsPrime) {
-        res.status(403).json({ error: "Upgrade required", message: "Legacy preview is disabled for Free users. Upgrade or use the new UI." });
-        return;
-      }
-    }
-
     const pdfBuffer = await getDocumentBuffer(doc.fileUrl);
 
     const encoded = encodeURIComponent(doc.fileName);
@@ -144,8 +116,10 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
     res.setHeader("Content-Disposition", `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`);
 
     if (requesterIsPrime) {
+      // Prime user: serve clean PDF without watermark
       res.send(pdfBuffer);
     } else {
+      // Free user: dynamically stamp diagonal "Smit CSC Info" watermark
       const watermarked = await addWatermarkToPdf(pdfBuffer, "Smit CSC Info");
       res.send(watermarked);
     }
@@ -154,132 +128,6 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
     res.status(500).json({ error: "Failed to generate preview" });
   }
 });
-
-// ---------------------------------------------------------
-// NEW PIPELINE ENDPOINTS (v2)
-// ---------------------------------------------------------
-
-router.get("/documents/:id/preview-v2", previewLimiter, headerOnlyAuth, async (req: AuthRequest, res): Promise<void> => {
-  const docId = Number(req.params.id);
-  if (Number.isNaN(docId)) {
-    res.status(400).json({ error: "Invalid document ID" }); return;
-  }
-  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, docId)).limit(1);
-  if (!doc) {
-    res.status(404).json({ error: "Document not found" }); return;
-  }
-
-  try {
-    const isPrime = await canAccessPrimeDocuments(req.userId!, req.userRole);
-    const cacheDir = process.env.PREVIEW_CACHE_DIR || path.join(process.cwd(), ".cache", "previews");
-    const mode = isPrime ? "prime" : "free";
-    const cachePath = path.join(cacheDir, mode, `${doc.id}.webp`);
-    
-    if (fs.existsSync(cachePath)) {
-      res.setHeader("Content-Type", "image/webp");
-      res.setHeader("Cache-Control", "public, max-age=86400");
-      res.sendFile(cachePath);
-      
-      // Log access asynchronously
-      db.insert(documentAccessLogTable).values({
-        userId: req.userId!,
-        documentId: doc.id,
-        action: 'preview',
-        format: 'webp',
-        ipAddress: req.ip,
-        userAgent: req.headers["user-agent"]
-      }).catch(e => req.log.error("Failed to log preview access", e));
-      return;
-    }
-
-    const pdfBuffer = await getDocumentBuffer(doc.fileUrl);
-    
-    const options = isPrime ? {} : { watermarkText: "Smit CSC Info", watermarkOpacity: 0.15, cropToHalf: true };
-    await generatePdfPreview(pdfBuffer, cachePath, options);
-
-    res.setHeader("Content-Type", "image/webp");
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    res.sendFile(cachePath);
-
-    db.insert(documentAccessLogTable).values({
-      userId: req.userId!, documentId: doc.id, action: 'preview', format: 'webp',
-      ipAddress: req.ip, userAgent: req.headers["user-agent"]
-    }).catch(e => req.log.error("Failed to log preview access", e));
-    
-  } catch (err: any) {
-    req.log.error({ err, docId: doc.id }, "Preview V2 failed");
-    res.status(500).json({ error: "Failed to generate preview" });
-  }
-});
-
-router.post("/documents/:id/download-ticket", downloadLimiter, headerOnlyAuth, async (req: AuthRequest, res): Promise<void> => {
-  const docId = Number(req.params.id);
-  const format = req.body.format === "word" ? "word" : "pdf";
-
-  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, docId)).limit(1);
-  if (!doc) { res.status(404).json({ error: "Document not found" }); return; }
-
-  const isPrime = await canAccessPrimeDocuments(req.userId!, req.userRole);
-  const isPrimeGated = doc.isPrime || doc.accessLevel === "prime_only" || doc.accessLevel === "login_required" || ["Affidavits", "Forms"].includes(doc.category);
-  
-  if (isPrimeGated && !isPrime) {
-    res.status(403).json({ error: "prime_required", message: "Prime membership required to download." });
-    return;
-  }
-
-  // Generate short-lived ticket
-  const ticket = crypto.randomBytes(16).toString('hex');
-  downloadTickets.set(ticket, {
-    docId,
-    format,
-    userId: req.userId!,
-    expires: Date.now() + 60_000 // 1 minute
-  });
-
-  res.json({ ticket, downloadUrl: `/api/documents/download/${ticket}` });
-});
-
-router.get("/documents/download/:ticket", downloadLimiter, async (req, res): Promise<void> => {
-  const ticket = req.params.ticket;
-  const data = downloadTickets.get(ticket);
-  
-  if (!data || data.expires < Date.now()) {
-    res.status(403).json({ error: "Invalid or expired download ticket" });
-    return;
-  }
-  downloadTickets.delete(ticket);
-
-  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, data.docId)).limit(1);
-  if (!doc) { res.status(404).json({ error: "Document not found" }); return; }
-
-  const targetUrl = data.format === "word" ? (doc.wordUrl || doc.fileUrl) : doc.fileUrl;
-  const targetName = data.format === "word" ? (doc.wordFileName || doc.fileName.replace(/\.pdf$/i, ".docx")) : doc.fileName;
-
-  try {
-    const fileBuf = await getDocumentBuffer(targetUrl);
-    const contentType = data.format === "word"
-      ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      : "application/pdf";
-
-    res.setHeader("Content-Type", contentType);
-    const encoded = encodeURIComponent(targetName);
-    const asciiFallback = targetName.replace(/[^\x20-\x7E]/g, "_");
-    res.setHeader("Content-Disposition", `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`);
-    res.send(fileBuf);
-
-    // Log access
-    db.insert(documentAccessLogTable).values({
-      userId: data.userId, documentId: doc.id, action: 'download', format: data.format,
-      ipAddress: req.ip, userAgent: req.headers["user-agent"]
-    }).catch(e => req.log.error("Failed to log download access", e));
-
-  } catch (err: any) {
-    req.log.error({ err, docId: doc.id }, "Failed to download document via ticket");
-    res.status(500).json({ error: "Failed to download document" });
-  }
-});
-
-// ---------------------------------------------------------
 
 router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const docId = Number(req.params.id);
@@ -300,7 +148,7 @@ router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res
     return;
   }
 
-  const requesterIsPrime = await canAccessPrimeDocuments(req.userId, req.userRole);
+  const requesterIsPrime = !!(await getActivePrime(req.userId));
 
   // Check if document requires Prime to download
   const isPrimeGated =
