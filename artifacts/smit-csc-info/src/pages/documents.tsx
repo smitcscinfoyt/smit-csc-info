@@ -31,6 +31,11 @@ import {
   ChevronDown,
   Eye,
   LogIn,
+  Maximize2,
+  ZoomIn,
+  ZoomOut,
+  FileCheck2,
+  LayoutGrid,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FadeInUp } from "@/components/motion";
@@ -197,6 +202,7 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
   const [previewDoc, setPreviewDoc] = useState<GroupedDoc | null>(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [primeModalOpen, setPrimeModalOpen] = useState(false);
+  const isAffidavitSection = selectedCategory === "Affidavits";
 
   // Section 1: Debounce search input by ~200ms
   useEffect(() => {
@@ -369,7 +375,10 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
           )}
 
           <AnimatePresence>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={isAffidavitSection
+              ? "grid grid-cols-1 md:grid-cols-2 gap-6"
+              : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            }>
               {filtered.map((doc, i) => {
                 const info = fileInfo(doc.fileType);
                 return (
@@ -381,11 +390,20 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                     whileHover={{ y: -4, boxShadow: "0 12px 32px rgba(0,0,0,0.08)" }}
                   >
                     <Card
-                      className="h-full border-border/60 overflow-hidden cursor-pointer flex flex-col justify-between"
+                      className={[
+                        "h-full overflow-hidden cursor-pointer flex flex-col justify-between transition-all",
+                        isAffidavitSection
+                          ? "rounded-2xl border-indigo-200/80 bg-white shadow-sm hover:border-indigo-400 hover:shadow-xl"
+                          : "border-border/60",
+                      ].join(" ")}
                       onClick={() => handleDocClick(doc)}
                       data-testid={`document-card-${doc.id}`}
                     >
-                      <CardContent className="p-4 flex items-start gap-4 flex-1">
+                      {isAffidavitSection && <DocumentPreviewTile doc={doc} prime={false} />}
+                      <CardContent className={isAffidavitSection
+                        ? "p-5 flex items-start gap-4 flex-1"
+                        : "p-4 flex items-start gap-4 flex-1"
+                      }>
                         <div className={`${info.bg} rounded-xl p-3 shrink-0`}>
                           <span className="text-2xl">{info.icon}</span>
                         </div>
@@ -411,7 +429,10 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-[11px] text-primary gap-1"
+                                className={isAffidavitSection
+                                  ? "h-9 px-3 text-xs text-primary gap-1.5 rounded-lg"
+                                  : "h-7 px-2 text-[11px] text-primary gap-1"
+                                }
                                 onClick={() => handleDocClick(doc)}
                               >
                                 <Eye className="h-3 w-3" /> {t.documents.view}
@@ -422,7 +443,10 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="h-7 px-2 text-[11px] gap-1 font-medium bg-amber-50/60 border-amber-200 text-amber-800 hover:bg-amber-100"
+                                    className={isAffidavitSection
+                                      ? "h-9 px-3 text-xs gap-1.5 font-semibold rounded-lg bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100"
+                                      : "h-7 px-2 text-[11px] gap-1 font-medium bg-amber-50/60 border-amber-200 text-amber-800 hover:bg-amber-100"
+                                    }
                                   >
                                     <Download className="h-3 w-3" />
                                     <span>{t.documents.download}</span>
@@ -591,7 +615,10 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
 
         {/* Document List */}
         <AnimatePresence>
-          <div className="space-y-3" data-testid="prime-doc-list">
+          <div className={isAffidavitSection
+            ? "grid grid-cols-1 md:grid-cols-2 gap-6"
+            : "space-y-3"
+          } data-testid="prime-doc-list">
             {filtered.map((doc, i) => {
               const info = fileInfo(doc.fileType);
               return (
@@ -601,7 +628,10 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min(i * 0.04, 0.3), duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                   whileHover={{ y: -2 }}
-                  className="rounded-2xl p-4 sm:p-5 backdrop-blur-xl transition-all duration-200 group hover:border-amber-300/55 cursor-pointer"
+                  className={[
+                    "backdrop-blur-xl transition-all duration-200 group hover:border-amber-300/55 cursor-pointer",
+                    isAffidavitSection ? "rounded-3xl p-4 sm:p-5" : "rounded-2xl p-4 sm:p-5",
+                  ].join(" ")}
                   onClick={() => handleDocClick(doc)}
                   style={{
                     background: "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
@@ -609,6 +639,11 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                     boxShadow: "0 6px 20px rgba(76,29,149,0.18)",
                   }}
                 >
+                  {isAffidavitSection && <DocumentPreviewTile doc={doc} prime />}
+                  <div className={isAffidavitSection
+                    ? "flex flex-col gap-4"
+                    : "flex items-start sm:items-center gap-4"
+                  }>
                   <div className="flex items-start sm:items-center gap-4">
                     <div className={`${info.bg} rounded-xl p-3 shrink-0 ring-1 ring-amber-300/30 shadow`}>
                       <span className="text-2xl">{info.icon}</span>
@@ -674,6 +709,7 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                       </DropdownMenu>
                     </div>
                   </div>
+                  </div>
                 </motion.div>
               );
             })}
@@ -715,6 +751,50 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
   );
 }
 
+function DocumentPreviewTile({ doc, prime }: { doc: GroupedDoc; prime: boolean }) {
+  return (
+    <div
+      className={[
+        "relative overflow-hidden rounded-2xl border min-h-[190px] flex flex-col justify-between p-4",
+        prime
+          ? "border-amber-300/30 bg-gradient-to-br from-white/[0.12] via-purple-950/30 to-purple-950/80"
+          : "border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-violet-50",
+      ].join(" ")}
+      data-testid={`document-preview-tile-${doc.id}`}
+    >
+      <div className="absolute -right-8 -top-10 h-32 w-32 rounded-full bg-indigo-400/15 blur-2xl pointer-events-none" />
+      {prime && <div className="absolute -left-10 -bottom-12 h-32 w-32 rounded-full bg-amber-400/15 blur-2xl pointer-events-none" />}
+      <div className="relative flex items-center justify-between gap-3">
+        <span className={[
+          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]",
+          prime ? "bg-amber-400/15 text-amber-200 border border-amber-300/25" : "bg-indigo-600/10 text-indigo-700 border border-indigo-200",
+        ].join(" ")}>
+          <FileCheck2 className="h-3 w-3" /> {doc.fileType || "PDF"}
+        </span>
+        <LayoutGrid className={prime ? "h-4 w-4 text-amber-200/60" : "h-4 w-4 text-indigo-400/70"} />
+      </div>
+      <div className="relative flex flex-1 items-center justify-center py-4">
+        <div className={[
+          "w-20 h-24 rounded-lg shadow-lg border flex flex-col items-center justify-center gap-2 rotate-[-3deg]",
+          prime ? "bg-white/90 border-amber-200/50 text-purple-900" : "bg-white border-indigo-100 text-indigo-700",
+        ].join(" ")}>
+          <FileText className="h-8 w-8" />
+          <span className="text-[9px] font-black tracking-[0.18em]">DOCUMENT</span>
+          <span className="h-1 w-10 rounded-full bg-current opacity-20" />
+          <span className="h-1 w-7 rounded-full bg-current opacity-20" />
+        </div>
+      </div>
+      <div className={[
+        "relative flex items-center gap-1.5 text-xs font-semibold",
+        prime ? "text-amber-100/80" : "text-indigo-700/80",
+      ].join(" ")}>
+        <Eye className="h-3.5 w-3.5" />
+        Click to open a readable preview
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal 1: In-Browser PDF Viewer with 3-Tier Download Options ─────────────
 function PdfPreviewDialog({
   doc,
@@ -737,8 +817,8 @@ function PdfPreviewDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border bg-background shadow-2xl">
-        <DialogHeader className="px-5 py-3 border-b bg-muted/40 flex flex-row items-center justify-between space-y-0 shrink-0">
+      <DialogContent className="max-w-6xl w-[98vw] h-[92vh] md:h-[94vh] max-h-[96vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border bg-background shadow-2xl">
+        <DialogHeader className="px-4 sm:px-6 py-4 border-b bg-muted/40 flex flex-row items-center justify-between space-y-0 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 pr-4">
             <span className="text-2xl">📄</span>
             <div className="min-w-0">
@@ -751,7 +831,7 @@ function PdfPreviewDialog({
                 </Badge>
                 {!isPrime ? (
                   <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                    ⚠️ Preview with Watermark · Download requires Prime
+                    Watermarked preview · Download requires Prime
                   </span>
                 ) : (
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
@@ -803,13 +883,24 @@ function PdfPreviewDialog({
         </DialogHeader>
 
         {/* PDF viewer embed */}
-        <div className="flex-1 min-h-[65vh] max-h-[76vh] bg-slate-100 dark:bg-slate-950 p-2 relative flex items-center justify-center">
+        <div className="flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-950 p-2 sm:p-4 relative flex items-center justify-center">
           <iframe
             key={`${doc.id}_${token ? "auth" : "anon"}`}
             src={previewUrl}
-            className="w-full h-full rounded-lg border bg-white shadow-sm"
+            className="w-full h-full min-h-0 rounded-xl border bg-white shadow-md"
             title={doc.title}
           />
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t bg-background px-4 py-3 text-xs text-muted-foreground">
+          <span className="hidden sm:inline-flex items-center gap-1.5">
+            <Maximize2 className="h-3.5 w-3.5" />
+            Use the browser PDF controls to zoom and fit the document width.
+          </span>
+          <span className="sm:hidden">Pinch or use PDF controls to zoom.</span>
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <ZoomOut className="h-3.5 w-3.5" />
+            <ZoomIn className="h-3.5 w-3.5" />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
