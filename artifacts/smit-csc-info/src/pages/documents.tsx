@@ -299,8 +299,10 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
   };
 
   function triggerDownload(docId: number, format: "pdf" | "word") {
+    const token = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
     const link = document.createElement("a");
-    link.href = `/api/documents/${docId}/download?format=${format}`;
+    link.href = `/api/documents/${docId}/download?format=${format}${tokenParam}`;
     link.download = "";
     document.body.appendChild(link);
     link.click();
@@ -730,6 +732,9 @@ function PdfPreviewDialog({
   const { t } = useLanguage();
   if (!doc) return null;
 
+  const token = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+  const previewUrl = `/api/documents/${doc.id}/preview${token ? `?token=${encodeURIComponent(token)}` : ""}#toolbar=1`;
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border bg-background shadow-2xl">
@@ -800,7 +805,8 @@ function PdfPreviewDialog({
         {/* PDF viewer embed */}
         <div className="flex-1 min-h-[65vh] max-h-[76vh] bg-slate-100 dark:bg-slate-950 p-2 relative flex items-center justify-center">
           <iframe
-            src={`/api/documents/${doc.id}/preview#toolbar=1`}
+            key={`${doc.id}_${token ? "auth" : "anon"}`}
+            src={previewUrl}
             className="w-full h-full rounded-lg border bg-white shadow-sm"
             title={doc.title}
           />

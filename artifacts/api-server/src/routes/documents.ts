@@ -110,8 +110,10 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
   try {
     const pdfBuffer = await getDocumentBuffer(doc.fileUrl);
 
+    const encoded = encodeURIComponent(doc.fileName);
+    const asciiFallback = doc.fileName.replace(/[^\x20-\x7E]/g, "_");
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(doc.fileName)}"`);
+    res.setHeader("Content-Disposition", `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`);
 
     if (requesterIsPrime) {
       // Prime user: serve clean PDF without watermark
@@ -174,8 +176,10 @@ router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res
         ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         : "application/pdf";
 
+    const encoded = encodeURIComponent(targetName);
+    const asciiFallback = targetName.replace(/[^\x20-\x7E]/g, "_");
     res.setHeader("Content-Type", contentType);
-    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(targetName)}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`);
     res.send(fileBuf);
   } catch (err: any) {
     req.log.error({ err, docId: doc.id }, "Failed to download document");
