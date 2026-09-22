@@ -810,17 +810,27 @@ function PdfPreviewDialog({
   onDownload: (doc: GroupedDoc, format: "pdf" | "word") => void;
 }) {
   const { t } = useLanguage();
+  const [previewData, setPreviewData] = useState<any>(null);
+  const token = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+  
+  useEffect(() => {
+    if (!isOpen || !doc) return;
+    const currentToken = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+    fetch("/api/documents/" + doc.id + "/preview-v2", {
+      headers: currentToken ? { Authorization: "Bearer " + currentToken } : undefined
+    }).then(r => r.ok ? r.json() : null).then(setPreviewData).catch(console.error);
+  }, [doc, isOpen]);
+
   if (!doc) return null;
 
-  const token = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
-  const previewUrl = `/api/documents/${doc.id}/preview${token ? `?token=${encodeURIComponent(token)}` : ""}#toolbar=1`;
+  const previewUrl = "/api/documents/" + doc.id + "/preview" + (token ? "?token=" + encodeURIComponent(token) : "") + "#toolbar=1";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-6xl w-[98vw] h-[92vh] md:h-[94vh] max-h-[96vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl border bg-background shadow-2xl">
         <DialogHeader className="px-4 sm:px-6 py-4 border-b bg-muted/40 flex flex-row items-center justify-between space-y-0 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0 pr-4">
-            <span className="text-2xl">📄</span>
+            <span className="text-2xl">??</span>
             <div className="min-w-0">
               <DialogTitle className="font-bold text-sm sm:text-base leading-tight truncate">
                 {doc.title}
@@ -831,7 +841,7 @@ function PdfPreviewDialog({
                 </Badge>
                 {!isPrime ? (
                   <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                    Watermarked preview · Download requires Prime
+                    Watermarked preview � Download requires Prime
                   </span>
                 ) : (
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
@@ -859,7 +869,7 @@ function PdfPreviewDialog({
                   className="cursor-pointer py-2"
                   onClick={() => onDownload(doc, "pdf")}
                 >
-                  <span className="text-red-500 mr-2 text-base">🔴</span>
+                  <span className="text-red-500 mr-2 text-base">??</span>
                   <div className="flex-1">
                     <p className="font-medium text-xs">{t.documents.downloadPdf}</p>
                     <p className="text-[10px] text-muted-foreground">{doc.fileName}</p>
@@ -870,7 +880,7 @@ function PdfPreviewDialog({
                   className="cursor-pointer py-2"
                   onClick={() => onDownload(doc, "word")}
                 >
-                  <span className="text-blue-500 mr-2 text-base">🔵</span>
+                  <span className="text-blue-500 mr-2 text-base">??</span>
                   <div className="flex-1">
                     <p className="font-medium text-xs">{t.documents.downloadWord}</p>
                     <p className="text-[10px] text-muted-foreground">Editable Template (.docx)</p>
@@ -882,14 +892,25 @@ function PdfPreviewDialog({
           </div>
         </DialogHeader>
 
-        {/* PDF viewer embed */}
         <div className="flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-950 p-2 sm:p-4 relative flex items-center justify-center">
-          <iframe
-            key={`${doc.id}_${token ? "auth" : "anon"}`}
-            src={previewUrl}
-            className="w-full h-full min-h-0 rounded-xl border bg-white shadow-md"
-            title={doc.title}
-          />
+          {previewData?.mode === "free" ? (
+            <div className="w-full h-full overflow-y-auto flex flex-col items-center gap-4 py-4">
+              {previewData.images.map((img, i) => (
+                <img key={i} src={img} className="max-w-full shadow-lg border bg-white" alt={"Page " + (i+1)} />
+              ))}
+              <div className="p-4 mt-4 bg-amber-50 border border-amber-200 rounded-lg max-w-2xl text-center">
+                <p className="font-bold text-amber-800">Preview limited to {previewData.previewPercent}% of the document.</p>
+                <p className="text-amber-700 text-sm mt-1">Upgrade to Prime to view the full document and remove watermarks.</p>
+              </div>
+            </div>
+          ) : (
+            <iframe
+              key={doc.id + "_" + (token ? "auth" : "anon")}
+              src={previewUrl}
+              className="w-full h-full min-h-0 rounded-xl border bg-white shadow-md"
+              title={doc.title}
+            />
+          )}
         </div>
         <div className="flex items-center justify-between gap-3 border-t bg-background px-4 py-3 text-xs text-muted-foreground">
           <span className="hidden sm:inline-flex items-center gap-1.5">
@@ -907,7 +928,7 @@ function PdfPreviewDialog({
   );
 }
 
-// ─── Modal 2: Login Prompt for Logged-Out Users (Section 4 & 5) ──────────────
+// ??????? Modal 2: Login Prompt for Logged-Out Users (Section 4 & 5) ????????????????????????????????????????
 function LoginPromptModal({
   isOpen,
   onClose,

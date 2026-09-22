@@ -12,6 +12,8 @@ import {
   AdminCreateDocumentBody,
   AdminDeleteDocumentParams,
 } from "@workspace/api-zod";
+import { PDFDocument } from "pdf-lib";
+import { renderDocumentPreview } from "../lib/pdf-renderer";
 
 const router = Router();
 
@@ -86,6 +88,54 @@ router.get("/documents", optionalAuth, async (req: AuthRequest, res): Promise<vo
   );
 });
 
+router.get("/documents/:id/preview-v2", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
+  const docId = Number(req.params.id);
+  if (Number.isNaN(docId)) {
+    res.status(400).json({ error: "Invalid document ID" });
+    return;
+  }
+
+  if (req.query.token) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  if (!req.userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, docId)).limit(1);
+  if (!doc) {
+    res.status(404).json({ error: "Document not found" });
+    return;
+  }
+
+  try {
+    const pdfBuffer = await getDocumentBuffer(doc.fileUrl);
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = pdfDoc.getPageCount();
+
+    const requesterIsPrime = !!(await getActivePrime(req.userId));
+
+    if (requesterIsPrime || req.userRole === "admin") {
+      res.json({ mode: "full", totalPages });
+      return;
+    }
+
+    const result = await renderDocumentPreview(doc.id.toString(), pdfBuffer);
+    res.json({
+      mode: "free",
+      images: result.images,
+      totalPages: result.totalPages,
+      previewPercent: result.previewPercent,
+    });
+  } catch (err: any) {
+    req.log.error({ err, docId }, "Failed to process preview-v2");
+    res.status(500).json({ error: "Failed to generate preview" });
+  }
+});
+
 router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const docId = Number(req.params.id);
   if (Number.isNaN(docId)) {
@@ -106,6 +156,12 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
   }
 
   const requesterIsPrime = !!(await getActivePrime(req.userId));
+  const upgradeEnabled = process.env.DOCS_UPGRADE_ENABLED === 'true';
+
+  if (upgradeEnabled && !requesterIsPrime && req.userRole !== "admin") {
+    res.status(403).json({ error: "upgrade_required", message: "Raw PDF access requires Prime" });
+    return;
+  }
 
   try {
     const pdfBuffer = await getDocumentBuffer(doc.fileUrl);
@@ -115,8 +171,8 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`);
 
-    if (requesterIsPrime) {
-      // Prime user: serve clean PDF without watermark
+    if (requesterIsPrime || req.userRole === "admin") {
+      // Prime user or admin: serve clean PDF without watermark
       res.send(pdfBuffer);
     } else {
       // Free user: dynamically stamp diagonal "Smit CSC Info" watermark
@@ -149,6 +205,12 @@ router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res
   }
 
   const requesterIsPrime = !!(await getActivePrime(req.userId));
+  const upgradeEnabled = process.env.DOCS_UPGRADE_ENABLED === 'true';
+
+  if (upgradeEnabled && !requesterIsPrime && req.userRole !== "admin") {
+    res.status(403).json({ error: "upgrade_required", message: "Raw PDF access requires Prime" });
+    return;
+  }
 
   // Check if document requires Prime to download
   const isPrimeGated =
@@ -157,7 +219,7 @@ router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res
     doc.accessLevel === "login_required" ||
     ["Affidavits", "Forms"].includes(doc.category);
 
-  if (isPrimeGated && !requesterIsPrime) {
+  if (isPrimeGated && !requesterIsPrime && req.userRole !== "admin") {
     res.status(403).json({ error: "prime_required", message: "Prime membership required to download." });
     return;
   }
