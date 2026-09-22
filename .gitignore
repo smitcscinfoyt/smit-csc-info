@@ -56,3 +56,12 @@ Thumbs.db
 # User uploaded assets (KYC, payments, etc.)
 /attached_assets/*
 !/attached_assets/documents/
+
+# Local development only - never commit
+.local-db/
+test-db/
+artifacts/s0/
+artifacts/s1-prod/
+scripts/patch-win-lockfile.ps1
+scripts/src/take-prod-screenshots.ts
+scripts/src/take-prod-screenshots2.ts
