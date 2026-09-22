@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startPrimeReminderScheduler, stopPrimeReminderScheduler } from "./lib/prime-reminders";
 import { syncYoutubeChannel } from "./lib/youtube-sync";
+import { selfTestPdfRenderer } from "./lib/pdf-renderer";
 
 const KNOWN_BAD_SECRETS = new Set([
   "dev-secret-change-me",
@@ -37,6 +38,11 @@ function validateRequiredEnv(): void {
 if (process.env.NODE_ENV === "production") {
   validateRequiredEnv();
 }
+
+selfTestPdfRenderer().catch((err) => {
+  logger.error({ err }, "PDF Renderer self-test failed");
+  process.exit(1);
+});
 
 // PORT in .env is the Vite dev server; API_PORT is the Express listener.
 const rawPort = process.env["API_PORT"] ?? process.env["PORT"];
