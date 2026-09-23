@@ -64,69 +64,54 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const totalPages = pdf.numPages;
 
-    let totalHeight = 0;
-    const pageViewports = [];
-    for (let i = 1; i <= totalPages; i++) {
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 });
-      totalHeight += viewport.height;
-      pageViewports.push({ page, viewport });
-    }
-
-    const targetHeight = totalHeight * 0.5;
-    let accumulatedHeight = 0;
+    const firstPage = await pdf.getPage(1);
+    const viewport = firstPage.getViewport({ scale: 2.0 });
+    
+    // Always 50% of the FIRST page, regardless of total pages
+    const targetHeight = viewport.height * 0.5;
 
     const files = [];
     const base64Images = [];
 
-    for (let i = 0; i < pageViewports.length; i++) {
-      const { page, viewport } = pageViewports[i];
-      if (accumulatedHeight >= targetHeight) break;
+    const heightToRender = targetHeight;
+    const canvas = createCanvas(viewport.width, heightToRender);
+    const ctx = canvas.getContext('2d');
+    
+    const pageCanvas = createCanvas(viewport.width, viewport.height);
+    const pageCtx = pageCanvas.getContext('2d');
 
-      const remainingHeight = targetHeight - accumulatedHeight;
-      const heightToRender = Math.min(viewport.height, remainingHeight);
-      
-      const canvas = createCanvas(viewport.width, heightToRender);
-      const ctx = canvas.getContext('2d');
-      
-      const pageCanvas = createCanvas(viewport.width, viewport.height);
-      const pageCtx = pageCanvas.getContext('2d');
+    const renderContext = {
+      canvasContext: pageCtx as any,
+      viewport: viewport
+    };
 
-      const renderContext = {
-        canvasContext: pageCtx as any,
-        viewport: viewport
-      };
+    await firstPage.render(renderContext).promise;
 
-      await page.render(renderContext).promise;
+    // Draw cropped to main canvas
+    ctx.drawImage(pageCanvas, 0, 0, viewport.width, heightToRender, 0, 0, viewport.width, heightToRender);
 
-      // Draw cropped to main canvas
-      ctx.drawImage(pageCanvas, 0, 0, viewport.width, heightToRender, 0, 0, viewport.width, heightToRender);
-
-      // Add watermark
-      ctx.save();
-      ctx.translate(viewport.width / 2, heightToRender / 2);
-      ctx.rotate(-Math.PI / 4);
-      ctx.fillStyle = "rgba(150, 150, 150, 0.15)";
-      ctx.font = "bold 60px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      
-      for (let x = -viewport.width; x <= viewport.width; x += 400) {
-        for (let y = -viewport.height; y <= viewport.height; y += 400) {
-           ctx.fillText(watermarkText, x, y);
-        }
+    // Add watermark
+    ctx.save();
+    ctx.translate(viewport.width / 2, heightToRender / 2);
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillStyle = "rgba(150, 150, 150, 0.25)"; // made slightly darker/more visible
+    ctx.font = "bold 60px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    for (let x = -viewport.width; x <= viewport.width; x += 400) {
+      for (let y = -viewport.height; y <= viewport.height; y += 400) {
+         ctx.fillText(watermarkText, x, y);
       }
-      ctx.restore();
-
-      const webpBuffer = canvas.toBuffer('image/webp');
-      const filename = `page-${i + 1}.webp`;
-      const filePath = path.join(cacheDir, filename);
-      await fs.writeFile(filePath, webpBuffer);
-      files.push(filename);
-      base64Images.push(`data:image/webp;base64,${webpBuffer.toString('base64')}`);
-
-      accumulatedHeight += viewport.height;
     }
+    ctx.restore();
+
+    const webpBuffer = canvas.toBuffer('image/webp');
+    const filename = `page-1.webp`;
+    const filePath = path.join(cacheDir, filename);
+    await fs.writeFile(filePath, webpBuffer);
+    files.push(filename);
+    base64Images.push(`data:image/webp;base64,${webpBuffer.toString('base64')}`);
 
     const result = {
       images: base64Images,
