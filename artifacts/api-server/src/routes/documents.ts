@@ -13,7 +13,6 @@ import {
   AdminDeleteDocumentParams,
 } from "@workspace/api-zod";
 import { PDFDocument } from "pdf-lib";
-import { renderDocumentPreview } from "../lib/pdf-renderer";
 
 const router = Router();
 
@@ -123,6 +122,7 @@ router.get("/documents/:id/preview-v2", optionalAuth, async (req: AuthRequest, r
       return;
     }
 
+    const { renderDocumentPreview } = await import("../lib/pdf-renderer");
     const result = await renderDocumentPreview(doc.id.toString(), pdfBuffer);
     res.json({
       mode: "free",
@@ -132,7 +132,7 @@ router.get("/documents/:id/preview-v2", optionalAuth, async (req: AuthRequest, r
     });
   } catch (err: any) {
     req.log.error({ err, docId }, "Failed to process preview-v2");
-    res.status(500).json({ error: "Failed to generate preview" });
+    res.status(503).json({ error: "preview_unavailable", message: "Preview generation is temporarily unavailable" });
   }
 });
 

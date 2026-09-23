@@ -1,11 +1,6 @@
-// @ts-ignore
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { createCanvas, Path2D } from '@napi-rs/canvas';
-import { PDFDocument } from 'pdf-lib';
 import { promises as fs } from 'fs';
 import path from 'path';
-
-(global as any).Path2D = Path2D;
+import { PDFDocument } from 'pdf-lib';
 
 // Local semaphore to prevent concurrent renders
 class Semaphore {
@@ -13,6 +8,7 @@ class Semaphore {
   private locked = false;
 
   async acquire() {
+
     if (this.locked) {
       await new Promise<void>(resolve => this.queue.push(resolve));
     }
@@ -58,6 +54,13 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
     }
 
     const data = new Uint8Array(pdfBuffer);
+    
+    // Dynamic imports for blast-radius isolation
+    // @ts-ignore
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const { createCanvas, Path2D } = await import('@napi-rs/canvas');
+    (global as any).Path2D = Path2D; // pdfjs might need this globally
+
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const totalPages = pdf.numPages;
 
