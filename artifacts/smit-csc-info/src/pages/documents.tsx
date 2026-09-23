@@ -291,13 +291,18 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
     setPreviewDoc(doc);
   };
 
+  // Add a state to force paywall on open
+  const [forcePaywall, setForcePaywall] = useState(false);
+
   const handleDownloadClick = (doc: GroupedDoc, format: "pdf" | "word") => {
     if (!user) {
       setLoginModalOpen(true);
       return;
     }
     if (!isPrime) {
-      setPrimeModalOpen(true);
+      // Open the document in preview mode, but force the paywall immediately
+      setForcePaywall(true);
+      setPreviewDoc(doc);
       return;
     }
     // Prime direct download
@@ -437,6 +442,35 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                               >
                                 <Eye className="h-3.5 w-3.5" /> {t.documents.view}
                               </Button>
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={isAffidavitSection
+                                      ? "h-9 px-3 text-xs gap-1.5 font-semibold rounded-lg bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100"
+                                      : "h-7 px-2 text-[11px] gap-1 font-medium bg-amber-50/60 border-amber-200 text-amber-800 hover:bg-amber-100"
+                                    }
+                                  >
+                                    <Download className="h-3 w-3" />
+                                    <span>{t.documents.download}</span>
+                                    <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  <DropdownMenuItem onClick={() => handleDownloadClick(doc, "pdf")}>
+                                    <span className="text-red-500 mr-2">🔴</span>
+                                    <span>{t.documents.downloadPdf}</span>
+                                    <Lock className="h-3 w-3 ml-auto text-amber-500" />
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleDownloadClick(doc, "word")}>
+                                    <span className="text-blue-500 mr-2">🔵</span>
+                                    <span>{t.documents.downloadWord}</span>
+                                    <Lock className="h-3 w-3 ml-auto text-amber-500" />
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
                         </div>
@@ -464,10 +498,11 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
         <PdfPreviewDialog
           doc={previewDoc}
           isOpen={!!previewDoc}
-          onClose={() => setPreviewDoc(null)}
+          onClose={() => { setPreviewDoc(null); setForcePaywall(false); }}
           isPrime={isPrime}
           onDownload={handleDownloadClick}
           onOpenPrimeModal={() => setPrimeModalOpen(true)}
+          forcePaywall={forcePaywall}
         />
 
         {/* Login Prompt Modal for Logged-Out users */}
@@ -703,10 +738,11 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
       <PdfPreviewDialog
         doc={previewDoc}
         isOpen={!!previewDoc}
-        onClose={() => setPreviewDoc(null)}
+        onClose={() => { setPreviewDoc(null); setForcePaywall(false); }}
         isPrime={isPrime}
         onDownload={handleDownloadClick}
         onOpenPrimeModal={() => setPrimeModalOpen(true)}
+        forcePaywall={forcePaywall}
       />
 
       {/* Login Prompt Modal for Logged-Out users */}
@@ -776,6 +812,7 @@ function PdfPreviewDialog({
   isPrime,
   onDownload,
   onOpenPrimeModal,
+  forcePaywall = false,
 }: {
   doc: GroupedDoc | null;
   isOpen: boolean;
@@ -783,6 +820,7 @@ function PdfPreviewDialog({
   isPrime: boolean;
   onDownload: (doc: GroupedDoc, format: "pdf" | "word") => void;
   onOpenPrimeModal: () => void;
+  forcePaywall?: boolean;
 }) {
   const { t } = useLanguage();
   const [previewData, setPreviewData] = useState<any>(null);
@@ -791,7 +829,7 @@ function PdfPreviewDialog({
   
   useEffect(() => {
     if (!isOpen || !doc) return;
-    setShowPaywall(false); // Reset paywall on new doc
+    setShowPaywall(forcePaywall); // Reset paywall or force it based on prop
     const currentToken = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
     fetch("/api/documents/" + doc.id + "/preview-v2", {
       headers: currentToken ? { Authorization: "Bearer " + currentToken } : undefined
@@ -862,86 +900,121 @@ function PdfPreviewDialog({
             </div>
           </div>
 
-          {isPrime && (
-            <div className="flex items-center gap-2 mr-6">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm font-semibold h-8 text-xs"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span>{t.documents.download}</span>
-                    <ChevronDown className="h-3 w-3 opacity-75" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuItem
-                    className="cursor-pointer py-2"
-                    onClick={() => onDownload(doc, "pdf")}
-                  >
-                    <span className="text-red-500 mr-2 text-base">🔴</span>
-                    <div className="flex-1">
-                      <p className="font-medium text-xs">{t.documents.downloadPdf}</p>
-                      <p className="text-[10px] text-muted-foreground">{doc.fileName}</p>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    className="cursor-pointer py-2"
-                    onClick={() => onDownload(doc, "word")}
-                  >
-                    <span className="text-blue-500 mr-2 text-base">🔵</span>
-                    <div className="flex-1">
-                      <p className="font-medium text-xs">{t.documents.downloadWord}</p>
-                      <p className="text-[10px] text-muted-foreground">Editable Template (.docx)</p>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
+          <div className="flex items-center gap-2 mr-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  className="gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm font-semibold h-8 text-xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>{t.documents.download}</span>
+                  <ChevronDown className="h-3 w-3 opacity-75" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem
+                  className="cursor-pointer py-2"
+                  onClick={(e) => {
+                    if (!isPrime) {
+                      e.preventDefault();
+                      setShowPaywall(true);
+                    } else {
+                      onDownload(doc, "pdf");
+                    }
+                  }}
+                >
+                  <span className="text-red-500 mr-2 text-base">🔴</span>
+                  <div className="flex-1">
+                    <p className="font-medium text-xs">{t.documents.downloadPdf}</p>
+                    <p className="text-[10px] text-muted-foreground">{doc.fileName}</p>
+                  </div>
+                  {!isPrime && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer py-2"
+                  onClick={(e) => {
+                    if (!isPrime) {
+                      e.preventDefault();
+                      setShowPaywall(true);
+                    } else {
+                      onDownload(doc, "word");
+                    }
+                  }}
+                >
+                  <span className="text-blue-500 mr-2 text-base">🔵</span>
+                  <div className="flex-1">
+                    <p className="font-medium text-xs">{t.documents.downloadWord}</p>
+                    <p className="text-[10px] text-muted-foreground">Editable Template (.docx)</p>
+                  </div>
+                  {!isPrime && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-950 p-2 sm:p-4 relative flex items-center justify-center">
-          {!isPrime && previewData?.mode === "free" ? (
-            <div className="w-full h-full relative rounded-xl overflow-hidden border bg-white shadow-md">
-              <div 
-                className={`w-full h-full overflow-y-auto flex flex-col items-center py-4 ${showPaywall ? '!overflow-hidden' : ''}`}
-                onScroll={handleScroll}
-              >
-                <div className={`w-full flex flex-col items-center gap-4 transition-all duration-300 ${showPaywall ? 'blur-md select-none pointer-events-none' : ''}`}>
-                  {previewData.images.map((img: string, i: number) => (
-                    <img key={i} src={img} className="max-w-full shadow-lg border bg-white pointer-events-none select-none" alt={"Page " + (i+1)} />
-                  ))}
-                  <div className="p-4 mt-4 bg-amber-50 border border-amber-200 rounded-lg max-w-2xl text-center">
-                    <p className="font-bold text-amber-800">Preview limited to {previewData.previewPercent}% of the document.</p>
-                    <p className="text-amber-700 text-sm mt-1">Upgrade to Prime to view the full document and remove watermarks.</p>
-                  </div>
-                </div>
+          {!isPrime ? (
+            !previewData ? (
+              <div className="flex flex-col items-center justify-center text-muted-foreground gap-3">
+                <div className="w-8 h-8 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
+                <p className="text-sm font-semibold">Generating secure preview...</p>
               </div>
-
-              {showPaywall && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                  <div className="bg-white p-8 rounded-2xl text-center max-w-md w-full shadow-2xl border border-amber-200">
-                    <Crown className="h-14 w-14 text-amber-500 mx-auto mb-5 drop-shadow-sm" />
-                    <h3 className="text-2xl font-black text-purple-950 mb-3 tracking-tight">Unlock Smit CSC Info Prime membership</h3>
-                    <p className="text-sm text-gray-600 mb-8 leading-relaxed">
-                      You've reached the end of the preview. Upgrade to Prime to access the full document, remove watermarks, and unlock unrestricted downloads.
-                    </p>
-                    <Button onClick={onOpenPrimeModal} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white font-bold h-12 text-base shadow-md">
-                      Upgrade to Prime
-                    </Button>
+            ) : previewData.mode === "free" ? (
+              <div className="w-full h-full relative rounded-xl overflow-hidden border bg-white shadow-md">
+                <div 
+                  className={`w-full h-full overflow-y-auto flex flex-col items-center py-4 ${showPaywall ? '!overflow-hidden' : ''}`}
+                  onScroll={handleScroll}
+                >
+                  <div className={`w-full flex flex-col items-center gap-4 transition-all duration-300 ${showPaywall ? 'blur-md select-none pointer-events-none' : ''}`}>
+                    {previewData.images.map((img: string, i: number) => (
+                      <img 
+                        key={i} 
+                        src={img} 
+                        className="max-w-full shadow-lg border bg-white pointer-events-none select-none" 
+                        alt={"Page " + (i+1)}
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
+                    ))}
+                    <div className="p-4 mt-4 bg-amber-50 border border-amber-200 rounded-lg max-w-2xl text-center">
+                      <p className="font-bold text-amber-800">Preview limited to {previewData.previewPercent}% of the document.</p>
+                      <p className="text-amber-700 text-sm mt-1">Upgrade to Prime to view the full document and remove watermarks.</p>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
+
+                {showPaywall && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="bg-white p-8 rounded-2xl text-center max-w-md w-full shadow-2xl border border-amber-200">
+                      <Crown className="h-14 w-14 text-amber-500 mx-auto mb-5 drop-shadow-sm" />
+                      <h3 className="text-2xl font-black text-purple-950 mb-3 tracking-tight">Unlock Smit CSC Info Prime membership</h3>
+                      <p className="text-sm text-gray-600 mb-8 leading-relaxed">
+                        You've reached the end of the preview. Upgrade to Prime to access the full document, remove watermarks, and unlock unrestricted downloads.
+                      </p>
+                      <Button onClick={onOpenPrimeModal} className="w-full bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white font-bold h-12 text-base shadow-md">
+                        Upgrade to Prime
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <iframe
+                key={doc.id + "_anon"}
+                src={previewUrl}
+                className="w-full h-full min-h-0 rounded-xl border bg-white shadow-md pointer-events-auto"
+                title={doc.title}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+            )
           ) : (
             <iframe
               key={doc.id + "_" + (token ? "auth" : "anon")}
               src={previewUrl}
               className="w-full h-full min-h-0 rounded-xl border bg-white shadow-md pointer-events-auto"
               title={doc.title}
-              onContextMenu={(e) => { if (!isPrime) e.preventDefault(); }}
             />
           )}
         </div>
