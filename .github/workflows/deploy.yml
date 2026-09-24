@@ -101,7 +101,7 @@ jobs:
             echo "VYAPAR_MERCHANT_ID=${{ secrets.VYAPAR_MERCHANT_ID || 'HljqpO78478209015081' }}" >> "$APP_DIR/.env"
             echo "VYAPARGATEWAY_API_KEY=${{ secrets.VYAPAR_API_KEY }}" >> "$APP_DIR/.env"
             echo "VYAPARGATEWAY_WEBHOOK_SECRET=${{ secrets.VYAPAR_WEBHOOK_SECRET }}" >> "$APP_DIR/.env"
-
+            echo "DOCS_UPGRADE_ENABLED=true" >> "$APP_DIR/.env"
 
             # Configure system nginx
             sudo cp "$APP_DIR/system-nginx.conf" /etc/nginx/sites-available/smit-csc-info
