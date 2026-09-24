@@ -29,7 +29,7 @@ const semaphore = new Semaphore();
 const RENDER_SCALE = 2.0;
 const FREE_PREVIEW_PERCENT = 0.5;
 // Bump this when the render algorithm changes to auto-invalidate stale cache entries.
-const CACHE_VERSION = 2; // v2: total-height crop across all pages
+const CACHE_VERSION = 3; // v3: watermark applied via pdf-lib to avoid napi-rs OS font dependency
 
 export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, watermarkText: string = "Smit CSC Info") {
   await semaphore.acquire();
@@ -61,7 +61,13 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
       // cache miss or invalid — proceed to render
     }
 
-    const data = new Uint8Array(pdfBuffer);
+    // Apply the watermark directly to the PDF buffer using pdf-lib.
+    // This is safer than drawing on the canvas because pdf-lib embeds StandardFonts (like Helvetica),
+    // whereas @napi-rs/canvas fillText relies on OS-level fonts (which don't exist in node:24-slim).
+    const { addWatermarkToPdf } = await import('./pdf-watermark');
+    const watermarkedBuffer = await addWatermarkToPdf(pdfBuffer, watermarkText);
+
+    const data = new Uint8Array(watermarkedBuffer);
 
     // Dynamic imports for blast-radius isolation — do NOT change to top-level imports
     // @ts-ignore
@@ -124,23 +130,7 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
       remaining -= rowsToCopy;
     }
 
-    // ── Step 3: burn in diagonal tiled watermark ─────────────────────────────
-    outputCtx.save();
-    outputCtx.translate(canvasWidth / 2, cutoffHeight / 2);
-    outputCtx.rotate(-Math.PI / 4);
-    outputCtx.fillStyle = "rgba(120, 120, 120, 0.28)";
-    outputCtx.font = `bold ${Math.round(canvasWidth / 15)}px Arial`;
-    outputCtx.textAlign = "center";
-    outputCtx.textBaseline = "middle";
-
-    const step = Math.round(canvasWidth / 4);
-    for (let x = -canvasWidth * 1.5; x <= canvasWidth * 1.5; x += step) {
-      for (let y = -cutoffHeight * 1.5; y <= cutoffHeight * 1.5; y += step) {
-        outputCtx.fillText(watermarkText, x, y);
-      }
-    }
-    outputCtx.restore();
-
+    // (Watermark was already applied to the underlying PDF before rasterization)
     // ── Step 4: encode, cache, return ────────────────────────────────────────
     const webpBuffer = outputCanvas.toBuffer('image/webp');
     const filename = `preview-crop.webp`;
