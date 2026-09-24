@@ -830,10 +830,39 @@ function PdfPreviewDialog({
   useEffect(() => {
     if (!isOpen || !doc) return;
     setShowPaywall(forcePaywall); // Reset paywall or force it based on prop
+    setPreviewData(null); // Reset preview data on open
     const currentToken = typeof window !== "undefined" ? sessionStorage.getItem("auth_token") : null;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+
     fetch("/api/documents/" + doc.id + "/preview-v2", {
-      headers: currentToken ? { Authorization: "Bearer " + currentToken } : undefined
-    }).then(r => r.ok ? r.json() : null).then(setPreviewData).catch(console.error);
+      headers: currentToken ? { Authorization: "Bearer " + currentToken } : undefined,
+      signal: controller.signal
+    })
+      .then(async r => {
+        clearTimeout(timeoutId);
+        if (!r.ok) {
+          try {
+            const err = await r.json();
+            return { mode: "error", message: err.message || "Failed to load preview" };
+          } catch(e) {
+            return { mode: "error", message: "Failed to load preview (Status " + r.status + ")" };
+          }
+        }
+        return r.json();
+      })
+      .then(setPreviewData)
+      .catch(err => {
+        clearTimeout(timeoutId);
+        console.error(err);
+        setPreviewData({ mode: "error", message: err.name === 'AbortError' ? "Preview generation timed out after 20s. Please try again." : String(err) });
+      });
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [doc, isOpen]);
 
   // Document security: Disable context menu and shortcuts for non-Prime users
@@ -929,7 +958,6 @@ function PdfPreviewDialog({
                       <p className="font-medium text-xs">{t.documents.downloadPdf}</p>
                       <p className="text-[10px] text-muted-foreground">{doc.fileName}</p>
                     </div>
-                    {!isPrime && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer py-2"
@@ -947,7 +975,6 @@ function PdfPreviewDialog({
                       <p className="font-medium text-xs">{t.documents.downloadWord}</p>
                       <p className="text-[10px] text-muted-foreground">Editable Template (.docx)</p>
                     </div>
-                    {!isPrime && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -960,6 +987,12 @@ function PdfPreviewDialog({
               <div className="flex flex-col items-center justify-center text-muted-foreground gap-3">
                 <div className="w-8 h-8 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin" />
                 <p className="text-sm font-semibold">Generating secure preview...</p>
+              </div>
+            ) : previewData.mode === "error" ? (
+              <div className="flex flex-col items-center justify-center text-red-500 gap-3 max-w-sm text-center p-6 bg-white rounded-xl shadow-sm border border-red-100">
+                <span className="text-4xl">⚠️</span>
+                <p className="text-sm font-semibold">{previewData.message || "Failed to load preview."}</p>
+                <p className="text-xs text-slate-500">Please try closing and reopening the document.</p>
               </div>
             ) : previewData.mode === "free" ? (
               <div className="w-full h-full relative rounded-xl overflow-hidden border bg-white shadow-md">

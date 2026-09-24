@@ -132,7 +132,7 @@ router.get("/documents/:id/preview-v2", optionalAuth, async (req: AuthRequest, r
     });
   } catch (err: any) {
     req.log.error({ err, docId }, "Failed to process preview-v2");
-    res.status(503).json({ error: "preview_unavailable", message: "Preview generation is temporarily unavailable" });
+    res.status(503).json({ error: "preview_unavailable", message: "Preview generation failed: " + (err.message || String(err)) });
   }
 });
 

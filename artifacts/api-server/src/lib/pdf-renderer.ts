@@ -83,9 +83,9 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
     }
 
     const totalDocHeight = pageViewports.reduce((sum, vp) => sum + vp.height, 0);
-    const cutoffHeight = Math.ceil(totalDocHeight * FREE_PREVIEW_PERCENT);
+    const cutoffHeight = Math.round(totalDocHeight * FREE_PREVIEW_PERCENT);
     // Use the width of page 1 as the canvas width (assume uniform width)
-    const canvasWidth = pageViewports[0].width;
+    const canvasWidth = Math.round(pageViewports[0].width);
 
     // ── Step 2: render pages top-to-bottom until we hit the cutoff ──────────
     // We produce a SINGLE output image that is exactly cutoffHeight pixels tall,
@@ -102,18 +102,21 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
       const page = await pdf.getPage(i);
       const viewport = page.getViewport({ scale: RENDER_SCALE });
 
+      const pWidth = Math.round(viewport.width);
+      const pHeight = Math.round(viewport.height);
+
       // Render this page to its own full-size canvas
-      const pageCanvas = createCanvas(viewport.width, viewport.height);
+      const pageCanvas = createCanvas(pWidth, pHeight);
       const pageCtx = pageCanvas.getContext('2d');
       await page.render({ canvasContext: pageCtx as any, viewport } as any).promise;
 
       // How many pixels of this page do we copy?
-      const rowsToCopy = Math.min(remaining, viewport.height);
+      const rowsToCopy = Math.min(remaining, pHeight);
 
       // drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh)
       outputCtx.drawImage(
         pageCanvas,
-        0, 0, viewport.width, rowsToCopy,   // source: top rowsToCopy rows of this page
+        0, 0, pWidth, rowsToCopy,   // source: top rowsToCopy rows of this page
         0, yOffset, canvasWidth, rowsToCopy   // dest: next slice in output canvas
       );
 
