@@ -63,6 +63,10 @@ EXPOSE 5000
 
 ENV PORT=5000
 
+# Pre-create the cache directory and set ownership to 'node' so the app can write to it
+RUN mkdir -p /app/artifacts/api-server/.preview-cache && \
+    chown -R node:node /app/artifacts/api-server/.preview-cache
+
 # Drop privileges — run as the built-in non-root "node" user (UID 1000).
 # node:24-slim ships with this user. Running as root is unnecessary and
 # increases the blast radius if the process is ever compromised.
