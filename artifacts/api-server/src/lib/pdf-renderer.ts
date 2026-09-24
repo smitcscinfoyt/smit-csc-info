@@ -29,7 +29,7 @@ const semaphore = new Semaphore();
 const RENDER_SCALE = 2.0;
 const FREE_PREVIEW_PERCENT = 0.5;
 // Bump this when the render algorithm changes to auto-invalidate stale cache entries.
-const CACHE_VERSION = 3; // v3: watermark applied via pdf-lib to avoid napi-rs OS font dependency
+const CACHE_VERSION = 5; // v5: dynamic path resolution for standard_fonts
 
 export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, watermarkText: string = "Smit CSC Info") {
   await semaphore.acquire();
@@ -75,7 +75,15 @@ export async function renderDocumentPreview(docId: string, pdfBuffer: Buffer, wa
     const { createCanvas, Path2D } = await import('@napi-rs/canvas');
     (global as any).Path2D = Path2D; // pdfjs may need this globally
 
-    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const { createRequire } = await import('module');
+    const require = createRequire(import.meta.url);
+    const pdfjsPath = path.dirname(require.resolve('pdfjs-dist/package.json'));
+    const standardFontDataUrl = path.join(pdfjsPath, 'standard_fonts') + '/';
+    
+    const pdf = await pdfjsLib.getDocument({ 
+      data,
+      standardFontDataUrl
+    }).promise;
     const totalPages = pdf.numPages;
 
     // ── Step 1: compute per-page viewport heights at render scale ────────────
