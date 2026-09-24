@@ -900,10 +900,9 @@ function PdfPreviewDialog({
             </div>
           </div>
 
-          {isPrime && (
-            <div className="flex items-center gap-2 mr-6">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+          <div className="flex items-center gap-2 mr-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                   <Button
                     size="sm"
                     className="gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white shadow-sm font-semibold h-8 text-xs"
@@ -916,28 +915,43 @@ function PdfPreviewDialog({
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuItem
                     className="cursor-pointer py-2"
-                    onClick={() => onDownload(doc, "pdf")}
+                    onClick={(e) => {
+                      if (!isPrime) {
+                        e.preventDefault();
+                        setShowPaywall(true);
+                      } else {
+                        onDownload(doc, "pdf");
+                      }
+                    }}
                   >
                     <span className="text-red-500 mr-2 text-base">🔴</span>
                     <div className="flex-1">
                       <p className="font-medium text-xs">{t.documents.downloadPdf}</p>
                       <p className="text-[10px] text-muted-foreground">{doc.fileName}</p>
                     </div>
+                    {!isPrime && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer py-2"
-                    onClick={() => onDownload(doc, "word")}
+                    onClick={(e) => {
+                      if (!isPrime) {
+                        e.preventDefault();
+                        setShowPaywall(true);
+                      } else {
+                        onDownload(doc, "word");
+                      }
+                    }}
                   >
                     <span className="text-blue-500 mr-2 text-base">🔵</span>
                     <div className="flex-1">
                       <p className="font-medium text-xs">{t.documents.downloadWord}</p>
                       <p className="text-[10px] text-muted-foreground">Editable Template (.docx)</p>
                     </div>
+                    {!isPrime && <Lock className="h-3.5 w-3.5 text-amber-500 ml-1" />}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          )}
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden bg-slate-100 dark:bg-slate-950 p-2 sm:p-4 relative flex items-center justify-center">

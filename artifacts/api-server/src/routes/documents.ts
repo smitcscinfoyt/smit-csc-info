@@ -117,7 +117,7 @@ router.get("/documents/:id/preview-v2", optionalAuth, async (req: AuthRequest, r
 
     const requesterIsPrime = !!(await getActivePrime(req.userId));
 
-    if (requesterIsPrime || req.userRole === "admin") {
+    if (requesterIsPrime) {
       res.json({ mode: "full", totalPages });
       return;
     }
@@ -158,7 +158,7 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
   const requesterIsPrime = !!(await getActivePrime(req.userId));
   const upgradeEnabled = process.env.DOCS_UPGRADE_ENABLED === 'true';
 
-  if (upgradeEnabled && !requesterIsPrime && req.userRole !== "admin") {
+  if (upgradeEnabled && !requesterIsPrime) {
     res.status(403).json({ error: "upgrade_required", message: "Raw PDF access requires Prime" });
     return;
   }
@@ -171,8 +171,8 @@ router.get("/documents/:id/preview", optionalAuth, async (req: AuthRequest, res)
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`);
 
-    if (requesterIsPrime || req.userRole === "admin") {
-      // Prime user or admin: serve clean PDF without watermark
+    if (requesterIsPrime) {
+      // Prime user: serve clean PDF without watermark
       res.send(pdfBuffer);
     } else {
       // Free user: dynamically stamp diagonal "Smit CSC Info" watermark
@@ -207,7 +207,7 @@ router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res
   const requesterIsPrime = !!(await getActivePrime(req.userId));
   const upgradeEnabled = process.env.DOCS_UPGRADE_ENABLED === 'true';
 
-  if (upgradeEnabled && !requesterIsPrime && req.userRole !== "admin") {
+  if (upgradeEnabled && !requesterIsPrime) {
     res.status(403).json({ error: "upgrade_required", message: "Raw PDF access requires Prime" });
     return;
   }
@@ -219,7 +219,7 @@ router.get("/documents/:id/download", optionalAuth, async (req: AuthRequest, res
     doc.accessLevel === "login_required" ||
     ["Affidavits", "Forms"].includes(doc.category);
 
-  if (isPrimeGated && !requesterIsPrime && req.userRole !== "admin") {
+  if (isPrimeGated && !requesterIsPrime) {
     res.status(403).json({ error: "prime_required", message: "Prime membership required to download." });
     return;
   }
