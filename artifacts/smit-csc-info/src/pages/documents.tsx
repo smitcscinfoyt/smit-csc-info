@@ -414,7 +414,7 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
-                            <h3 className="font-semibold text-sm leading-tight line-clamp-2">{doc.title}</h3>
+                            <h3 className="font-semibold text-sm leading-tight line-clamp-2 flex-1 min-w-0">{doc.title}</h3>
                             {doc.isPrime && (
                               <Badge className="bg-yellow-500 text-white shrink-0 text-[10px] px-1.5 py-0.5">
                                 <Lock className="h-2.5 w-2.5 mr-0.5" />PRIME
@@ -424,10 +424,11 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                           {doc.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{doc.description}</p>
                           )}
-                          <div className="flex items-center justify-between mt-2 pt-2 border-t">
-                            <div className="flex gap-1.5 items-center">
+                          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 mt-2 pt-2 border-t w-full">
+                            <div className="flex gap-1.5 items-center shrink-0">
                               <Badge variant="secondary" className="text-[10px]">{doc.category}</Badge>
                               <span className={`text-[10px] font-medium ${info.color}`}>PDF</span>
+
                             </div>
 
                             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -648,17 +649,17 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                 >
                   {isAffidavitSection && <DocumentPreviewTile doc={doc} prime />}
                   <div className={isAffidavitSection
-                    ? "flex flex-col gap-4"
-                    : "flex items-start sm:items-center gap-4"
+                    ? "flex flex-col gap-4 w-full"
+                    : "flex items-start sm:items-center gap-4 w-full"
                   }>
-                  <div className="flex items-start sm:items-center gap-4">
+                  <div className="flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-4 w-full">
                     <div className={`${info.bg} rounded-xl p-3 shrink-0 ring-1 ring-amber-300/30 shadow`}>
                       <span className="text-2xl">{info.icon}</span>
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h3 className="font-bold text-sm sm:text-base text-white leading-tight line-clamp-1">{doc.title}</h3>
+                        <h3 className="font-bold text-sm sm:text-base text-white leading-tight truncate flex-1 min-w-0">{doc.title}</h3>
                         {doc.isPrime && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0"
                             style={{ background: "linear-gradient(135deg, #FFD700, #DAA520)", color: "#3b0764" }}>
@@ -667,7 +668,7 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                         )}
                       </div>
                       {doc.description && (
-                        <p className="text-xs text-purple-100/70 line-clamp-1 mb-2">{doc.description}</p>
+                        <p className="text-xs text-purple-100/70 truncate mb-2">{doc.description}</p>
                       )}
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-700/40 text-purple-100 border border-purple-400/20">
@@ -677,7 +678,7 @@ function DocumentsBody({ isPrime }: { isPrime: boolean }) {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2 shrink-0 ml-auto mt-2 sm:mt-0 w-full sm:w-auto justify-end" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1083,16 +1084,16 @@ function LoginPromptModal({
           <LogIn className="h-6 w-6" />
         </div>
         <DialogTitle className="text-lg font-bold">Login Required</DialogTitle>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          આ દસ્તાવેજ જોવા (Watermarked Preview) અથવા ડાઉનલોડ કરવા માટે તમારા એકાઉન્ટમાં લૉગિન કરવું જરૂરી છે.
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          You must be logged in to your account to view the watermarked preview or download this document.
         </p>
         <div className="flex gap-2.5 justify-center pt-2">
           <Button variant="outline" size="sm" onClick={onClose} className="w-1/2">
-            બંધ કરો
+            Close
           </Button>
           <Button size="sm" asChild className="w-1/2 bg-indigo-600 hover:bg-indigo-700">
             <Link href="/login">
-              Login કરો
+              Login
             </Link>
           </Button>
         </div>
