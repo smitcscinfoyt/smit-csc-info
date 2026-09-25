@@ -85,10 +85,251 @@ export const AFFIDAVITS_SEED_DATA = [
     fileBase: "13-vidhva-sahay-band-chalu-application",
     description: "બંધ થયેલી વિધવા સહાય પેન્શન પુનઃ ચાલુ કરાવવા માટેની અરજી (Application)",
   },
+
+  {
+    num: 14,
+    title: "પિતાના મરણ પર માતાની વિધવા સહાય માટે પુત્રો દ્વારા વારસાઈ સોગંદનામું",
+    fileBase: "14-mata-varsai-putra-affidavit",
+    description: "પિતાના મરણ પર માતાની વિધવા સહાય માટે પુત્રો દ્વારા વારસાઈ સોગંદનામું",
+  },
+  {
+    num: 15,
+    title: "LIC પોલીસી નોમિની નામ વિસંગતતા સોગંદનામું",
+    fileBase: "15-lic-policy-naam-visangatata-affidavit",
+    description: "LIC પોલીસી નોમિની નામ વિસંગતતા સોગંદનામું",
+  },
+  {
+    num: 16,
+    title: "વૃધ્ધ પેન્શન યોજના — BPL યાદીમાં નામની સ્પેલિંગ ભૂલ સોગંદનામું",
+    fileBase: "16-vrudh-pension-naam-spelling-affidavit",
+    description: "વૃધ્ધ પેન્શન યોજના — BPL યાદીમાં નામની સ્પેલિંગ ભૂલ સોગંદનામું",
+  },
+  {
+    num: 17,
+    title: "આવાસ યોજના — સંયુક્ત સહહિસ્સેદારના મરણ પ્રમાણપત્ર ના મળવા અંગેનું સોગંદનામું",
+    fileBase: "17-awas-yojana-sahhissedar-maran-affidavit",
+    description: "આવાસ યોજના — સંયુક્ત સહહિસ્સેદારના મરણ પ્રમાણપત્ર ના મળવા અંગેનું સોગંદનામું",
+  },
+  {
+    num: 18,
+    title: "બેંક FD (ફિક્સ ડિપોઝીટ) રસીદ ગુમ થયા અંગેનું સોગંદનામું",
+    fileBase: "18-bank-fd-receipt-gum-affidavit",
+    description: "બેંક FD (ફિક્સ ડિપોઝીટ) રસીદ ગુમ થયા અંગેનું સોગંદનામું",
+  },
+  {
+    num: 19,
+    title: "દિવ્યાંગ લગ્ન સહાય યોજના સોગંદનામું",
+    fileBase: "19-divyang-lagna-sahay-affidavit",
+    description: "દિવ્યાંગ લગ્ન સહાય યોજના સોગંદનામું",
+  },
+  {
+    num: 20,
+    title: "ટ્રસ્ટ રાજીનામું/નવા ટ્રસ્ટીની નિમણૂક સ્વીકારવા અંગેનું સોગંદનામું",
+    fileBase: "20-trust-rajinamu-affidavit",
+    description: "ટ્રસ્ટ રાજીનામું/નવા ટ્રસ્ટીની નિમણૂક સ્વીકારવા અંગેનું સોગંદનામું",
+  },
+  {
+    num: 21,
+    title: "જમીન મહેસુલ રેકર્ડ — ગુજરેલ વારસદારનું નામ કમી કરવા સોગંદનામું",
+    fileBase: "21-jamin-mahesul-varsai-name-update-affidavit",
+    description: "જમીન મહેસુલ રેકર્ડ — ગુજરેલ વારસદારનું નામ કમી કરવા સોગંદનામું",
+  },
+  {
+    num: 22,
+    title: "પતિ એકલો વારસદાર (પત્નીના મરણ પછી બેંક ખાતું) સોગંદનામું",
+    fileBase: "22-pati-eklu-varsdar-bank-affidavit",
+    description: "પતિ એકલો વારસદાર (પત્નીના મરણ પછી બેંક ખાતું) સોગંદનામું",
+  },
+  {
+    num: 23,
+    title: "માછીમારી બોટ (FRP OBM) — કેસ/દેવું ન હોવા બાહેંધરી",
+    fileBase: "23-fishing-boat-bahendhari",
+    description: "માછીમારી બોટ (FRP OBM) — કેસ/દેવું ન હોવા બાહેંધરી",
+  },
+  {
+    num: 24,
+    title: "નવો વ્યવસાય — PGVCL વિજ કનેક્શન સોગંદનામું",
+    fileBase: "24-navo-vyavsay-pgvcl-connection-affidavit",
+    description: "નવો વ્યવસાય — PGVCL વિજ કનેક્શન સોગંદનામું",
+  },
+  {
+    num: 25,
+    title: "માનસિક વિકલાંગ સંતાનના ગાર્ડિયન બનવા સોગંદનામું",
+    fileBase: "25-guardian-viklang-santan-affidavit",
+    description: "માનસિક વિકલાંગ સંતાનના ગાર્ડિયન બનવા સોગંદનામું",
+  },
+  {
+    num: 26,
+    title: "કેન્સર/ગંભીર બિમારી સારવાર આવક સોગંદનામું",
+    fileBase: "26-cancer-bimari-aavak-affidavit",
+    description: "કેન્સર/ગંભીર બિમારી સારવાર આવક સોગંદનામું",
+  },
+  {
+    num: 27,
+    title: "કૂવા/વિજ કનેક્શન — વારસદારો વચ્ચે વાંધા ન હોવા સોગંદનામું",
+    fileBase: "27-kuva-vij-varsdar-no-dispute-affidavit",
+    description: "કૂવા/વિજ કનેક્શન — વારસદારો વચ્ચે વાંધા ન હોવા સોગંદનામું",
+  },
+  {
+    num: 28,
+    title: "પરિવારમાં જમીન હક-જતો સમાધાન સોગંદનામું",
+    fileBase: "28-parivar-jamin-hakk-jato-affidavit",
+    description: "પરિવારમાં જમીન હક-જતો સમાધાન સોગંદનામું",
+  },
+  {
+    num: 29,
+    title: "બ્લુ રીવોલ્યુશન યોજના — રેફ્રિજરેટર વાન સહાય સોગંદનામું",
+    fileBase: "29-blue-revolution-van-affidavit",
+    description: "બ્લુ રીવોલ્યુશન યોજના — રેફ્રિજરેટર વાન સહાય સોગંદનામું",
+  },
+  {
+    num: 30,
+    title: "એપ્રેન્ટીસ તાલીમ — અગાઉ તાલીમ ના લીધા હોવા સોગંદનામું",
+    fileBase: "30-apprentice-training-affidavit",
+    description: "એપ્રેન્ટીસ તાલીમ — અગાઉ તાલીમ ના લીધા હોવા સોગંદનામું",
+  },
+  {
+    num: 31,
+    title: "વ્યવસાયનું નામ બદલવા બેંક ખાતામાં સોગંદનામું",
+    fileBase: "31-business-naam-bank-badlav-affidavit",
+    description: "વ્યવસાયનું નામ બદલવા બેંક ખાતામાં સોગંદનામું",
+  },
+  {
+    num: 32,
+    title: "શાળા છોડ્યાના પ્રમાણપત્રમાં જાતિ/પેટા-જાતિ કલમ સુધારો સોગંદનામું",
+    fileBase: "32-shala-jaati-column-sudharo-affidavit",
+    description: "શાળા છોડ્યાના પ્રમાણપત્રમાં જાતિ/પેટા-જાતિ કલમ સુધારો સોગંદનામું",
+  },
+  {
+    num: 33,
+    title: "ખેતીની જમીન — વારસદાર પુત્ર દ્વારા સ્વયં ખેડાણ સોગંદનામું",
+    fileBase: "33-swayam-khedan-varsdar-affidavit",
+    description: "ખેતીની જમીન — વારસદાર પુત્ર દ્વારા સ્વયં ખેડાણ સોગંદનામું",
+  },
+  {
+    num: 34,
+    title: "જન્મ પ્રમાણપત્રમાં પિતાના નામમાં સુધારો — અરજી",
+    fileBase: "34-janma-pramanpatra-pita-naam-application",
+    description: "જન્મ પ્રમાણપત્રમાં પિતાના નામમાં સુધારો — અરજી",
+  },
+  {
+    num: 35,
+    title: "અંગુઠાના નિશાનની ઓળખ સોગંદનામું",
+    fileBase: "35-angutha-nishan-olakh-affidavit",
+    description: "અંગુઠાના નિશાનની ઓળખ સોગંદનામું",
+  },
+  {
+    num: 36,
+    title: "મેડિકલ સ્ટોર/ફાર્મસી — રજિસ્ટર્ડ ફાર્માસિસ્ટ એફિડેવિટ",
+    fileBase: "36-medical-store-pharmacist-affidavit",
+    description: "મેડિકલ સ્ટોર/ફાર્મસી — રજિસ્ટર્ડ ફાર્માસિસ્ટ એફિડેવિટ",
+  },
+  {
+    num: 37,
+    title: "કર્મચારીના હાલના રહેઠાણની ખાત્રી સોગંદનામું",
+    fileBase: "37-halnu-rahethan-sarnamu-affidavit",
+    description: "કર્મચારીના હાલના રહેઠાણની ખાત્રી સોગંદનામું",
+  },
+  {
+    num: 38,
+    title: "અપરણીત બિનવારસ સંબંધીના અવશાનનો દાખલો — અરજી",
+    fileBase: "38-aparnit-binvaras-marran-dakhlo-application",
+    description: "અપરણીત બિનવારસ સંબંધીના અવશાનનો દાખલો — અરજી",
+  },
+  {
+    num: 39,
+    title: "સેવાપોથી (સર્વિસ બુક) માં અટક સુધારો — પેન્શન સોગંદનામું",
+    fileBase: "39-sevapothi-atak-sudharo-affidavit",
+    description: "સેવાપોથી (સર્વિસ બુક) માં અટક સુધારો — પેન્શન સોગંદનામું",
+  },
+  {
+    num: 40,
+    title: "જમીન — બે અલગ ખાતા ભેગા કરવા (ખાતુ મર્જર) સોગંદનામું",
+    fileBase: "40-jamin-khatu-merger-affidavit",
+    description: "જમીન — બે અલગ ખાતા ભેગા કરવા (ખાતુ મર્જર) સોગંદનામું",
+  },
+  {
+    num: 41,
+    title: "યુનિવર્સિટી રેકોર્ડમાં ફોટોગ્રાફ અપડેટ સોગંદનામું",
+    fileBase: "41-university-photo-update-affidavit",
+    description: "યુનિવર્સિટી રેકોર્ડમાં ફોટોગ્રાફ અપડેટ સોગંદનામું",
+  },
+  {
+    num: 42,
+    title: "વિદ્યુત સહાયક ભરતી — નિમણૂંક સ્વીકારવા બાહેંધરી",
+    fileBase: "42-vidyut-sahayak-bharti-bahendhari",
+    description: "વિદ્યુત સહાયક ભરતી — નિમણૂંક સ્વીકારવા બાહેંધરી",
+  },
+  {
+    num: 43,
+    title: "ESIC — ડિપેન્ડન્ટ પેરેન્ટ સોગંદનામું",
+    fileBase: "43-esic-dependent-parent-affidavit",
+    description: "ESIC — ડિપેન્ડન્ટ પેરેન્ટ સોગંદનામું",
+  },
+  {
+    num: 44,
+    title: "ડિગ્રી/પદવી પ્રમાણપત્ર ગુમ થયા બાબત સોગંદનામું",
+    fileBase: "44-degree-certificate-gum-affidavit",
+    description: "ડિગ્રી/પદવી પ્રમાણપત્ર ગુમ થયા બાબત સોગંદનામું",
+  },
+  {
+    num: 45,
+    title: "Single/Unmarried Status Declaration Affidavit (English)",
+    fileBase: "45-single-unmarried-status-affidavit-EN",
+    description: "Single/Unmarried Status Declaration Affidavit (English)",
+  },
+  {
+    num: 46,
+    title: "Name/Surname Discrepancy Affidavit (English)",
+    fileBase: "46-name-discrepancy-affidavit-EN",
+    description: "Name/Surname Discrepancy Affidavit (English)",
+  },
+  {
+    num: 47,
+    title: "ધોરણ-8 પ્રવેશ માટે અભ્યાસ ગેપ (Study Gap Year) બાહેંધરી",
+    fileBase: "47-abhyas-gap-varsh-bahendhari",
+    description: "ધોરણ-8 પ્રવેશ માટે અભ્યાસ ગેપ (Study Gap Year) બાહેંધરી",
+  },
+  {
+    num: 48,
+    title: "સ્વાતંત્ર્ય સેનાની/શહીદ વારસદારો — હાઉસ ટેક્સ માફી સોગંદનામું",
+    fileBase: "48-swatantra-senani-house-tax-mafi-affidavit",
+    description: "સ્વાતંત્ર્ય સેનાની/શહીદ વારસદારો — હાઉસ ટેક્સ માફી સોગંદનામું",
+  },
+  {
+    num: 49,
+    title: "ભૂમિહીન ખેતમજૂર દાખલો સોગંદનામું",
+    fileBase: "49-bhoomihin-khetmajur-dakhlo-affidavit",
+    description: "ભૂમિહીન ખેતમજૂર દાખલો સોગંદનામું",
+  },
+  {
+    num: 50,
+    title: "પેન્શનર મરણ પછી બાકી પગાર/એરિયર્સ — અન્ય વારસદારોની સંમતિ સોગંદનામું",
+    fileBase: "50-pensioner-arrears-consent-affidavit",
+    description: "પેન્શનર મરણ પછી બાકી પગાર/એરિયર્સ — અન્ય વારસદારોની સંમતિ સોગંદનામું",
+  },
+  {
+    num: 51,
+    title: "બાલિકા સમૃદ્ધિ યોજના ખાતામાંથી ભૂલથી જમા થયેલ રકમ ઉપાડવા સોગંદનામું",
+    fileBase: "51-balika-samruddhi-rakam-upad-affidavit",
+    description: "બાલિકા સમૃદ્ધિ યોજના ખાતામાંથી ભૂલથી જમા થયેલ રકમ ઉપાડવા સોગંદનામું",
+  },
+  {
+    num: 52,
+    title: "કૌટુંબિક હિસ્સા વહેંચણી સોગંદનામું",
+    fileBase: "52-koutumbik-hissa-vahenchani-affidavit",
+    description: "કૌટુંબિક હિસ્સા વહેંચણી સોગંદનામું",
+  },
+  {
+    num: 53,
+    title: "માતા-પિતાના મરણ પ્રમાણપત્ર ના મળવા છતાં અવશાન અંગેનું સોગંદનામું",
+    fileBase: "53-matapita-marran-pramanpatra-medical-affidavit",
+    description: "માતા-પિતાના મરણ પ્રમાણપત્ર ના મળવા છતાં અવશાન અંગેનું સોગંદનામું",
+  },
 ];
 
 async function main() {
-  console.log("=== Starting 13 Affidavit Templates Seeding ===");
+  console.log("=== Starting 53 Affidavit Templates Seeding ===");
 
   const targetDir = path.resolve(ROOT_DIR, "attached_assets", "documents");
   if (!fs.existsSync(targetDir)) {
@@ -106,7 +347,7 @@ async function main() {
 
   // Also write SQL seed file for direct execution on server/Docker
   const sqlLines = [
-    `-- Generated Seed Script for 13 Affidavit Templates`,
+    `-- Generated Seed Script for 53 Affidavit Templates`,
     `-- Category: Affidavits, Access: login_required, Pair: PDF + Word`,
     `-- IDEMPOTENT: Safe to run multiple times without creating duplicates.`,
     ``,
@@ -218,7 +459,7 @@ ON CONFLICT (group_id) DO UPDATE SET
           });
         }
       }
-      console.log("=== All 13 Affidavits Successfully Seeded into Database! ===");
+      console.log("=== All 53 Affidavits Successfully Seeded into Database! ===");
     } catch (dbErr: any) {
       console.warn(`[DB Notice] Could not connect to local database directly: ${dbErr?.message}`);
       console.log(`Use the generated SQL script 'scripts/seed-affidavits.sql' or 'deploy.sh' to execute the seeding in production.`);
