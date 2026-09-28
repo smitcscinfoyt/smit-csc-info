@@ -24,6 +24,25 @@ interface GeminiHistory {
   parts: Array<{ text: string }>;
 }
 
+function renderMessageText(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, i) => {
+    if (part.match(/^https?:\/\//)) {
+      const cleanUrl = part.replace(/[.,;!?]+$/, '');
+      const punctuation = part.slice(cleanUrl.length);
+      return (
+        <span key={i}>
+          <a href={cleanUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-amber-200 break-all">{cleanUrl}</a>
+          {punctuation}
+        </span>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 export function AiSahayakWidget() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -215,7 +234,7 @@ export function AiSahayakWidget() {
                         : "self-start bg-white/6 text-amber-100/90 border border-amber-300/10 rounded-bl-sm"
                     }`}
                   >
-                    {msg.text}
+                    {renderMessageText(msg.text)}
                   </div>
                 ))}
                 {sending && (
@@ -236,7 +255,7 @@ export function AiSahayakWidget() {
                   onKeyDown={handleKeyDown}
                   placeholder="ગુજરાતીમાં લખો..."
                   disabled={sending}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/6 border border-amber-300/20 text-amber-100 placeholder-amber-300/40 text-[13px] outline-none focus:border-amber-400/50 transition-colors disabled:opacity-50"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/6 border border-amber-300/20 text-amber-100 placeholder-amber-200/60 text-[13px] outline-none focus:border-amber-400/50 transition-colors disabled:opacity-50"
                 />
                 <button
                   type="button"

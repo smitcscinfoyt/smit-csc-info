@@ -143,7 +143,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
               Authorization: `Bearer ${sambaKey}`,
             },
             body: JSON.stringify({
-              model: "DeepSeek-V3.1",
+              model: process.env.SAMBANOVA_MODEL || "Meta-Llama-3.1-70B-Instruct",
               messages,
               temperature: 0.4,
               max_tokens: 1024,
@@ -174,6 +174,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
 
     // ââ Priority 2: Gemini fallback ââââââââââââââââââââââââââââââââââââââââââââ
     if (geminiKey) {
+      const geminiModel = process.env.GEMINI_MODEL || "gemini-3.5-flash";
       try {
         const baseUrl =
           process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ||
@@ -184,7 +185,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
           { role: "user" as const, parts: [{ text: trimmed }] },
         ];
 
-        const url = `${baseUrl.replace(/\/$/, "")}/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
+        const url = `${baseUrl.replace(/\/$/, "")}/models/${geminiModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
         const upstream = await fetch(url, {
           method: "POST",
@@ -207,16 +208,12 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
             res.json({ reply });
             return;
           }
-          logger.warn("sahayak gemini: empty reply");
+          logger.warn({ provider: 'gemini', model: geminiModel, status: upstream.status, reason: 'empty_reply' }, "sahayak gemini: empty reply");
         } else {
-          const text = await upstream.text();
-          logger.warn(
-            { status: upstream.status, body: text.slice(0, 300) },
-            "sahayak gemini upstream non-OK",
-          );
+          logger.warn({ provider: 'gemini', model: geminiModel, status: upstream.status, reason: 'http_error' }, "sahayak gemini upstream non-OK");
         }
-      } catch (err) {
-        logger.warn({ err }, "sahayak gemini call failed");
+      } catch (err: any) {
+        logger.warn({ provider: 'gemini', model: geminiModel, status: null, reason: err.name === 'TimeoutError' ? 'timeout' : 'exception', err }, "sahayak gemini call failed");
       }
     }
 
