@@ -50,7 +50,7 @@ interface ChatMessage {
         signal: AbortSignal.timeout(5000)
       });
       logger.info(`[Startup] Proxy SambaNova check: HTTP ${res.status}`);
-    } catch (err) {
+    } catch (err: any) {
       logger.warn(`[Startup] Proxy SambaNova check failed: ${err.message}`);
     }
   }
@@ -63,7 +63,7 @@ interface ChatMessage {
         signal: AbortSignal.timeout(5000)
       });
       logger.info(`[Startup] Proxy Gemini check: HTTP ${res.status}`);
-    } catch (err) {
+    } catch (err: any) {
       logger.warn(`[Startup] Proxy Gemini check failed: ${err.message}`);
     }
   }
@@ -79,7 +79,7 @@ interface ChatMessage {
         signal: AbortSignal.timeout(5000)
       });
       logger.info(`[Startup] Proxy SambaNova check: HTTP ${res.status}`);
-    } catch (err) {
+    } catch (err: any) {
       logger.warn(`[Startup] Proxy SambaNova check failed: ${err.message}`);
     }
   }
@@ -92,7 +92,7 @@ interface ChatMessage {
         signal: AbortSignal.timeout(5000)
       });
       logger.info(`[Startup] Proxy Gemini check: HTTP ${res.status}`);
-    } catch (err) {
+    } catch (err: any) {
       logger.warn(`[Startup] Proxy Gemini check failed: ${err.message}`);
     }
   }
