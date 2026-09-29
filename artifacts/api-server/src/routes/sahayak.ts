@@ -68,7 +68,7 @@ interface ChatMessage {
     }
   }
 })();
-\n
+
 // --- STARTUP PROVIDER CHECK ---
 (async function verifyProvidersProxy() {
   const sambaKey = process.env['SAMBANOVA_API_KEY'];
@@ -97,9 +97,10 @@ interface ChatMessage {
     }
   }
 })();
-\nrouter.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
+
+router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const requestStartTime = Date.now();
-  const OVERALL_DEADLINE_MS = 30000;
+  const OVERALL_DEADLINE_MS = 20000;
   const getRemainingTime = () => Math.max(0, OVERALL_DEADLINE_MS - (Date.now() - requestStartTime));
 
   try {
@@ -153,7 +154,7 @@ interface ChatMessage {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, history, isPrime }),
-          signal: AbortSignal.timeout(24000), // backend has 22s limit, proxy waits 24s max
+          signal: AbortSignal.timeout(16000), // backend has 22s limit, proxy waits 24s max
         });
 
         if (upstream.ok) {
@@ -235,7 +236,7 @@ interface ChatMessage {
 
     // ── Priority 2: Gemini fallback ───────────────────────────────────────────
     if (geminiKey) {
-      const geminiModelsStr = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "gemini-3.5-flash";
+      const geminiModelsStr = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "gemini-3.5-flash,gemini-3.8-flash,gemini-3.7-flash,gemini-flash-latest";
       const geminiModels = geminiModelsStr.split(',').map(m => m.trim()).filter(Boolean);
       let geminiSuccess = false;
       for (const geminiModel of geminiModels) {
