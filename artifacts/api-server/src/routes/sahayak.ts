@@ -8,6 +8,8 @@ import { createRateLimiter, clientIp } from "../lib/rate-limit";
 const router: IRouter = Router();
 const sahayakRateLimiter = createRateLimiter({ windowMs: 60_000, max: 15 });
 
+let isSambaNovaDisabled = false;
+
 const SYSTEM_PROMPT = `You are "Smit AI Sahayak" - the AI assistant for Smit CSC Info.
   You help CSC operators and rural citizens in Gujarat. Always respond in Gujarati.
 
@@ -100,7 +102,7 @@ interface ChatMessage {
 
 router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const requestStartTime = Date.now();
-  const OVERALL_DEADLINE_MS = 20000;
+  const OVERALL_DEADLINE_MS = 45000;
   const getRemainingTime = () => Math.max(0, OVERALL_DEADLINE_MS - (Date.now() - requestStartTime));
 
   try {
@@ -154,7 +156,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, history, isPrime }),
-          signal: AbortSignal.timeout(16000), // backend has 22s limit, proxy waits 24s max
+          signal: AbortSignal.timeout(35000), // backend has 30s limit, proxy waits 35s max
         });
 
         if (upstream.ok) {
@@ -180,7 +182,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
     const geminiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
 
     // ── Priority 1: SambaNova ──────────────────────────────────────────────────
-    if (sambaKey) {
+    if (sambaKey && !isSambaNovaDisabled) {
       const sambaModelsStr = process.env.SAMBANOVA_MODELS || process.env.SAMBANOVA_MODEL || "DeepSeek-V3.1,Meta-Llama-3.3-70B-Instruct";
       const sambaModels = sambaModelsStr.split(',').map(m => m.trim()).filter(Boolean);
       let sambaSuccess = false;
@@ -213,6 +215,12 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
             signal: AbortSignal.timeout(Math.min(12000, remaining)),
           });
 
+          if (upstream.status === 402) {
+            logger.warn({ provider: 'sambanova', status: upstream.status }, "sahayak sambanova is disabled (402). Skipping for future requests.");
+            isSambaNovaDisabled = true;
+            break;
+          }
+
           if (upstream.ok) {
             const json = (await upstream.json()) as any;
             const reply = (json?.choices?.[0]?.message?.content as string) ?? "";
@@ -225,6 +233,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
           } else {
             logger.warn({ provider: 'sambanova', model: sambaModel, status: upstream.status, reason: 'http_error' }, "sahayak sambanova upstream non-OK");
             if (upstream.status === 404 || upstream.status === 429 || upstream.status >= 500) continue;
+            break;
           }
         } catch (err: any) {
           logger.warn({ provider: 'sambanova', model: sambaModel, status: null, reason: err.name === 'TimeoutError' ? 'timeout' : 'exception', err }, "sahayak sambanova call failed");
