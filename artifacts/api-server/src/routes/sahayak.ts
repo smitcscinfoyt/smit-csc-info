@@ -224,14 +224,18 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
         if (remaining < 5000) break;
 
         try {
-          const baseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta";
+          // Normalize base URL: always ensure /v1beta is present.
+          // The env var may be stored as "https://generativelanguage.googleapis.com"
+          // (without /v1beta), which caused 404s on every model call.
+          let rawBase = (process.env.AI_INTEGRATIONS_GEMINI_BASE_URL || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
+          const baseUrl = rawBase.includes("/v1") ? rawBase : `${rawBase}/v1beta`;
 
           const contents = [
             ...safeHistory.map(m => ({ role: (m.role === "assistant" ? "model" : "user") as any, parts: [{ text: m.content }] })),
             { role: "user" as const, parts: [{ text: trimmed }] },
           ];
 
-          const url = `${baseUrl.replace(/\/$/, "")}/models/${geminiModel}:generateContent`;
+          const url = `${baseUrl}/models/${geminiModel}:generateContent`;
 
           const upstream = await fetch(url, {
             method: "POST",
