@@ -71,35 +71,6 @@ interface ChatMessage {
   }
 })();
 
-// --- STARTUP PROVIDER CHECK ---
-(async function verifyProvidersProxy() {
-  const sambaKey = process.env['SAMBANOVA_API_KEY'];
-  if (sambaKey) {
-    try {
-      const res = await fetch('https://api.sambanova.ai/v1/models', {
-        headers: { Authorization: `Bearer ${sambaKey}` },
-        signal: AbortSignal.timeout(5000)
-      });
-      logger.info(`[Startup] Proxy SambaNova check: HTTP ${res.status}`);
-    } catch (err: any) {
-      logger.warn(`[Startup] Proxy SambaNova check failed: ${err.message}`);
-    }
-  }
-  const geminiKey = process.env['GEMINI_API_KEY'] || process.env['AI_INTEGRATIONS_GEMINI_API_KEY'];
-  if (geminiKey) {
-    try {
-      const geminiBaseUrl = process.env['AI_INTEGRATIONS_GEMINI_BASE_URL'] || 'https://generativelanguage.googleapis.com/v1beta';
-      const res = await fetch(`${geminiBaseUrl.replace(/\/$/, '')}/models`, {
-        headers: { 'x-goog-api-key': geminiKey },
-        signal: AbortSignal.timeout(5000)
-      });
-      logger.info(`[Startup] Proxy Gemini check: HTTP ${res.status}`);
-    } catch (err: any) {
-      logger.warn(`[Startup] Proxy Gemini check failed: ${err.message}`);
-    }
-  }
-})();
-
 router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promise<void> => {
   const requestStartTime = Date.now();
   const OVERALL_DEADLINE_MS = 45000;
@@ -245,7 +216,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
 
     // ── Priority 2: Gemini fallback ───────────────────────────────────────────
     if (geminiKey) {
-      const geminiModelsStr = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "gemini-3.5-flash,gemini-3.8-flash,gemini-3.7-flash,gemini-flash-latest";
+      const geminiModelsStr = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "gemini-2.0-flash,gemini-1.5-flash,gemini-2.0-flash-exp,gemini-1.5-pro";
       const geminiModels = geminiModelsStr.split(',').map(m => m.trim()).filter(Boolean);
       let geminiSuccess = false;
       for (const geminiModel of geminiModels) {
