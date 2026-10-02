@@ -187,9 +187,9 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
               model: sambaModel,
               messages,
               temperature: 0.4,
-              max_tokens: 1024,
+              max_tokens: 4096,
             }),
-            signal: AbortSignal.timeout(Math.min(12000, remaining)),
+            signal: AbortSignal.timeout(Math.min(20000, remaining)),
           });
 
           if (upstream.status === 402) {
@@ -252,9 +252,9 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
             body: JSON.stringify({
               system_instruction: { parts: [{ text: systemWithPrime }] },
               contents,
-              generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+              generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
             }),
-            signal: AbortSignal.timeout(Math.min(12000, remaining)),
+            signal: AbortSignal.timeout(Math.min(20000, remaining)),
           });
 
           if (upstream.ok) {
