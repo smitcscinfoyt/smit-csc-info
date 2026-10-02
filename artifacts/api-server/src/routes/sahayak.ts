@@ -216,7 +216,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
 
     // ── Priority 2: Gemini fallback ───────────────────────────────────────────
     if (geminiKey) {
-      const geminiModelsStr = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "gemini-2.0-flash,gemini-1.5-flash,gemini-2.0-flash-exp,gemini-1.5-pro";
+      const geminiModelsStr = process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || "gemini-3.5-flash,gemini-3.8-flash,gemini-3.7-flash,gemini-flash-latest";
       const geminiModels = geminiModelsStr.split(',').map(m => m.trim()).filter(Boolean);
       let geminiSuccess = false;
       for (const geminiModel of geminiModels) {
