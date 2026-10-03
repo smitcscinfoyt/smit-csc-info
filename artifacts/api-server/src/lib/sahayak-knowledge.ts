@@ -538,8 +538,7 @@ Browser-based, Browser-side processing — data server પર store નહીં
 ---
 
 ## સંપર્ક (Contact)
-- **CSC Helpline:** 1800-3000-3468
-- **DigitalSeva Helpline:** 1800-121-3468
+- **Email:** smitcscinfoyt@gmail.com
 - **WhatsApp Group:** https://chat.whatsapp.com/CS5vmo9R3yXKxlvBHP0EYh?mode=gi_t
 - **Facebook:** https://www.facebook.com/share/1KQkXYXKcQ/
 - **Instagram:** https://www.instagram.com/smit_csc_info?igsh=MW5sczg1M3N0M3lsOA==
