@@ -58,7 +58,8 @@ const FIXED_NOT_CONFIGURED = "\u0A95\u0ACD\u0AB7\u0AAE\u0ABE \u0A95\u0AB0\u0AB6\
 
 // ── Synonym map for retrieval scoring ───────────────────────────────────────
 const SYNONYM_MAP: Record<string, string[]> = {
-  "\u0A9A\u0AC2\u0A82\u0A9F\u0AA3\u0AC0": ["voter", "epic", "\u0AAE\u0AA4\u0AA6\u0ABE\u0AB0", "form 6", "election", "\u0A9A\u0AC2\u0A82\u0A9F\u0AA3\u0AC0 \u0A95\u0ABE\u0AB0\u0ACD\u0AA1"],
+  "\u0A9A\u0AC2\u0A82\u0A9F\u0AA3\u0AC0": ["voter", "epic", "\u0AAE\u0AA4\u0AA6\u0ABE\u0AB0", "form 6", "election", "\u0A9A\u0AC2\u0A82\u0A9F\u0AA3\u0AC0 \u0A95\u0ABE\u0AB0\u0ACD\u0AA1", "\u0A9A\u0AC1\u0A82\u0A9F\u0AA3\u0AC0", "\u0A9A\u0AC1\u0A82\u0A9F\u0AA3\u0AC0 \u0A95\u0ABE\u0AB0\u0ACD\u0AA1"],
+  "\u0AA1\u0ACB\u0A95\u0ACD\u0AAF\u0AC1\u0AAE\u0AC7\u0AA8\u0ACD\u0A9F": ["\u0AA6\u0AB8\u0ACD\u0AA4\u0ABE\u0AB5\u0AC7\u0A9C", "documents", "document"],
   "\u0A86\u0AA7\u0ABE\u0AB0": ["aadhaar", "uidai", "aadhar", "\u0A86\u0AA7\u0ABE\u0AB0 \u0A95\u0ABE\u0AB0\u0ACD\u0AA1"],
   "pan": ["pan card", "\u0AAA\u0AC7\u0AA8", "income tax", "itr"],
   "\u0AAA\u0ABE\u0AB8\u0AAA\u0ACB\u0AB0\u0ACD\u0A9F": ["passport", "psk"],
@@ -77,41 +78,64 @@ const SYNONYM_MAP: Record<string, string[]> = {
 
 // ── Retrieval: split KB into sections, score and return top matches ─────────
 function retrieveContext(query: string, maxChars = 3000): string {
-  const q = query.toLowerCase();
-  const qWords = q.split(/\s+/).filter(w => w.length > 1);
+  const qNorm = query.normalize('NFC').toLowerCase();
+  const qWords = (qNorm.match(/[\p{L}\p{M}\p{N}]+/gu) || []).filter(w => w.length > 1);
 
-  // Expand query with synonyms
-  const expandedTerms = new Set(qWords);
+  const expandedTerms = new Set<string>(qWords);
   for (const [key, synonyms] of Object.entries(SYNONYM_MAP)) {
-    const allTerms = [key, ...synonyms];
-    if (allTerms.some(t => q.includes(t.toLowerCase()))) {
-      allTerms.forEach(t => expandedTerms.add(t.toLowerCase()));
+    const allTerms = [key, ...synonyms].map(t => t.normalize('NFC').toLowerCase());
+    if (allTerms.some(t => qNorm.includes(t))) {
+      allTerms.forEach(t => expandedTerms.add(t));
     }
   }
 
-  const sections = SAHAYAK_KNOWLEDGE
-    .split(/\n(?=##\s)/)
-    .filter(s => s.trim().length > 20);
+  // Split on ## and ###
+  let rawSections = SAHAYAK_KNOWLEDGE.normalize('NFC').split(/\n(?=#{2,3}\s)/).filter(s => s.trim().length > 20);
+
+  // Chunk sections > 1500 chars
+  const chunkedSections: string[] = [];
+  for (const sec of rawSections) {
+    if (sec.length <= 1500) {
+      chunkedSections.push(sec);
+    } else {
+      let currentChunk = "";
+      const lines = sec.split('\n');
+      for (const line of lines) {
+        if (currentChunk.length + line.length > 1500 && currentChunk.length > 0) {
+          chunkedSections.push(currentChunk);
+          currentChunk = line;
+        } else {
+          currentChunk += (currentChunk ? "\n" : "") + line;
+        }
+      }
+      if (currentChunk) chunkedSections.push(currentChunk);
+    }
+  }
 
   function score(section: string): number {
-    const sLow = section.toLowerCase();
+    const lines = section.split('\n');
+    const heading = lines[0].toLowerCase();
+    const body = lines.slice(1).join('\n').toLowerCase();
+    
     let sc = 0;
-    for (const term of expandedTerms) {
-      if (sLow.includes(term)) sc += (term.length > 4 ? 2 : 1);
+    for (const term of Array.from(expandedTerms)) {
+      if (heading.includes(term)) sc += (term.length > 3 ? 6 : 3); // Heading x3 weight
+      if (body.includes(term)) sc += (term.length > 3 ? 2 : 1);
     }
     return sc;
   }
 
-  const ranked = sections
+  const ranked = chunkedSections
     .map(s => ({ s, sc: score(s) }))
     .filter(x => x.sc > 0)
     .sort((a, b) => b.sc - a.sc);
 
+  (globalThis as any).__sahayakRankedSections = ranked.slice(0, 3).map(r => ({ heading: r.s.split('\n')[0].substring(0, 50), score: r.sc }));
+
   if (ranked.length === 0) return "";
 
-  // Take top 1-2 sections up to maxChars
   let combined = "";
-  for (const item of ranked.slice(0, 2)) {
+  for (const item of ranked.slice(0, 3)) {
     const section = item.s.trim();
     if (combined.length + section.length > maxChars) {
       const remaining = maxChars - combined.length;
@@ -216,7 +240,7 @@ const SYSTEM_PROMPT = `You are "Smit AI Sahayak", the official assistant of Smit
 2. Clean, professional Gujarati only (English for technical terms). Plain text, no markdown symbols.
 3. Never write phone, helpline or toll-free numbers.
 4. Never write a URL, email or link unless it is in CONTEXT verbatim. Never write a footer.
-5. If CONTEXT lacks the answer, reply exactly: "\u0A86 \u0AB5\u0ABF\u0AB7\u0AAF\u0AA8\u0AC0 verified \u0AAE\u0ABE\u0AB9\u0ABF\u0AA4\u0AC0 \u0AB9\u0ABE\u0AB2 \u0A89\u0AAA\u0AB2\u0AAC\u0ACD\u0AA7 \u0AA8\u0AA5\u0AC0." Never use memory for fees, dates, forms, laws or links.
+5. If CONTEXT has the answer, use it. If CONTEXT lacks the answer BUT the user is asking about a general government service, form, or procedure (like Voter ID / ચૂંટણી કાર્ડ), you MAY use your internal verified training data to provide a factual, step-by-step guide. If the topic is completely unknown, reply exactly: "\u0A86 \u0AB5\u0ABF\u0AB7\u0AAF\u0AA8\u0AC0 verified \u0AAE\u0ABE\u0AB9\u0ABF\u0AA4\u0AC0 \u0AB9\u0ABE\u0AB2 \u0A89\u0AAA\u0AB2\u0AAC\u0ACD\u0AA7 \u0AA8\u0AA5\u0AC0." NEVER invent URLs, helplines, fees, or dates from internal memory.
 6. Affidavit/application: draft in Gujarati ONLY from a template in CONTEXT; no invented legal text.
 7. Be brief: steps, documents, official link (if in CONTEXT).`;
 
@@ -297,6 +321,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
     const contextBlock = context
       ? `\n\nCONTEXT:\n${context}`
       : "\n\nCONTEXT: No specific information available for this query.";
+    if (!context) { (req as any)._sahayakReason = "no_match"; }
 
     const fullPrompt = SYSTEM_PROMPT + contextBlock + "\n\nUser is a Prime member. Provide priority support.";
 
@@ -308,15 +333,28 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
       : [];
 
     // ── Helper: send filtered reply ───────────────────────────────────────
-    const sendReply = (rawReply: string) => {
+    const sendReply = (rawReply: string, providerInfo: any = { provider: "unknown", status: "ok" }) => {
       let reply = postFilter(rawReply);
+      if (reply.includes("\u0A86 \u0AB5\u0ABF\u0AB7\u0AAF\u0AA8\u0AC0 verified \u0AAE\u0ABE\u0AB9\u0ABF\u0AA4\u0AC0 \u0AB9\u0ABE\u0AB2 \u0A89\u0AAA\u0AB2\u0AAC\u0ACD\u0AA7 \u0AA8\u0AA5\u0AC0.")) {
+        (req as any)._sahayakReason = "llm_said_unavailable";
+      }
       // Append document notice if applicable
       if (isDocumentQuery(trimmed) && !reply.includes(DOC_APPEND)) {
         reply += "\n\n" + DOC_APPEND;
       }
       // Append code-controlled footer
       reply += buildFooter();
-      res.json({ reply });
+      
+      const debugData: any = {};
+      if (req.headers['x-admin-token'] === 'smit-admin-debug' || (req.query as any).debug === 'true') {
+         debugData.debug = {
+            reason: (req as any)._sahayakReason || "ok",
+            provider: providerInfo.provider,
+            status: providerInfo.status || "ok",
+            matchedSections: (globalThis as any).__sahayakRankedSections || []
+         };
+      }
+      res.json({ reply, ...debugData });
     };
 
     // ── External Backend Attempt ──────────────────────────────────────────
@@ -333,7 +371,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
         if (upstream.ok) {
           const json = (await upstream.json()) as any;
           if (json?.reply) {
-            sendReply(json.reply);
+            sendReply(json.reply, { provider: "external", status: "ok" });
             return;
           }
           logger.warn("sahayak external: empty reply — falling through to built-in AI");
@@ -396,7 +434,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
             const json = (await upstream.json()) as any;
             const reply = (json?.choices?.[0]?.message?.content as string) ?? "";
             if (reply) {
-              sendReply(reply);
+              sendReply(reply, { provider: "sambanova", status: "ok" });
               sambaSuccess = true;
               break;
             }
@@ -452,7 +490,7 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
             const json = (await upstream.json()) as any;
             const reply = json?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text ?? "").join("") ?? "";
             if (reply) {
-              sendReply(reply);
+              sendReply(reply, { provider: "gemini", status: "ok" });
               geminiSuccess = true;
               break;
             }
@@ -471,10 +509,9 @@ router.post("/sahayak/chat", optionalAuth, async (req: AuthRequest, res): Promis
 
     // ── All providers exhausted — fixed reply, NEVER raw KB ──────────────
     logger.warn("sahayak: All AI providers failed — returning fixed reply");
-    const fallbackReply = context
-      ? FIXED_NO_INFO
-      : FIXED_NO_INFO;
-    sendReply(fallbackReply);
+    const fallbackReply = FIXED_NO_INFO;
+    (req as any)._sahayakReason = "llm_error";
+    sendReply(fallbackReply, { provider: "fallback", status: "all_providers_failed" });
 
   } catch (unexpectedErr) {
     logger.error({ err: unexpectedErr }, "sahayak: unexpected top-level error");
